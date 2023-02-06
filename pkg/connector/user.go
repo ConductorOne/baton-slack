@@ -39,7 +39,8 @@ func (o *userResourceType) List(ctx context.Context, parentResourceID *v2.Resour
 
 	var rv []*v2.Resource
 	for _, user := range users {
-		ur, err := userResource(ctx, &user, parentResourceID)
+		userCopy := user
+		ur, err := userResource(ctx, &userCopy, parentResourceID)
 		if err != nil {
 			return nil, "", nil, err
 		}

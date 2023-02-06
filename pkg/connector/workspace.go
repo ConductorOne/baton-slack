@@ -111,8 +111,6 @@ func (o *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resourc
 			roleName = owner
 		case user.IsAdmin:
 			roleName = admin
-		case user.IsAdmin:
-			roleName = admin
 		case user.IsRestricted:
 			roleName = multiChannelGuest
 		case user.IsUltraRestricted:
@@ -124,8 +122,8 @@ func (o *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resourc
 		default:
 			roleName = member
 		}
-
-		ur, err := userResource(ctx, &user, resource.Id)
+		userCopy := user
+		ur, err := userResource(ctx, &userCopy, resource.Id)
 		if err != nil {
 			return nil, "", nil, err
 		}
@@ -147,7 +145,11 @@ func workspaceResource(ctx context.Context, workspace slack.Team) (*v2.Resource,
 		resource.WithGroupProfile(profile),
 	}
 	workspaceOptions := []resource.ResourceOption{
-		resource.WithAnnotation(&v2.ChildResourceType{ResourceTypeId: resourceTypeUser.Id}, &v2.ChildResourceType{ResourceTypeId: resourceTypeUserGroup.Id}, &v2.ChildResourceType{ResourceTypeId: resourceTypeChannel.Id}),
+		resource.WithAnnotation(
+			&v2.ChildResourceType{ResourceTypeId: resourceTypeUser.Id},
+			&v2.ChildResourceType{ResourceTypeId: resourceTypeUserGroup.Id},
+			&v2.ChildResourceType{ResourceTypeId: resourceTypeChannel.Id},
+		),
 	}
 
 	ret, err := resource.NewGroupResource(workspace.Name, resourceTypeWorkspace, workspace.ID, groupTrait, workspaceOptions...)

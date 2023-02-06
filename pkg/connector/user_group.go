@@ -85,7 +85,6 @@ func (o *userGroupResourceType) Grants(ctx context.Context, resource *v2.Resourc
 
 		grant := grant.NewGrant(resource, memberEntitlement, ur.Id)
 		rv = append(rv, grant)
-
 	}
 
 	return rv, "", nil, nil
