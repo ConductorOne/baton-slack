@@ -33,34 +33,51 @@ func channelBuilder(client *slack.Client, channels []string) *channelResourceTyp
 	}
 }
 
+// Create a new connector resource for a Slack channel.
+func channelResource(ctx context.Context, channel slack.Channel, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
+	profile := make(map[string]interface{})
+	profile["channel_id"] = channel.ID
+	profile["channel_name"] = channel.Name
+
+	groupTrait := []resource.GroupTraitOption{resource.WithGroupProfile(profile)}
+	ret, err := resource.NewGroupResource(channel.Name, resourceTypeChannel, channel.ID, groupTrait, resource.WithParentResourceID(parentResourceID))
+	if err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
 func (o *channelResourceType) List(ctx context.Context, parentResourceID *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	if parentResourceID == nil {
 		return nil, "", nil, nil
 	}
 
-	var defaultChannels []string
+	var allChannels []string
 
 	userGroups, err := o.client.GetUserGroupsContext(ctx)
 	if err != nil {
 		return nil, "", nil, err
 	}
 
+	// append if user passed additional channels.
 	if o.channels != nil {
-		defaultChannels = append(defaultChannels, o.channels...)
+		allChannels = append(allChannels, o.channels...)
 	}
 
+	// get default channels and groups from user groups.
 	for _, userGroup := range userGroups {
-		defaultChannels = append(defaultChannels, userGroup.Prefs.Channels...)
-		defaultChannels = append(defaultChannels, userGroup.Prefs.Groups...)
+		allChannels = append(allChannels, userGroup.Prefs.Channels...)
+		allChannels = append(allChannels, userGroup.Prefs.Groups...)
 	}
 
-	rv := make([]*v2.Resource, 0, len(defaultChannels))
-	for _, defaultChannel := range defaultChannels {
-		channel, err := o.client.GetConversationInfoContext(ctx, &slack.GetConversationInfoInput{ChannelID: defaultChannel})
+	rv := make([]*v2.Resource, 0, len(allChannels))
+	for _, channel := range allChannels {
+		channelInfo, err := o.client.GetConversationInfoContext(ctx, &slack.GetConversationInfoInput{ChannelID: channel})
 		if err != nil {
 			return nil, "", nil, err
 		}
-		cr, err := channelResource(ctx, *channel, parentResourceID)
+		cr, err := channelResource(ctx, *channelInfo, parentResourceID)
 		if err != nil {
 			return nil, "", nil, err
 		}
@@ -113,18 +130,4 @@ func (o *channelResourceType) Grants(ctx context.Context, resource *v2.Resource,
 	}
 
 	return rv, "", nil, nil
-}
-
-func channelResource(ctx context.Context, channel slack.Channel, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
-	profile := make(map[string]interface{})
-	profile["channel_id"] = channel.ID
-	profile["channel_name"] = channel.Name
-
-	groupTrait := []resource.GroupTraitOption{resource.WithGroupProfile(profile)}
-	ret, err := resource.NewGroupResource(channel.Name, resourceTypeChannel, channel.ID, groupTrait, resource.WithParentResourceID(parentResourceID))
-	if err != nil {
-		return nil, err
-	}
-
-	return ret, nil
 }

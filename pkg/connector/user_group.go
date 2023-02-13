@@ -29,6 +29,22 @@ func userGroupBuilder(client *slack.Client) *userGroupResourceType {
 	}
 }
 
+// Create a new connector resource for a Slack user group.
+func userGroupResource(ctx context.Context, userGroup slack.UserGroup, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
+	profile := make(map[string]interface{})
+	profile["userGroup_id"] = userGroup.ID
+	profile["userGroup_name"] = userGroup.Name
+	profile["userGroup_handle"] = userGroup.Handle
+
+	groupTrait := []resource.GroupTraitOption{resource.WithGroupProfile(profile)}
+	ret, err := resource.NewGroupResource(userGroup.Name, resourceTypeUserGroup, userGroup.ID, groupTrait, resource.WithParentResourceID(parentResourceID))
+	if err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
 func (o *userGroupResourceType) List(ctx context.Context, parentResourceID *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	if parentResourceID == nil {
 		return nil, "", nil, nil
@@ -88,19 +104,4 @@ func (o *userGroupResourceType) Grants(ctx context.Context, resource *v2.Resourc
 	}
 
 	return rv, "", nil, nil
-}
-
-func userGroupResource(ctx context.Context, userGroup slack.UserGroup, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
-	profile := make(map[string]interface{})
-	profile["userGroup_id"] = userGroup.ID
-	profile["userGroup_name"] = userGroup.Name
-	profile["userGroup_handle"] = userGroup.Handle
-
-	groupTrait := []resource.GroupTraitOption{resource.WithGroupProfile(profile)}
-	ret, err := resource.NewGroupResource(userGroup.Name, resourceTypeUserGroup, userGroup.ID, groupTrait, resource.WithParentResourceID(parentResourceID))
-	if err != nil {
-		return nil, err
-	}
-
-	return ret, nil
 }

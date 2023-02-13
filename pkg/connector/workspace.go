@@ -51,6 +51,32 @@ func workspaceBuilder(client *slack.Client) *workspaceResourceType {
 	}
 }
 
+// Create a new connector resource for a Slack workspace.
+func workspaceResource(ctx context.Context, workspace slack.Team) (*v2.Resource, error) {
+	profile := make(map[string]interface{})
+	profile["workspace_id"] = workspace.ID
+	profile["workspace_name"] = workspace.Name
+	profile["workspace_domain"] = workspace.Domain
+
+	groupTrait := []resource.GroupTraitOption{
+		resource.WithGroupProfile(profile),
+	}
+	workspaceOptions := []resource.ResourceOption{
+		resource.WithAnnotation(
+			&v2.ChildResourceType{ResourceTypeId: resourceTypeUser.Id},
+			&v2.ChildResourceType{ResourceTypeId: resourceTypeUserGroup.Id},
+			&v2.ChildResourceType{ResourceTypeId: resourceTypeChannel.Id},
+		),
+	}
+
+	ret, err := resource.NewGroupResource(workspace.Name, resourceTypeWorkspace, workspace.ID, groupTrait, workspaceOptions...)
+	if err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
 func (o *workspaceResourceType) List(ctx context.Context, resourceId *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
 	bag, err := parsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id})
 	if err != nil {
@@ -133,29 +159,4 @@ func (o *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resourc
 	}
 
 	return rv, "", nil, nil
-}
-
-func workspaceResource(ctx context.Context, workspace slack.Team) (*v2.Resource, error) {
-	profile := make(map[string]interface{})
-	profile["workspace_id"] = workspace.ID
-	profile["workspace_name"] = workspace.Name
-	profile["workspace_domain"] = workspace.Domain
-
-	groupTrait := []resource.GroupTraitOption{
-		resource.WithGroupProfile(profile),
-	}
-	workspaceOptions := []resource.ResourceOption{
-		resource.WithAnnotation(
-			&v2.ChildResourceType{ResourceTypeId: resourceTypeUser.Id},
-			&v2.ChildResourceType{ResourceTypeId: resourceTypeUserGroup.Id},
-			&v2.ChildResourceType{ResourceTypeId: resourceTypeChannel.Id},
-		),
-	}
-
-	ret, err := resource.NewGroupResource(workspace.Name, resourceTypeWorkspace, workspace.ID, groupTrait, workspaceOptions...)
-	if err != nil {
-		return nil, err
-	}
-
-	return ret, nil
 }

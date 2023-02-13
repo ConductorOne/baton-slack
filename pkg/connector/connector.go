@@ -49,12 +49,14 @@ var (
 	}
 )
 
+// Metadata returns metadata about the connector.
 func (c *Slack) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
 	return &v2.ConnectorMetadata{
 		DisplayName: "Slack",
 	}, nil
 }
 
+// Validate hits the Slack API to validate that the authenticated user has needed permissions.
 func (s *Slack) Validate(ctx context.Context) (annotations.Annotations, error) {
 	res, err := s.client.AuthTestContext(ctx)
 	if err != nil {
@@ -73,6 +75,7 @@ func (s *Slack) Validate(ctx context.Context) (annotations.Annotations, error) {
 	return nil, nil
 }
 
+// New returns the Slack connector.
 func New(ctx context.Context, apiKey string, channels []string) (*Slack, error) {
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
 	if err != nil {

@@ -19,6 +19,31 @@ func (o *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return o.resourceType
 }
 
+// Create a new connector resource for a Slack user.
+func userResource(ctx context.Context, user *slack.User, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
+	profile := make(map[string]interface{})
+	profile["first_name"] = user.Profile.FirstName
+	profile["last_name"] = user.Profile.LastName
+	profile["login"] = user.Profile.Email
+	profile["workspace"] = user.Profile.Team
+	profile["user_id"] = user.ID
+
+	var userStatus v2.UserTrait_Status_Status
+	if user.Deleted {
+		userStatus = v2.UserTrait_Status_STATUS_DELETED
+	} else {
+		userStatus = v2.UserTrait_Status_STATUS_ENABLED
+	}
+
+	userTraitOptions := []resource.UserTraitOption{resource.WithUserProfile(profile), resource.WithEmail(user.Profile.Email, true), resource.WithStatus(userStatus)}
+	ret, err := resource.NewUserResource(user.Name, resourceTypeUser, user.ID, userTraitOptions, resource.WithParentResourceID(parentResourceID))
+	if err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
 func (o *userResourceType) Entitlements(_ context.Context, _ *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	return nil, "", nil, nil
 }
@@ -48,30 +73,6 @@ func (o *userResourceType) List(ctx context.Context, parentResourceID *v2.Resour
 	}
 
 	return rv, "", nil, nil
-}
-
-func userResource(ctx context.Context, user *slack.User, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
-	profile := make(map[string]interface{})
-	profile["first_name"] = user.Profile.FirstName
-	profile["last_name"] = user.Profile.LastName
-	profile["login"] = user.Profile.Email
-	profile["workspace"] = user.Profile.Team
-	profile["user_id"] = user.ID
-
-	var userStatus v2.UserTrait_Status_Status
-	if user.Deleted {
-		userStatus = v2.UserTrait_Status_STATUS_DELETED
-	} else {
-		userStatus = v2.UserTrait_Status_STATUS_ENABLED
-	}
-
-	userTraitOptions := []resource.UserTraitOption{resource.WithUserProfile(profile), resource.WithEmail(user.Profile.Email, true), resource.WithStatus(userStatus)}
-	ret, err := resource.NewUserResource(user.Name, resourceTypeUser, user.ID, userTraitOptions, resource.WithParentResourceID(parentResourceID))
-	if err != nil {
-		return nil, err
-	}
-
-	return ret, nil
 }
 
 func userBuilder(client *slack.Client) *userResourceType {
