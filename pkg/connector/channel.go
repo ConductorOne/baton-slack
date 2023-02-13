@@ -18,16 +18,18 @@ var memberEntitlement = "member"
 type channelResourceType struct {
 	resourceType *v2.ResourceType
 	client       *slack.Client
+	channels     []string
 }
 
 func (o *channelResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return o.resourceType
 }
 
-func channelBuilder(client *slack.Client) *channelResourceType {
+func channelBuilder(client *slack.Client, channels []string) *channelResourceType {
 	return &channelResourceType{
 		resourceType: resourceTypeChannel,
 		client:       client,
+		channels:     channels,
 	}
 }
 
@@ -43,6 +45,10 @@ func (o *channelResourceType) List(ctx context.Context, parentResourceID *v2.Res
 		return nil, "", nil, err
 	}
 
+	if o.channels != nil {
+		defaultChannels = append(defaultChannels, o.channels...)
+	}
+
 	for _, userGroup := range userGroups {
 		defaultChannels = append(defaultChannels, userGroup.Prefs.Channels...)
 		defaultChannels = append(defaultChannels, userGroup.Prefs.Groups...)
@@ -50,7 +56,7 @@ func (o *channelResourceType) List(ctx context.Context, parentResourceID *v2.Res
 
 	rv := make([]*v2.Resource, 0, len(defaultChannels))
 	for _, defaultChannel := range defaultChannels {
-		channel, err := o.client.GetConversationInfo(&slack.GetConversationInfoInput{ChannelID: defaultChannel})
+		channel, err := o.client.GetConversationInfoContext(ctx, &slack.GetConversationInfoInput{ChannelID: defaultChannel})
 		if err != nil {
 			return nil, "", nil, err
 		}

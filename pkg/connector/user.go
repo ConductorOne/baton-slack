@@ -58,7 +58,14 @@ func userResource(ctx context.Context, user *slack.User, parentResourceID *v2.Re
 	profile["workspace"] = user.Profile.Team
 	profile["user_id"] = user.ID
 
-	userTraitOptions := []resource.UserTraitOption{resource.WithUserProfile(profile), resource.WithEmail(user.Profile.Email, true), resource.WithStatus(v2.UserTrait_Status_STATUS_ENABLED)}
+	var userStatus v2.UserTrait_Status_Status
+	if user.Deleted {
+		userStatus = v2.UserTrait_Status_STATUS_DELETED
+	} else {
+		userStatus = v2.UserTrait_Status_STATUS_ENABLED
+	}
+
+	userTraitOptions := []resource.UserTraitOption{resource.WithUserProfile(profile), resource.WithEmail(user.Profile.Email, true), resource.WithStatus(userStatus)}
 	ret, err := resource.NewUserResource(user.Name, resourceTypeUser, user.ID, userTraitOptions, resource.WithParentResourceID(parentResourceID))
 	if err != nil {
 		return nil, err

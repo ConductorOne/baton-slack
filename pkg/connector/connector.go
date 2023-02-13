@@ -13,8 +13,9 @@ import (
 )
 
 type Slack struct {
-	client *slack.Client
-	apiKey string
+	client   *slack.Client
+	apiKey   string
+	channels []string
 }
 
 var (
@@ -72,7 +73,7 @@ func (s *Slack) Validate(ctx context.Context) (annotations.Annotations, error) {
 	return nil, nil
 }
 
-func New(ctx context.Context, apiKey string) (*Slack, error) {
+func New(ctx context.Context, apiKey string, channels []string) (*Slack, error) {
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
 	if err != nil {
 		return nil, err
@@ -80,15 +81,16 @@ func New(ctx context.Context, apiKey string) (*Slack, error) {
 
 	client := slack.New(apiKey, slack.OptionDebug(true), slack.OptionHTTPClient(httpClient))
 	return &Slack{
-		client: client,
-		apiKey: apiKey,
+		client:   client,
+		apiKey:   apiKey,
+		channels: channels,
 	}, nil
 }
 
 func (s *Slack) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
 		userBuilder(s.client),
-		channelBuilder(s.client),
+		channelBuilder(s.client, s.channels),
 		workspaceBuilder(s.client),
 		userGroupBuilder(s.client),
 	}
