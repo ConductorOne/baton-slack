@@ -5,36 +5,96 @@ import (
 	"fmt"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
+	"github.com/conductorone/baton-sdk/pkg/annotations"
+	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"github.com/slack-go/slack"
 )
 
-// TODO: implement your connector here
-type connectorImpl struct {
+type Slack struct {
+	client   *slack.Client
+	apiKey   string
+	channels []string
 }
 
-func (c *connectorImpl) ListResourceTypes(ctx context.Context, req *v2.ResourceTypesServiceListResourceTypesRequest) (*v2.ResourceTypesServiceListResourceTypesResponse, error) {
-	return nil, fmt.Errorf("not implemented")
+var (
+	resourceTypeUser = &v2.ResourceType{
+		Id:          "user",
+		DisplayName: "User",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_USER,
+		},
+	}
+	resourceTypeChannel = &v2.ResourceType{
+		Id:          "channel",
+		DisplayName: "Channel",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_GROUP,
+		},
+	}
+	resourceTypeWorkspace = &v2.ResourceType{
+		Id:          "workspace",
+		DisplayName: "Workspace",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_GROUP,
+		},
+	}
+	resourceTypeUserGroup = &v2.ResourceType{
+		Id:          "userGroup",
+		DisplayName: "User Group",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_GROUP,
+		},
+	}
+)
+
+// Metadata returns metadata about the connector.
+func (c *Slack) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
+	return &v2.ConnectorMetadata{
+		DisplayName: "Slack",
+	}, nil
 }
 
-func (c *connectorImpl) ListResources(ctx context.Context, req *v2.ResourcesServiceListResourcesRequest) (*v2.ResourcesServiceListResourcesResponse, error) {
-	return nil, fmt.Errorf("not implemented")
+// Validate hits the Slack API to validate that the authenticated user has needed permissions.
+func (s *Slack) Validate(ctx context.Context) (annotations.Annotations, error) {
+	res, err := s.client.AuthTestContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("slack-connector: failed to authenticate. Error: %w", err)
+	}
+
+	user, err := s.client.GetUserInfoContext(ctx, res.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("slack-connector: failed to retrieve authenticated user. Error: %w", err)
+	}
+
+	isValidUser := user.IsAdmin || user.IsOwner || user.IsPrimaryOwner || user.IsBot
+	if !isValidUser {
+		return nil, fmt.Errorf("slack-connector: authenticated user is not an admin, owner, primary owner or a bot")
+	}
+	return nil, nil
 }
 
-func (c *connectorImpl) ListEntitlements(ctx context.Context, req *v2.EntitlementsServiceListEntitlementsRequest) (*v2.EntitlementsServiceListEntitlementsResponse, error) {
-	return nil, fmt.Errorf("not implemented")
+// New returns the Slack connector.
+func New(ctx context.Context, apiKey string, channels []string) (*Slack, error) {
+	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
+	if err != nil {
+		return nil, err
+	}
+
+	client := slack.New(apiKey, slack.OptionDebug(true), slack.OptionHTTPClient(httpClient))
+	return &Slack{
+		client:   client,
+		apiKey:   apiKey,
+		channels: channels,
+	}, nil
 }
 
-func (c *connectorImpl) ListGrants(ctx context.Context, req *v2.GrantsServiceListGrantsRequest) (*v2.GrantsServiceListGrantsResponse, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (c *connectorImpl) GetMetadata(ctx context.Context, req *v2.ConnectorServiceGetMetadataRequest) (*v2.ConnectorServiceGetMetadataResponse, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (c *connectorImpl) Validate(ctx context.Context, req *v2.ConnectorServiceValidateRequest) (*v2.ConnectorServiceValidateResponse, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
-func (c *connectorImpl) GetAsset(req *v2.AssetServiceGetAssetRequest, server v2.AssetService_GetAssetServer) error {
-	return fmt.Errorf("not implemented")
+func (s *Slack) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
+	return []connectorbuilder.ResourceSyncer{
+		userBuilder(s.client),
+		channelBuilder(s.client, s.channels),
+		workspaceBuilder(s.client),
+		userGroupBuilder(s.client),
+	}
 }
