@@ -1,12 +1,13 @@
-`baton-slack` is a connector for Slack built using the [Baton SDK](https://github.com/conductorone/baton-sdk). It communicates with the Slack API to sync data about workspaces, users, user groups and channels.
+`baton-slack` is a connector for Slack built using the [Baton SDK](https://github.com/conductorone/baton-sdk). It communicates with the Slack API to sync data about workspaces, users, user groups, and channels.
 
 Check out [Baton](https://github.com/conductorone/baton) to learn more the project in general.
 
 # Getting Started
 
 ## Prerequisites
-1. Create a Slack app. You can follow [this](https://api.slack.com/authentication/basics) guide.
-2. Set needed scopes for the app (Bot Token Scopes): 
+
+1. Create a Slack app. You can follow [this guide](https://api.slack.com/authentication/basics).
+2. Set needed Bot Token Scopes for the app: 
   - channels:join
   - channels:read
   - groups:read
@@ -16,7 +17,8 @@ Check out [Baton](https://github.com/conductorone/baton) to learn more the proje
   - users:read
   - users:read.email
 3. Install the app to your workspace.
-4. Use Bot User OAuth Token as token in baton-slack
+4. Use Bot User OAuth Token as token in `baton-slack`.
+
 ## brew
 
 ```
@@ -44,15 +46,15 @@ baton resources
 
 # Data Model
 
-`baton-slack` will pull down information about the following Slack resources:
+`baton-slack` pulls down information about the following Slack resources:
 - Workspace
 - Users
 - User Groups
 - Channels
 
-By default, baton-slack will sync information about default channels of user groups. You can specify additional channels you would like to sync using the --channel-ids flag.
+By default, `baton-slack` will sync information about default channels of user groups. You can specify additional channels you would like to sync using the `--channel-ids` flag.
 
-# Contributing, Support and Issues
+# Contributing, Support, and Issues
 
 We started Baton because we were tired of taking screenshots and manually building spreadsheets. We welcome contributions, and ideas, no matter how small -- our goal is to make identity and permissions sprawl less painful for everyone. If you have questions, problems, or ideas: Please open a Github Issue!
 
