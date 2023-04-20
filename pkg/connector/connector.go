@@ -25,13 +25,6 @@ var (
 			v2.ResourceType_TRAIT_USER,
 		},
 	}
-	resourceTypeChannel = &v2.ResourceType{
-		Id:          "channel",
-		DisplayName: "Channel",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_GROUP,
-		},
-	}
 	resourceTypeWorkspace = &v2.ResourceType{
 		Id:          "workspace",
 		DisplayName: "Workspace",

@@ -13,6 +13,8 @@ import (
 	"github.com/slack-go/slack"
 )
 
+const memberEntitlement = "member"
+
 type workspaceResourceType struct {
 	resourceType *v2.ResourceType
 	client       *slack.Client
