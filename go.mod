@@ -1,6 +1,6 @@
 module github.com/ConductorOne/baton-slack
 
-go 1.19
+go 1.20
 
 require (
 	github.com/conductorone/baton-sdk v0.0.26
