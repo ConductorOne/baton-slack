@@ -2,11 +2,14 @@ package connector
 
 import (
 	"context"
+	"fmt"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
-	resource "github.com/conductorone/baton-sdk/pkg/types/resource"
+	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
+	"github.com/conductorone/baton-sdk/pkg/types/grant"
+	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/slack-go/slack"
 )
 
@@ -33,18 +36,18 @@ func workspaceResource(ctx context.Context, workspace slack.Team) (*v2.Resource,
 	profile["workspace_name"] = workspace.Name
 	profile["workspace_domain"] = workspace.Domain
 
-	groupTrait := []resource.GroupTraitOption{
-		resource.WithGroupProfile(profile),
+	groupTrait := []resources.GroupTraitOption{
+		resources.WithGroupProfile(profile),
 	}
-	workspaceOptions := []resource.ResourceOption{
-		resource.WithAnnotation(
+	workspaceOptions := []resources.ResourceOption{
+		resources.WithAnnotation(
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeWorkspaceRole.Id},
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUser.Id},
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUserGroup.Id},
 		),
 	}
 
-	ret, err := resource.NewGroupResource(workspace.Name, resourceTypeWorkspace, workspace.ID, groupTrait, workspaceOptions...)
+	ret, err := resources.NewGroupResource(workspace.Name, resourceTypeWorkspace, workspace.ID, groupTrait, workspaceOptions...)
 	if err != nil {
 		return nil, err
 	}
@@ -81,9 +84,38 @@ func (o *workspaceResourceType) List(ctx context.Context, resourceId *v2.Resourc
 }
 
 func (o *workspaceResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+	var rv []*v2.Entitlement
+
+	assigmentOptions := []ent.EntitlementOption{
+		ent.WithGrantableTo(resourceTypeUser),
+		ent.WithDescription(fmt.Sprintf("Member of the %s workspace", resource.DisplayName)),
+		ent.WithDisplayName(fmt.Sprintf("%s workspace member", resource.DisplayName)),
+	}
+
+	en := ent.NewAssignmentEntitlement(resource, memberEntitlement, assigmentOptions...)
+	rv = append(rv, en)
+
+	return rv, "", nil, nil
 }
 
 func (o *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+	users, err := o.client.GetUsersContext(ctx)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	var rv []*v2.Grant
+	for _, user := range users {
+		if user.IsStranger {
+			continue
+		}
+		userID, err := resources.NewResourceID(resourceTypeUser, user.ID)
+		if err != nil {
+			return nil, "", nil, err
+		}
+
+		rv = append(rv, grant.NewGrant(resource, memberEntitlement, userID))
+	}
+
+	return rv, "", nil, nil
 }

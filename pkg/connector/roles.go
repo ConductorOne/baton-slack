@@ -109,6 +109,10 @@ func (o *workspaceRoleType) Grants(ctx context.Context, resource *v2.Resource, p
 		case "multi_channel_guest":
 			if !user.IsRestricted {
 				continue
+			} else {
+				if user.IsUltraRestricted {
+					continue
+				}
 			}
 
 		case "single_channel_guest":
