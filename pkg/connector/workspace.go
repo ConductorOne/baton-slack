@@ -65,7 +65,6 @@ func workspaceResource(ctx context.Context, workspace slack.Team) (*v2.Resource,
 		resource.WithAnnotation(
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUser.Id},
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUserGroup.Id},
-			&v2.ChildResourceType{ResourceTypeId: resourceTypeChannel.Id},
 		),
 	}
 
