@@ -2,38 +2,13 @@ package connector
 
 import (
 	"context"
-	"fmt"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
-	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
-	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	resource "github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/slack-go/slack"
 )
-
-const (
-	primaryOwner       = "Primary Owner"
-	owner              = "Owner"
-	admin              = "Admin"
-	member             = "Member"
-	multiChannelGuest  = "Multi Channel Guest"
-	signleChannelGuest = "Single Channel Guest"
-	invitedMember      = "Invited member"
-	bot                = "Bot"
-)
-
-var roles = []string{
-	primaryOwner,
-	owner,
-	admin,
-	member,
-	multiChannelGuest,
-	signleChannelGuest,
-	invitedMember,
-	bot,
-}
 
 type workspaceResourceType struct {
 	resourceType *v2.ResourceType
@@ -63,6 +38,7 @@ func workspaceResource(ctx context.Context, workspace slack.Team) (*v2.Resource,
 	}
 	workspaceOptions := []resource.ResourceOption{
 		resource.WithAnnotation(
+			&v2.ChildResourceType{ResourceTypeId: resourceTypeWorkspaceRole.Id},
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUser.Id},
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUserGroup.Id},
 		),
@@ -105,57 +81,9 @@ func (o *workspaceResourceType) List(ctx context.Context, resourceId *v2.Resourc
 }
 
 func (o *workspaceResourceType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
-	var rv []*v2.Entitlement
-	for _, role := range roles {
-		permissionOptions := []ent.EntitlementOption{
-			ent.WithGrantableTo(resourceTypeUser),
-			ent.WithDescription(fmt.Sprintf("Role in %s Slack workspace", resource.DisplayName)),
-			ent.WithDisplayName(fmt.Sprintf("%s Workspace %s", resource.DisplayName, role)),
-		}
-
-		permissionEn := ent.NewPermissionEntitlement(resource, role, permissionOptions...)
-		rv = append(rv, permissionEn)
-	}
-	return rv, "", nil, nil
+	return nil, "", nil, nil
 }
 
 func (o *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	users, err := o.client.GetUsersContext(ctx)
-	if err != nil {
-		return nil, "", nil, err
-	}
-
-	var rv []*v2.Grant
-
-	for _, user := range users {
-		var roleName string
-		switch {
-		case user.IsPrimaryOwner:
-			roleName = primaryOwner
-		case user.IsOwner:
-			roleName = owner
-		case user.IsAdmin:
-			roleName = admin
-		case user.IsRestricted:
-			roleName = multiChannelGuest
-		case user.IsUltraRestricted:
-			roleName = signleChannelGuest
-		case user.IsInvitedUser:
-			roleName = invitedMember
-		case user.IsBot:
-			roleName = bot
-		default:
-			roleName = member
-		}
-		userCopy := user
-		ur, err := userResource(ctx, &userCopy, resource.Id)
-		if err != nil {
-			return nil, "", nil, err
-		}
-
-		permissionGrant := grant.NewGrant(resource, roleName, ur.Id)
-		rv = append(rv, permissionGrant)
-	}
-
-	return rv, "", nil, nil
+	return nil, "", nil, nil
 }
