@@ -13,9 +13,8 @@ import (
 )
 
 type Slack struct {
-	client   *slack.Client
-	apiKey   string
-	channels []string
+	client *slack.Client
+	apiKey string
 }
 
 var (
@@ -24,13 +23,6 @@ var (
 		DisplayName: "User",
 		Traits: []v2.ResourceType_Trait{
 			v2.ResourceType_TRAIT_USER,
-		},
-	}
-	resourceTypeChannel = &v2.ResourceType{
-		Id:          "channel",
-		DisplayName: "Channel",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_GROUP,
 		},
 	}
 	resourceTypeWorkspace = &v2.ResourceType{
@@ -45,6 +37,14 @@ var (
 		DisplayName: "User Group",
 		Traits: []v2.ResourceType_Trait{
 			v2.ResourceType_TRAIT_GROUP,
+		},
+	}
+
+	resourceTypeWorkspaceRole = &v2.ResourceType{
+		Id:          "workspaceRole",
+		DisplayName: "Workspace Role",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_ROLE,
 		},
 	}
 )
@@ -76,7 +76,7 @@ func (s *Slack) Validate(ctx context.Context) (annotations.Annotations, error) {
 }
 
 // New returns the Slack connector.
-func New(ctx context.Context, apiKey string, channels []string) (*Slack, error) {
+func New(ctx context.Context, apiKey string) (*Slack, error) {
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
 	if err != nil {
 		return nil, err
@@ -84,17 +84,16 @@ func New(ctx context.Context, apiKey string, channels []string) (*Slack, error) 
 
 	client := slack.New(apiKey, slack.OptionDebug(true), slack.OptionHTTPClient(httpClient))
 	return &Slack{
-		client:   client,
-		apiKey:   apiKey,
-		channels: channels,
+		client: client,
+		apiKey: apiKey,
 	}, nil
 }
 
 func (s *Slack) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
 		userBuilder(s.client),
-		channelBuilder(s.client, s.channels),
 		workspaceBuilder(s.client),
 		userGroupBuilder(s.client),
+		workspaceRoleBuilder(s.client),
 	}
 }
