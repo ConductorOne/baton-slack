@@ -1,4 +1,4 @@
-module github.com/ConductorOne/baton-slack
+module github.com/conductorone/baton-slack
 
 go 1.20
 
