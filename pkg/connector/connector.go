@@ -53,6 +53,7 @@ var (
 func (c *Slack) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
 	return &v2.ConnectorMetadata{
 		DisplayName: "Slack",
+		Description: "Connector syncing users, workspaces, user groups and workspace roles from Slack to Baton.",
 	}, nil
 }
 
