@@ -16,6 +16,9 @@ func WithAnnotation(msgs ...proto.Message) ResourceOption {
 	return func(r *v2.Resource) error {
 		annos := annotations.Annotations(r.Annotations)
 		for _, msg := range msgs {
+			if msg == nil {
+				continue
+			}
 			annos.Append(msg)
 		}
 		r.Annotations = annos
@@ -27,6 +30,14 @@ func WithAnnotation(msgs ...proto.Message) ResourceOption {
 func WithParentResourceID(parentResourceID *v2.ResourceId) ResourceOption {
 	return func(r *v2.Resource) error {
 		r.ParentResourceId = parentResourceID
+
+		return nil
+	}
+}
+
+func WithDescription(description string) ResourceOption {
+	return func(r *v2.Resource) error {
+		r.Description = description
 
 		return nil
 	}

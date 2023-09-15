@@ -24,6 +24,7 @@ var (
 		Traits: []v2.ResourceType_Trait{
 			v2.ResourceType_TRAIT_USER,
 		},
+		Annotations: annotationsForUserResourceType(),
 	}
 	resourceTypeWorkspace = &v2.ResourceType{
 		Id:          "workspace",
@@ -53,6 +54,7 @@ var (
 func (c *Slack) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
 	return &v2.ConnectorMetadata{
 		DisplayName: "Slack",
+		Description: "Connector syncing users, workspaces, user groups and workspace roles from Slack to Baton.",
 	}, nil
 }
 
