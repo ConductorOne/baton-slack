@@ -52,7 +52,8 @@ func (o *userGroupResourceType) List(ctx context.Context, parentResourceID *v2.R
 
 	userGroups, err := o.client.GetUserGroupsContext(ctx, slack.GetUserGroupsOptionIncludeUsers(true))
 	if err != nil {
-		return nil, "", nil, err
+		annos, err := annotationsForError(err)
+		return nil, "", annos, err
 	}
 
 	rv := make([]*v2.Resource, 0, len(userGroups))
@@ -85,14 +86,16 @@ func (o *userGroupResourceType) Entitlements(ctx context.Context, resource *v2.R
 func (o *userGroupResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
 	groupMembers, err := o.client.GetUserGroupMembers(resource.Id.Resource)
 	if err != nil {
-		return nil, "", nil, err
+		annos, err := annotationsForError(err)
+		return nil, "", annos, err
 	}
 
 	var rv []*v2.Grant
 	for _, member := range groupMembers {
 		user, err := o.client.GetUserInfoContext(ctx, member)
 		if err != nil {
-			return nil, "", nil, err
+			annos, err := annotationsForError(err)
+			return nil, "", annos, err
 		}
 		ur, err := userResource(ctx, user, resource.Id)
 		if err != nil {

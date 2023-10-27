@@ -65,7 +65,8 @@ func (o *workspaceResourceType) List(ctx context.Context, resourceId *v2.Resourc
 
 	workspaces, nextCursor, err := o.client.ListTeams(slack.ListTeamsParameters{Cursor: bag.PageToken()})
 	if err != nil {
-		return nil, "", nil, err
+		annos, err := annotationsForError(err)
+		return nil, "", annos, err
 	}
 
 	pageToken, err := bag.NextToken(nextCursor)
@@ -103,7 +104,8 @@ func (o *workspaceResourceType) Entitlements(ctx context.Context, resource *v2.R
 func (o *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
 	users, err := o.client.GetUsersContext(ctx)
 	if err != nil {
-		return nil, "", nil, err
+		annos, err := annotationsForError(err)
+		return nil, "", annos, err
 	}
 
 	var rv []*v2.Grant
