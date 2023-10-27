@@ -54,7 +54,8 @@ func (o *userResourceType) Grants(ctx context.Context, resource *v2.Resource, pt
 
 	user, err := o.client.GetUserInfoContext(ctx, resource.Id.Resource)
 	if err != nil {
-		return nil, "", nil, err
+		annos, err := annotationsForError(err)
+		return nil, "", annos, err
 	}
 
 	var userRoles []*v2.Resource
@@ -129,7 +130,8 @@ func (o *userResourceType) List(ctx context.Context, parentResourceID *v2.Resour
 
 	users, err := o.client.GetUsersContext(ctx)
 	if err != nil {
-		return nil, "", nil, err
+		annos, err := annotationsForError(err)
+		return nil, "", annos, err
 	}
 
 	var rv []*v2.Resource
