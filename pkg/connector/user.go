@@ -28,6 +28,8 @@ func userResource(ctx context.Context, user *slack.User, parentResourceID *v2.Re
 	profile["login"] = user.Profile.Email
 	profile["workspace"] = user.Profile.Team
 	profile["user_id"] = user.ID
+	profile["status_text"] = user.Profile.StatusText
+	profile["status_emoji"] = user.Profile.StatusEmoji
 
 	var userStatus v2.UserTrait_Status_Status
 	if user.Deleted {
