@@ -28,12 +28,6 @@ func parsePageToken(i string, resourceID *v2.ResourceId) (*pagination.Bag, error
 	return b, nil
 }
 
-func annotationsForUserResourceType() annotations.Annotations {
-	annos := annotations.Annotations{}
-	annos.Update(&v2.SkipEntitlementsAndGrants{})
-	return annos
-}
-
 func annotationsForError(err error) (annotations.Annotations, error) {
 	annos := annotations.Annotations{}
 	var rateLimitErr *slack.RateLimitedError
