@@ -8,13 +8,16 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
+	enterprise "github.com/conductorone/baton-slack/pkg/slack"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
 )
 
 type Slack struct {
-	client *slack.Client
-	apiKey string
+	client           *slack.Client
+	apiKey           string
+	enterpriseClient *enterprise.Client
+	enterpriseID     string
 }
 
 var (
@@ -43,6 +46,13 @@ var (
 	resourceTypeWorkspaceRole = &v2.ResourceType{
 		Id:          "workspaceRole",
 		DisplayName: "Workspace Role",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_ROLE,
+		},
+	}
+	resourceTypeEnterpriseRole = &v2.ResourceType{
+		Id:          "enterpriseRole",
+		DisplayName: "Enterprise Role",
 		Traits: []v2.ResourceType_Trait{
 			v2.ResourceType_TRAIT_ROLE,
 		},
@@ -77,24 +87,39 @@ func (s *Slack) Validate(ctx context.Context) (annotations.Annotations, error) {
 }
 
 // New returns the Slack connector.
-func New(ctx context.Context, apiKey string) (*Slack, error) {
+func New(ctx context.Context, apiKey, enterpriseKey string) (*Slack, error) {
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
 	if err != nil {
 		return nil, err
 	}
 
 	client := slack.New(apiKey, slack.OptionDebug(true), slack.OptionHTTPClient(httpClient))
+
+	res, err := client.AuthTestContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("slack-connector: failed to authenticate. Error: %w", err)
+	}
+
+	var enterpriseId string
+	if res.EnterpriseID != "" {
+		enterpriseId = res.EnterpriseID
+	}
+	enterpriseClient := enterprise.NewClient(httpClient, enterpriseKey, apiKey, res.EnterpriseID)
+
 	return &Slack{
-		client: client,
-		apiKey: apiKey,
+		client:           client,
+		apiKey:           apiKey,
+		enterpriseClient: enterpriseClient,
+		enterpriseID:     enterpriseId,
 	}, nil
 }
 
 func (s *Slack) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
-		userBuilder(s.client),
-		workspaceBuilder(s.client),
-		userGroupBuilder(s.client),
+		userBuilder(s.client, s.enterpriseID, s.enterpriseClient),
+		workspaceBuilder(s.client, s.enterpriseID, s.enterpriseClient),
+		userGroupBuilder(s.client, s.enterpriseID, s.enterpriseClient),
 		workspaceRoleBuilder(s.client),
+		enterpriseRoleBuilder(s.enterpriseID, s.enterpriseClient),
 	}
 }

@@ -8,12 +8,15 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
+	enterprise "github.com/conductorone/baton-slack/pkg/slack"
 	"github.com/slack-go/slack"
 )
 
 type userResourceType struct {
-	resourceType *v2.ResourceType
-	client       *slack.Client
+	resourceType     *v2.ResourceType
+	client           *slack.Client
+	enterpriseID     string
+	enterpriseClient *enterprise.Client
 }
 
 func (o *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -54,7 +57,7 @@ func (o *userResourceType) Entitlements(_ context.Context, _ *v2.Resource, _ *pa
 func (o *userResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
 	var rv []*v2.Grant
 
-	user, err := o.client.GetUserInfoContext(ctx, resource.Id.Resource)
+	user, err := o.enterpriseClient.GetUserInfo(ctx, resource.Id.Resource)
 	if err != nil {
 		annos, err := annotationsForError(err)
 		return nil, "", annos, err
@@ -118,6 +121,32 @@ func (o *userResourceType) Grants(ctx context.Context, resource *v2.Resource, pt
 		userRoles = append(userRoles, rr)
 	}
 
+	if o.enterpriseID != "" {
+		if user.Enterprise.IsAdmin {
+			rr, err := enterpriseRoleResource(OrganizationAdminID, resource.ParentResourceId)
+			if err != nil {
+				return nil, "", nil, err
+			}
+			userRoles = append(userRoles, rr)
+		}
+
+		if user.Enterprise.IsOwner {
+			rr, err := enterpriseRoleResource(OrganizationOwnerID, resource.ParentResourceId)
+			if err != nil {
+				return nil, "", nil, err
+			}
+			userRoles = append(userRoles, rr)
+		}
+
+		if user.Enterprise.IsPrimaryOwner {
+			rr, err := enterpriseRoleResource(OrganizationPrimaryOwnerID, resource.ParentResourceId)
+			if err != nil {
+				return nil, "", nil, err
+			}
+			userRoles = append(userRoles, rr)
+		}
+	}
+
 	for _, ur := range userRoles {
 		rv = append(rv, grant.NewGrant(ur, RoleAssignmentEntitlement, resource.Id))
 	}
@@ -130,7 +159,7 @@ func (o *userResourceType) List(ctx context.Context, parentResourceID *v2.Resour
 		return nil, "", nil, nil
 	}
 
-	users, err := o.client.GetUsersContext(ctx)
+	users, err := o.client.GetUsersContext(ctx, slack.GetUsersOptionTeamID(parentResourceID.Resource))
 	if err != nil {
 		annos, err := annotationsForError(err)
 		return nil, "", annos, err
@@ -149,9 +178,11 @@ func (o *userResourceType) List(ctx context.Context, parentResourceID *v2.Resour
 	return rv, "", nil, nil
 }
 
-func userBuilder(client *slack.Client) *userResourceType {
+func userBuilder(client *slack.Client, enterpriseID string, enterpriseClient *enterprise.Client) *userResourceType {
 	return &userResourceType{
-		resourceType: resourceTypeUser,
-		client:       client,
+		resourceType:     resourceTypeUser,
+		client:           client,
+		enterpriseID:     enterpriseID,
+		enterpriseClient: enterpriseClient,
 	}
 }

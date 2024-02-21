@@ -10,22 +10,27 @@ import (
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	grant "github.com/conductorone/baton-sdk/pkg/types/grant"
 	resource "github.com/conductorone/baton-sdk/pkg/types/resource"
+	enterprise "github.com/conductorone/baton-slack/pkg/slack"
 	"github.com/slack-go/slack"
 )
 
 type userGroupResourceType struct {
-	resourceType *v2.ResourceType
-	client       *slack.Client
+	resourceType     *v2.ResourceType
+	client           *slack.Client
+	enterpriseID     string
+	enterpriseClient *enterprise.Client
 }
 
 func (o *userGroupResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return o.resourceType
 }
 
-func userGroupBuilder(client *slack.Client) *userGroupResourceType {
+func userGroupBuilder(client *slack.Client, enterpriseID string, enterpriseClient *enterprise.Client) *userGroupResourceType {
 	return &userGroupResourceType{
-		resourceType: resourceTypeUserGroup,
-		client:       client,
+		resourceType:     resourceTypeUserGroup,
+		client:           client,
+		enterpriseID:     enterpriseID,
+		enterpriseClient: enterpriseClient,
 	}
 }
 
@@ -50,10 +55,21 @@ func (o *userGroupResourceType) List(ctx context.Context, parentResourceID *v2.R
 		return nil, "", nil, nil
 	}
 
-	userGroups, err := o.client.GetUserGroupsContext(ctx, slack.GetUserGroupsOptionIncludeUsers(true))
-	if err != nil {
-		annos, err := annotationsForError(err)
-		return nil, "", annos, err
+	var userGroups []slack.UserGroup
+	var err error
+	// different method here becuase we need to pass a teamID, but it's not supported by the slack-go library
+	if o.enterpriseID != "" {
+		userGroups, err = o.enterpriseClient.GetUserGroups(ctx, parentResourceID.Resource)
+		if err != nil {
+			annos, err := annotationsForError(err)
+			return nil, "", annos, err
+		}
+	} else {
+		userGroups, err = o.client.GetUserGroupsContext(ctx, slack.GetUserGroupsOptionIncludeUsers(true))
+		if err != nil {
+			annos, err := annotationsForError(err)
+			return nil, "", annos, err
+		}
 	}
 
 	rv := make([]*v2.Resource, 0, len(userGroups))
@@ -84,7 +100,7 @@ func (o *userGroupResourceType) Entitlements(ctx context.Context, resource *v2.R
 }
 
 func (o *userGroupResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	groupMembers, err := o.client.GetUserGroupMembers(resource.Id.Resource)
+	groupMembers, err := o.enterpriseClient.GetUserGroupMembers(ctx, resource.Id.Resource, resource.ParentResourceId.Resource)
 	if err != nil {
 		annos, err := annotationsForError(err)
 		return nil, "", annos, err

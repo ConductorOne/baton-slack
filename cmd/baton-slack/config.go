@@ -10,8 +10,9 @@ import (
 
 // config defines the external configuration required for the connector to run.
 type config struct {
-	cli.BaseConfig `mapstructure:",squash"` // Puts the base config options in the same place as the connector options
-	AccessToken    string                   `mapstructure:"token"`
+	cli.BaseConfig  `mapstructure:",squash"` // Puts the base config options in the same place as the connector options
+	AccessToken     string                   `mapstructure:"token"`
+	EnterpriseToken string                   `mapstructure:"enterprise-token"`
 }
 
 // validateConfig is run after the configuration is loaded, and should return an error if it isn't valid.
@@ -25,5 +26,6 @@ func validateConfig(ctx context.Context, cfg *config) error {
 
 // cmdFlags sets the cmdFlags required for the connector.
 func cmdFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().String("token", "", "The Slack access token used to connect to the Slack API. ($BATON_TOKEN)")
+	cmd.PersistentFlags().String("token", "", "The Slack bot user oath token used to connect to the Slack API. ($BATON_TOKEN)")
+	cmd.PersistentFlags().String("enterprise-token", "", "The Slack user oath token used to connect to the Slack Enterprise Grid Admin API. ($BATON_ENTERPRISE_TOKEN)")
 }
