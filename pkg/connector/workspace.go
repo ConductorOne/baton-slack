@@ -10,24 +10,29 @@ import (
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
+	enterprise "github.com/conductorone/baton-slack/pkg/slack"
 	"github.com/slack-go/slack"
 )
 
 const memberEntitlement = "member"
 
 type workspaceResourceType struct {
-	resourceType *v2.ResourceType
-	client       *slack.Client
+	resourceType     *v2.ResourceType
+	client           *slack.Client
+	enterpriseID     string
+	enterpriseClient *enterprise.Client
 }
 
 func (o *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return o.resourceType
 }
 
-func workspaceBuilder(client *slack.Client) *workspaceResourceType {
+func workspaceBuilder(client *slack.Client, enterpriseID string, enterpriseClient *enterprise.Client) *workspaceResourceType {
 	return &workspaceResourceType{
-		resourceType: resourceTypeWorkspace,
-		client:       client,
+		resourceType:     resourceTypeWorkspace,
+		client:           client,
+		enterpriseID:     enterpriseID,
+		enterpriseClient: enterpriseClient,
 	}
 }
 
@@ -43,7 +48,6 @@ func workspaceResource(ctx context.Context, workspace slack.Team) (*v2.Resource,
 	}
 	workspaceOptions := []resources.ResourceOption{
 		resources.WithAnnotation(
-			&v2.ChildResourceType{ResourceTypeId: resourceTypeWorkspaceRole.Id},
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUser.Id},
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUserGroup.Id},
 		),
@@ -63,10 +67,20 @@ func (o *workspaceResourceType) List(ctx context.Context, resourceId *v2.Resourc
 		return nil, "", nil, err
 	}
 
-	workspaces, nextCursor, err := o.client.ListTeams(slack.ListTeamsParameters{Cursor: bag.PageToken()})
-	if err != nil {
-		annos, err := annotationsForError(err)
-		return nil, "", annos, err
+	var workspaces []slack.Team
+	var nextCursor string
+	if o.enterpriseID != "" {
+		workspaces, nextCursor, err = o.enterpriseClient.GetTeams(ctx, bag.PageToken())
+		if err != nil {
+			annos, err := annotationsForError(err)
+			return nil, "", annos, err
+		}
+	} else {
+		workspaces, nextCursor, err = o.client.ListTeamsContext(ctx, slack.ListTeamsParameters{Cursor: bag.PageToken()})
+		if err != nil {
+			annos, err := annotationsForError(err)
+			return nil, "", annos, err
+		}
 	}
 
 	pageToken, err := bag.NextToken(nextCursor)
@@ -102,7 +116,7 @@ func (o *workspaceResourceType) Entitlements(ctx context.Context, resource *v2.R
 }
 
 func (o *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	users, err := o.client.GetUsersContext(ctx)
+	users, err := o.client.GetUsersContext(ctx, slack.GetUsersOptionTeamID(resource.Id.Resource))
 	if err != nil {
 		annos, err := annotationsForError(err)
 		return nil, "", annos, err
