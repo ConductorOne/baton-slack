@@ -27,19 +27,6 @@ type BaseResponse struct {
 	Error string `json:"error"`
 }
 
-type BaseResponseData interface {
-	IsOk() bool
-	ErrorText() string
-}
-
-func (b BaseResponse) IsOk() bool {
-	return b.Ok
-}
-
-func (b BaseResponse) ErrorText() string {
-	return b.Error
-}
-
 type Pagination struct {
 	ResponseMetadata struct {
 		NextCursor string `json:"next_cursor"`
@@ -257,7 +244,7 @@ func (r *RateLimitError) Error() string {
 	return fmt.Sprintf("rate limited, retry after: %s", r.RetryAfter.String())
 }
 
-func (c *Client) doRequest(ctx context.Context, url string, res BaseResponseData, method string, payload []byte, values url.Values) error {
+func (c *Client) doRequest(ctx context.Context, url string, res interface{}, method string, payload []byte, values url.Values) error {
 	reqBody := strings.NewReader(values.Encode())
 
 	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
@@ -278,7 +265,7 @@ func (c *Client) doRequest(ctx context.Context, url string, res BaseResponseData
 		return err
 	}
 
-	if !res.IsOk() && strings.Contains(res.ErrorText(), "ratelimited") {
+	if resp.StatusCode == http.StatusTooManyRequests {
 		retryAfter := resp.Header.Get("Retry-After")
 		retryAfterSec, err := strconv.Atoi(retryAfter)
 		if err != nil {
