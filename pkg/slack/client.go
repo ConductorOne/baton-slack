@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/slack-go/slack"
 )
@@ -23,6 +25,19 @@ type Client struct {
 type BaseResponse struct {
 	Ok    bool   `json:"ok"`
 	Error string `json:"error"`
+}
+
+type BaseResponseData interface {
+	IsOk() bool
+	ErrorText() string
+}
+
+func (b BaseResponse) IsOk() bool {
+	return b.Ok
+}
+
+func (b BaseResponse) ErrorText() string {
+	return b.Error
 }
 
 type Pagination struct {
@@ -218,9 +233,8 @@ func (c *Client) GetUserGroups(ctx context.Context, teamID string) ([]slack.User
 	}
 
 	var res struct {
-		Ok         bool              `json:"ok"`
+		BaseResponse
 		UserGroups []slack.UserGroup `json:"usergroups"`
-		Error      string            `json:"error"`
 	}
 
 	err = c.doRequest(ctx, userGroupsUrl, &res, http.MethodPost, nil, values)
@@ -235,7 +249,15 @@ func (c *Client) GetUserGroups(ctx context.Context, teamID string) ([]slack.User
 	return res.UserGroups, nil
 }
 
-func (c *Client) doRequest(ctx context.Context, url string, res interface{}, method string, payload []byte, values url.Values) error {
+type RateLimitError struct {
+	RetryAfter time.Duration
+}
+
+func (r *RateLimitError) Error() string {
+	return fmt.Sprintf("rate limited, retry after: %s", r.RetryAfter.String())
+}
+
+func (c *Client) doRequest(ctx context.Context, url string, res BaseResponseData, method string, payload []byte, values url.Values) error {
 	reqBody := strings.NewReader(values.Encode())
 
 	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
@@ -254,6 +276,15 @@ func (c *Client) doRequest(ctx context.Context, url string, res interface{}, met
 
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return err
+	}
+
+	if !res.IsOk() && strings.Contains(res.ErrorText(), "ratelimited") {
+		retryAfter := resp.Header.Get("Retry-After")
+		retryAfterSec, err := strconv.Atoi(retryAfter)
+		if err != nil {
+			return fmt.Errorf("error parsing retry after header: %w", err)
+		}
+		return &RateLimitError{RetryAfter: time.Second * time.Duration(retryAfterSec)}
 	}
 
 	return nil
