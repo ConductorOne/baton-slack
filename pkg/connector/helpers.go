@@ -2,14 +2,15 @@ package connector
 
 import (
 	"errors"
+	"time"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
-	enterprise "github.com/conductorone/baton-slack/pkg/slack"
 	"github.com/slack-go/slack"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"time"
+
+	enterprise "github.com/conductorone/baton-slack/pkg/slack"
 )
 
 func parsePageToken(i string, resourceID *v2.ResourceId) (*pagination.Bag, error) {
