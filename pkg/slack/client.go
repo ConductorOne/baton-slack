@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/slack-go/slack"
 )
@@ -282,6 +284,14 @@ func (c *Client) SetWorkspaceRole(ctx context.Context, teamID, userID, roleID st
 	return nil
 }
 
+type RateLimitError struct {
+	RetryAfter time.Duration
+}
+
+func (r *RateLimitError) Error() string {
+	return fmt.Sprintf("rate limited, retry after: %s", r.RetryAfter.String())
+}
+
 func (c *Client) doRequest(ctx context.Context, url string, res interface{}, method string, payload []byte, values url.Values) error {
 	reqBody := strings.NewReader(values.Encode())
 
@@ -301,6 +311,15 @@ func (c *Client) doRequest(ctx context.Context, url string, res interface{}, met
 
 	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
 		return err
+	}
+
+	if resp.StatusCode == http.StatusTooManyRequests {
+		retryAfter := resp.Header.Get("Retry-After")
+		retryAfterSec, err := strconv.Atoi(retryAfter)
+		if err != nil {
+			return fmt.Errorf("error parsing retry after header: %w", err)
+		}
+		return &RateLimitError{RetryAfter: time.Second * time.Duration(retryAfterSec)}
 	}
 
 	return nil

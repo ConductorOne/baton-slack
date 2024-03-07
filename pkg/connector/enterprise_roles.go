@@ -10,6 +10,7 @@ import (
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
+
 	enterprise "github.com/conductorone/baton-slack/pkg/slack"
 )
 
