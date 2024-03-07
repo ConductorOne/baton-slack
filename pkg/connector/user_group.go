@@ -57,7 +57,7 @@ func (o *userGroupResourceType) List(ctx context.Context, parentResourceID *v2.R
 
 	var userGroups []slack.UserGroup
 	var err error
-	// different method here becuase we need to pass a teamID, but it's not supported by the slack-go library
+	// different method here because we need to pass a teamID, but it's not supported by the slack-go library
 	if o.enterpriseID != "" {
 		userGroups, err = o.enterpriseClient.GetUserGroups(ctx, parentResourceID.Resource)
 		if err != nil {

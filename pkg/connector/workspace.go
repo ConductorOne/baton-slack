@@ -14,6 +14,8 @@ import (
 	"github.com/slack-go/slack"
 )
 
+var workspacesMap = make(map[string]string)
+
 const memberEntitlement = "member"
 
 type workspaceResourceType struct {
@@ -50,6 +52,7 @@ func workspaceResource(ctx context.Context, workspace slack.Team) (*v2.Resource,
 		resources.WithAnnotation(
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUser.Id},
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUserGroup.Id},
+			&v2.ChildResourceType{ResourceTypeId: resourceTypeWorkspaceRole.Id},
 		),
 	}
 
@@ -90,6 +93,7 @@ func (o *workspaceResourceType) List(ctx context.Context, resourceId *v2.Resourc
 
 	rv := make([]*v2.Resource, 0, len(workspaces))
 	for _, workspace := range workspaces {
+		workspacesMap[workspace.ID] = workspace.Name
 		wr, err := workspaceResource(ctx, workspace)
 		if err != nil {
 			return nil, "", nil, err
@@ -116,10 +120,20 @@ func (o *workspaceResourceType) Entitlements(ctx context.Context, resource *v2.R
 }
 
 func (o *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	users, err := o.client.GetUsersContext(ctx, slack.GetUsersOptionTeamID(resource.Id.Resource))
+	bag, err := parsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	users, nextCursor, err := o.enterpriseClient.GetUsers(ctx, resource.Id.Resource, bag.PageToken())
 	if err != nil {
 		annos, err := annotationsForError(err)
 		return nil, "", annos, err
+	}
+
+	pageToken, err := bag.NextToken(nextCursor)
+	if err != nil {
+		return nil, "", nil, err
 	}
 
 	var rv []*v2.Grant
@@ -132,8 +146,88 @@ func (o *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resourc
 			return nil, "", nil, err
 		}
 
+		if user.IsPrimaryOwner {
+			rr, err := roleResource(PrimaryOwnerRoleID, resource.Id)
+			if err != nil {
+				return nil, "", nil, err
+			}
+			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+		}
+
+		if user.IsOwner {
+			rr, err := roleResource(OwnerRoleID, resource.Id)
+			if err != nil {
+				return nil, "", nil, err
+			}
+			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+		}
+
+		if user.IsAdmin {
+			rr, err := roleResource(AdminRoleID, resource.Id)
+			if err != nil {
+				return nil, "", nil, err
+			}
+			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+		}
+
+		if user.IsRestricted {
+			if user.IsUltraRestricted {
+				rr, err := roleResource(SingleChannelGuestRoleID, resource.Id)
+				if err != nil {
+					return nil, "", nil, err
+				}
+				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+			} else {
+				rr, err := roleResource(MultiChannelGuestRoleID, resource.Id)
+				if err != nil {
+					return nil, "", nil, err
+				}
+				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+			}
+		}
+
+		if user.IsInvitedUser {
+			rr, err := roleResource(InvitedMemberRoleID, resource.Id)
+			if err != nil {
+				return nil, "", nil, err
+			}
+			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+		}
+
+		if user.IsBot {
+			rr, err := roleResource(BotRoleID, resource.Id)
+			if err != nil {
+				return nil, "", nil, err
+			}
+			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+		}
+
+		if o.enterpriseID != "" {
+			if user.Enterprise.IsPrimaryOwner {
+				rr, err := enterpriseRoleResource(OrganizationPrimaryOwnerID, resource.Id)
+				if err != nil {
+					return nil, "", nil, err
+				}
+				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+			}
+			if user.Enterprise.IsOwner {
+				rr, err := enterpriseRoleResource(OrganizationOwnerID, resource.Id)
+				if err != nil {
+					return nil, "", nil, err
+				}
+				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+			}
+			if user.Enterprise.IsAdmin {
+				rr, err := enterpriseRoleResource(OrganizationAdminID, resource.Id)
+				if err != nil {
+					return nil, "", nil, err
+				}
+				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+			}
+		}
+
 		rv = append(rv, grant.NewGrant(resource, memberEntitlement, userID))
 	}
 
-	return rv, "", nil, nil
+	return rv, pageToken, nil, nil
 }

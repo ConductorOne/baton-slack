@@ -119,7 +119,7 @@ func (s *Slack) ResourceSyncers(ctx context.Context) []connectorbuilder.Resource
 		userBuilder(s.client, s.enterpriseID, s.enterpriseClient),
 		workspaceBuilder(s.client, s.enterpriseID, s.enterpriseClient),
 		userGroupBuilder(s.client, s.enterpriseID, s.enterpriseClient),
-		workspaceRoleBuilder(s.client),
+		workspaceRoleBuilder(s.client, s.enterpriseClient),
 		enterpriseRoleBuilder(s.enterpriseID, s.enterpriseClient),
 	}
 }
