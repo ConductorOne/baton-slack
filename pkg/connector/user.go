@@ -95,7 +95,6 @@ func (o *userResourceType) Grants(ctx context.Context, resource *v2.Resource, pt
 			return nil, "", nil, err
 		}
 		userRoles = append(userRoles, rr)
-
 	}
 
 	if user.IsRestricted {
