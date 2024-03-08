@@ -20,6 +20,7 @@ const (
 	SingleChannelGuestRoleID = "single_channel_guest"
 	InvitedMemberRoleID      = "invited_member"
 	BotRoleID                = "bot"
+	MemberRoleID             = "member"
 
 	RoleAssignmentEntitlement = "assigned"
 )
@@ -32,6 +33,7 @@ var roles = map[string]string{
 	SingleChannelGuestRoleID: "Single Channel Guest",
 	InvitedMemberRoleID:      "Invited member",
 	BotRoleID:                "Bot",
+	MemberRoleID:             "Member",
 }
 
 type workspaceRoleType struct {
