@@ -89,6 +89,14 @@ func (o *userResourceType) Grants(ctx context.Context, resource *v2.Resource, pt
 		userRoles = append(userRoles, rr)
 	}
 
+	if !user.IsRestricted && !user.IsUltraRestricted && !user.IsInvitedUser && !user.IsStranger {
+		rr, err := roleResource(MemberRoleID, resource.ParentResourceId)
+		if err != nil {
+			return nil, "", nil, err
+		}
+		userRoles = append(userRoles, rr)
+	}
+
 	if user.IsRestricted {
 		if user.IsUltraRestricted {
 			rr, err := roleResource(SingleChannelGuestRoleID, resource.ParentResourceId)
