@@ -5,6 +5,7 @@ import (
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
+	"github.com/conductorone/baton-sdk/pkg/helpers"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
 	enterprise "github.com/conductorone/baton-slack/pkg/slack"
@@ -49,6 +50,34 @@ func userResource(ctx context.Context, user *slack.User, parentResourceID *v2.Re
 	return ret, nil
 }
 
+// Create a new connector resource for a base Slack user.
+// Admin API doesn't return the same values as the user API.
+// We need to create a base resource for users without workspace that are fetched by the Admin API.
+func baseUserResource(ctx context.Context, user enterprise.UserAdmin) (*v2.Resource, error) {
+	firstname, lastname := helpers.SplitFullName(user.FullName)
+	profile := make(map[string]interface{})
+	profile["first_name"] = firstname
+	profile["last_name"] = lastname
+	profile["login"] = user.Email
+	profile["user_id"] = user.ID
+	profile["sso_user"] = user.HasSso
+
+	var userStatus v2.UserTrait_Status_Status
+	if user.IsActive {
+		userStatus = v2.UserTrait_Status_STATUS_ENABLED
+	} else {
+		userStatus = v2.UserTrait_Status_STATUS_DISABLED
+	}
+
+	userTraitOptions := []resource.UserTraitOption{resource.WithUserProfile(profile), resource.WithEmail(user.Email, true), resource.WithStatus(userStatus)}
+	ret, err := resource.NewUserResource(user.FullName, resourceTypeUser, user.ID, userTraitOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
 func (o *userResourceType) Entitlements(_ context.Context, _ *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
 	return nil, "", nil, nil
 }
@@ -62,6 +91,27 @@ func (o *userResourceType) List(ctx context.Context, parentResourceID *v2.Resour
 		return nil, "", nil, nil
 	}
 
+	var allUsers []enterprise.UserAdmin
+	var pageToken string
+	var nextCursor string
+
+	if o.enterpriseID != "" {
+		bag, err := parsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+		if err != nil {
+			return nil, "", nil, err
+		}
+		// need to fetch all users because users without workspace won't be fetched by GetUsersContext
+		allUsers, nextCursor, err = o.enterpriseClient.GetUsersAdmin(ctx, bag.PageToken())
+		if err != nil {
+			annos, err := annotationsForError(err)
+			return nil, "", annos, err
+		}
+		pageToken, err = bag.NextToken(nextCursor)
+		if err != nil {
+			return nil, "", nil, err
+		}
+	}
+
 	users, err := o.client.GetUsersContext(ctx, slack.GetUsersOptionTeamID(parentResourceID.Resource))
 	if err != nil {
 		annos, err := annotationsForError(err)
@@ -69,6 +119,19 @@ func (o *userResourceType) List(ctx context.Context, parentResourceID *v2.Resour
 	}
 
 	var rv []*v2.Resource
+
+	// createa base resource if user has no workspace
+	for _, user := range allUsers {
+		if len(user.Workspaces) == 0 {
+			ur, err := baseUserResource(ctx, user)
+			if err != nil {
+				return nil, "", nil, err
+			}
+			rv = append(rv, ur)
+		}
+	}
+
+	// users without workspace won't be part of users array
 	for _, user := range users {
 		userCopy := user
 		ur, err := userResource(ctx, &userCopy, parentResourceID)
@@ -78,7 +141,7 @@ func (o *userResourceType) List(ctx context.Context, parentResourceID *v2.Resour
 		rv = append(rv, ur)
 	}
 
-	return rv, "", nil, nil
+	return rv, pageToken, nil, nil
 }
 
 func userBuilder(client *slack.Client, enterpriseID string, enterpriseClient *enterprise.Client) *userResourceType {
