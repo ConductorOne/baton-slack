@@ -26,6 +26,6 @@ func validateConfig(ctx context.Context, cfg *config) error {
 
 // cmdFlags sets the cmdFlags required for the connector.
 func cmdFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().String("token", "", "The Slack bot user oath token used to connect to the Slack API. ($BATON_TOKEN)")
-	cmd.PersistentFlags().String("enterprise-token", "", "The Slack user oath token used to connect to the Slack Enterprise Grid Admin API. ($BATON_ENTERPRISE_TOKEN)")
+	cmd.PersistentFlags().String("token", "", "The Slack bot user oauth token used to connect to the Slack API. ($BATON_TOKEN)")
+	cmd.PersistentFlags().String("enterprise-token", "", "The Slack user oauth token used to connect to the Slack Enterprise Grid Admin API. ($BATON_ENTERPRISE_TOKEN)")
 }

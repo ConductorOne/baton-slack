@@ -28,7 +28,7 @@ Additional scopes for User Token are:
   - admin.users:read
 
 Other difference is in the way the application is installed, on enterprise grid app should be installed on the Organization level and on all the Workspaces from which you want to sync the resources. The installation has to be done by Admin or Owner of an Enterprise Grid organization. More info with an example [here](https://api.slack.com/methods/admin.teams.list#markdown).
-To work with Enterprise Grid APIs use User Oath Token passed as `--enterprise-token` along with the Bot User OAuth Token passed via `--token` flag.
+To work with Enterprise Grid APIs use User OAuth Token passed as `--enterprise-token` along with the Bot User OAuth Token passed via `--token` flag.
  
 
 ## brew
@@ -93,13 +93,13 @@ Available Commands:
 Flags:
       --client-id string          The client ID used to authenticate with ConductorOne ($BATON_CLIENT_ID)
       --client-secret string      The client secret used to authenticate with ConductorOne ($BATON_CLIENT_SECRET)
-      --enterprise-token string   The Slack user oath token used to connect to the Slack Enterprise Grid Admin API. ($BATON_ENTERPRISE_TOKEN)
+      --enterprise-token string   The Slack user oauth token used to connect to the Slack Enterprise Grid Admin API. ($BATON_ENTERPRISE_TOKEN)
   -f, --file string               The path to the c1z file to sync with ($BATON_FILE) (default "sync.c1z")
   -h, --help                      help for baton-slack
       --log-format string         The output format for logs: json, console ($BATON_LOG_FORMAT) (default "json")
       --log-level string          The log level: debug, info, warn, error ($BATON_LOG_LEVEL) (default "info")
   -p, --provisioning              This must be set in order for provisioning actions to be enabled. ($BATON_PROVISIONING)
-      --token string              The Slack bot user oath token used to connect to the Slack API. ($BATON_TOKEN)
+      --token string              The Slack bot user oauth token used to connect to the Slack API. ($BATON_TOKEN)
   -v, --version                   version for baton-slack
 
 Use "baton-slack [command] --help" for more information about a command.

@@ -102,9 +102,9 @@ func (c *Client) GetUserGroupMembers(ctx context.Context, userGroupID, teamID st
 }
 
 // GetUsers returns the users of the given team.
-func (c *Client) GetUsers(ctx context.Context, teamID, cursor string) ([]UserAdmin, string, error) {
+func (c *Client) GetUsers(ctx context.Context, teamID, cursor string) ([]User, string, error) {
 	values := url.Values{
-		"token":   {c.token},
+		"token":   {c.botToken},
 		"team_id": {teamID},
 	}
 
@@ -113,14 +113,14 @@ func (c *Client) GetUsers(ctx context.Context, teamID, cursor string) ([]UserAdm
 		values.Add("cursor", cursor)
 	}
 
-	usersUrl, err := url.JoinPath(baseUrl + "admin.users.list")
+	usersUrl, err := url.JoinPath(baseUrl + "users.list")
 	if err != nil {
 		return nil, "", err
 	}
 
 	var res struct {
 		BaseResponse
-		Users []UserAdmin `json:"users"`
+		Users []User `json:"members"`
 		Pagination
 	}
 
@@ -234,6 +234,54 @@ func (c *Client) GetUserGroups(ctx context.Context, teamID string) ([]slack.User
 	}
 
 	return res.UserGroups, nil
+}
+
+// SetWorkspaceRole sets the role for the given user in the given team.
+func (c *Client) SetWorkspaceRole(ctx context.Context, teamID, userID, roleID string) error {
+	values := url.Values{
+		"token":   {c.token},
+		"team_id": {teamID},
+		"user_id": {userID},
+	}
+
+	var role string
+
+	if roleID != "" {
+		roleSplit := strings.Split(roleID, ":")
+		if len(roleSplit) >= 2 {
+			role = roleSplit[1]
+		}
+	}
+
+	var action string
+	switch role {
+	case "owner":
+		action = "setOwner"
+	case "admin":
+		action = "setAdmin"
+	case "":
+		action = "setRegular"
+	default:
+		return fmt.Errorf("invalid role type: %s", role)
+	}
+
+	userGroupsUrl, err := url.JoinPath(baseUrl + "admin.users." + action)
+	if err != nil {
+		return err
+	}
+
+	var res BaseResponse
+
+	err = c.doRequest(ctx, userGroupsUrl, &res, http.MethodPost, nil, values)
+	if err != nil {
+		return fmt.Errorf("error setting user role: %w", err)
+	}
+
+	if res.Error != "" {
+		return fmt.Errorf(res.Error)
+	}
+
+	return nil
 }
 
 type RateLimitError struct {
