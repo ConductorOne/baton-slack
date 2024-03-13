@@ -316,7 +316,7 @@ func (c *Client) SetWorkspaceRole(ctx context.Context, teamID, userID, roleID st
 		return fmt.Errorf("invalid role type: %s", role)
 	}
 
-	userGroupsUrl, err := url.JoinPath(baseUrl, "admin.users.", action)
+	userGroupsUrl, err := url.JoinPath(baseUrl, "admin.users."+action)
 	if err != nil {
 		return err
 	}

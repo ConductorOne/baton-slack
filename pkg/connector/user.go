@@ -120,7 +120,7 @@ func (o *userResourceType) List(ctx context.Context, parentResourceID *v2.Resour
 
 	var rv []*v2.Resource
 
-	// createa base resource if user has no workspace
+	// create a base resource if user has no workspace
 	for _, user := range allUsers {
 		if len(user.Workspaces) == 0 {
 			ur, err := baseUserResource(ctx, user)
