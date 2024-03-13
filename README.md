@@ -102,10 +102,7 @@ Flags:
       --log-format string         The output format for logs: json, console ($BATON_LOG_FORMAT) (default "json")
       --log-level string          The log level: debug, info, warn, error ($BATON_LOG_LEVEL) (default "info")
   -p, --provisioning              This must be set in order for provisioning actions to be enabled. ($BATON_PROVISIONING)
-<<<<<<< HEAD
       --sso-enabled string        Flag indicating that the SSO has been configured for Enterprise Grid Organization. Enables usage of SCIM API. ($BATON_SSO_ENABLED)
-=======
->>>>>>> 6ce93e7c69591c3d9a0aa4270acf125912505da4
       --token string              The Slack bot user oauth token used to connect to the Slack API. ($BATON_TOKEN)
   -v, --version                   version for baton-slack
 
