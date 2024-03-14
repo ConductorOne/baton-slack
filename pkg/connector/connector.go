@@ -110,6 +110,9 @@ func New(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool) (*S
 	var enterpriseId string
 	if res.EnterpriseID != "" {
 		enterpriseId = res.EnterpriseID
+		if enterpriseKey == "" {
+			return nil, fmt.Errorf("slack-connector: enterprise account detected, but no enterprise token specified")
+		}
 	}
 	enterpriseClient := enterprise.NewClient(httpClient, enterpriseKey, apiKey, res.EnterpriseID, ssoEnabled)
 
@@ -124,7 +127,7 @@ func New(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool) (*S
 
 func (s *Slack) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
-		userBuilder(s.client, s.enterpriseID, s.enterpriseClient),
+		userBuilder(s.client),
 		workspaceBuilder(s.client, s.enterpriseID, s.enterpriseClient),
 		userGroupBuilder(s.client, s.enterpriseID, s.enterpriseClient),
 		workspaceRoleBuilder(s.client, s.enterpriseClient),

@@ -65,7 +65,11 @@ func (o *userGroupResourceType) List(ctx context.Context, parentResourceID *v2.R
 			return nil, "", annos, err
 		}
 	} else {
-		userGroups, err = o.client.GetUserGroupsContext(ctx, slack.GetUserGroupsOptionIncludeUsers(true))
+		opts := []slack.GetUserGroupsOption{
+			slack.GetUserGroupsOptionIncludeUsers(true),
+			slack.GetUserGroupsOptionIncludeDisabled(true),
+		}
+		userGroups, err = o.client.GetUserGroupsContext(ctx, opts...)
 		if err != nil {
 			annos, err := annotationsForError(err)
 			return nil, "", annos, err
