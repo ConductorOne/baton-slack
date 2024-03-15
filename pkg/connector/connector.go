@@ -18,6 +18,7 @@ type Slack struct {
 	apiKey           string
 	enterpriseClient *enterprise.Client
 	enterpriseID     string
+	ssoEnabled       bool
 }
 
 var (
@@ -42,7 +43,13 @@ var (
 			v2.ResourceType_TRAIT_GROUP,
 		},
 	}
-
+	resourceTypeGroup = &v2.ResourceType{
+		Id:          "group",
+		DisplayName: "IDP Group",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_GROUP,
+		},
+	}
 	resourceTypeWorkspaceRole = &v2.ResourceType{
 		Id:          "workspaceRole",
 		DisplayName: "Workspace Role",
@@ -87,7 +94,7 @@ func (s *Slack) Validate(ctx context.Context) (annotations.Annotations, error) {
 }
 
 // New returns the Slack connector.
-func New(ctx context.Context, apiKey, enterpriseKey string) (*Slack, error) {
+func New(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool) (*Slack, error) {
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
 	if err != nil {
 		return nil, err
@@ -104,13 +111,14 @@ func New(ctx context.Context, apiKey, enterpriseKey string) (*Slack, error) {
 	if res.EnterpriseID != "" {
 		enterpriseId = res.EnterpriseID
 	}
-	enterpriseClient := enterprise.NewClient(httpClient, enterpriseKey, apiKey, res.EnterpriseID)
+	enterpriseClient := enterprise.NewClient(httpClient, enterpriseKey, apiKey, res.EnterpriseID, ssoEnabled)
 
 	return &Slack{
 		client:           client,
 		apiKey:           apiKey,
 		enterpriseClient: enterpriseClient,
 		enterpriseID:     enterpriseId,
+		ssoEnabled:       ssoEnabled,
 	}, nil
 }
 
@@ -121,5 +129,6 @@ func (s *Slack) ResourceSyncers(ctx context.Context) []connectorbuilder.Resource
 		userGroupBuilder(s.client, s.enterpriseID, s.enterpriseClient),
 		workspaceRoleBuilder(s.client, s.enterpriseClient),
 		enterpriseRoleBuilder(s.enterpriseID, s.enterpriseClient),
+		groupBuilder(s.enterpriseClient, s.enterpriseID, s.ssoEnabled),
 	}
 }

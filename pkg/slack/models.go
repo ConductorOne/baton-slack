@@ -14,9 +14,9 @@ type UserAdmin struct {
 	Username          string   `json:"username"`
 	FullName          string   `json:"full_name"`
 	IsActive          bool     `json:"is_active"`
-	DateCreated       int64    `json:"date_created"`
-	DeactivatedTs     int64    `json:"deactivated_ts"`
-	ExpirationTs      int64    `json:"expiration_ts"`
+	DateCreated       int      `json:"date_created"`
+	DeactivatedTs     int      `json:"deactivated_ts"`
+	ExpirationTs      int      `json:"expiration_ts"`
 	Workspaces        []string `json:"workspaces"`
 	Has2Fa            bool     `json:"has_2fa"`
 	HasSso            bool     `json:"has_sso"`
@@ -26,7 +26,7 @@ type RoleAssignment struct {
 	RoleID     string `json:"role_id"`
 	EntityID   string `json:"entity_id"`
 	UserID     string `json:"user_id"`
-	DateCreate int64  `json:"date_create"`
+	DateCreate int    `json:"date_create"`
 }
 
 type User struct {
@@ -65,4 +65,89 @@ type EnterpriseUser struct {
 	IsOwner        bool     `json:"is_owner"`
 	IsPrimaryOwner bool     `json:"is_primary_owner"`
 	Teams          []string `json:"teams"`
+}
+
+// SCIM resources.
+type UserResource struct {
+	Schemas                                           []string                                               `json:"schemas"`
+	ID                                                string                                                 `json:"id"`
+	ExternalID                                        string                                                 `json:"externalId"`
+	Meta                                              Meta                                                   `json:"meta"`
+	UserName                                          string                                                 `json:"userName"`
+	NickName                                          string                                                 `json:"nickName"`
+	Name                                              Name                                                   `json:"name"`
+	DisplayName                                       string                                                 `json:"displayName"`
+	ProfileURL                                        string                                                 `json:"profileUrl"`
+	Title                                             string                                                 `json:"title"`
+	Timezone                                          string                                                 `json:"timezone"`
+	Active                                            bool                                                   `json:"active"`
+	Emails                                            []Email                                                `json:"emails"`
+	Addresses                                         []Address                                              `json:"addresses"`
+	PhoneNumbers                                      []PhoneNumber                                          `json:"phoneNumbers"`
+	UserType                                          string                                                 `json:"userType"`
+	Roles                                             []Email                                                `json:"roles"`
+	PreferredLanguage                                 string                                                 `json:"preferredLanguage"`
+	Locale                                            string                                                 `json:"locale"`
+	UrnIETFParamsScimSchemasExtensionEnterprise20User UrnIETFParamsScimSchemasExtensionEnterprise20UserClass `json:"urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"`
+	Groups                                            []Group                                                `json:"groups"`
+}
+type Address struct {
+	StreetAddress string `json:"streetAddress"`
+	Locality      string `json:"locality"`
+	Region        string `json:"region"`
+	PostalCode    string `json:"postalCode"`
+	Country       string `json:"country"`
+}
+
+type Email struct {
+	Value   string `json:"value"`
+	Primary bool   `json:"primary"`
+}
+
+type Group struct {
+	Display string `json:"display"`
+	Value   string `json:"value"`
+}
+
+type Meta struct {
+	Created  string `json:"created"`
+	Location string `json:"location"`
+}
+
+type Name struct {
+	GivenName       string `json:"givenName"`
+	FamilyName      string `json:"familyName"`
+	HonorificPrefix string `json:"honorificPrefix"`
+}
+
+type PhoneNumber struct {
+	Value   string `json:"value"`
+	Type    string `json:"type,omitempty"`
+	Primary bool   `json:"primary,omitempty"`
+}
+
+type UrnIETFParamsScimSchemasExtensionEnterprise20UserClass struct {
+	EmployeeNumber string  `json:"employeeNumber"`
+	CostCenter     string  `json:"costCenter"`
+	Organization   string  `json:"organization"`
+	Division       string  `json:"division"`
+	Department     string  `json:"department"`
+	Manager        Manager `json:"manager"`
+}
+
+type Manager struct {
+	ManagerID string `json:"managerId"`
+}
+
+type Member struct {
+	Value   string `json:"value"`
+	Display string `json:"display"`
+}
+
+type GroupResource struct {
+	Schemas     []string `json:"schemas"`
+	ID          string   `json:"id"`
+	Meta        Meta     `json:"meta"`
+	DisplayName string   `json:"displayName"`
+	Members     []Member `json:"members"`
 }

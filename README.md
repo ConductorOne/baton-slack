@@ -68,7 +68,10 @@ baton resources
 Enterprise grid additional resources:
 - Enterprise roles
 
-By default, `baton-slack` will sync information about default channels of user groups. You can specify additional channels you would like to sync using the `--channel-ids` flag.
+With SSO configured (enterprise grid):
+- IDP groups
+
+If you have SSO configured for your enterprise grid organization you can also sync IDP groups and provision them. Just pass the --sso-enabled=true flag.
 
 # Contributing, Support, and Issues
 
@@ -99,6 +102,7 @@ Flags:
       --log-format string         The output format for logs: json, console ($BATON_LOG_FORMAT) (default "json")
       --log-level string          The log level: debug, info, warn, error ($BATON_LOG_LEVEL) (default "info")
   -p, --provisioning              This must be set in order for provisioning actions to be enabled. ($BATON_PROVISIONING)
+      --sso-enabled string        Flag indicating that the SSO has been configured for Enterprise Grid Organization. Enables usage of SCIM API. ($BATON_SSO_ENABLED)
       --token string              The Slack bot user oauth token used to connect to the Slack API. ($BATON_TOKEN)
   -v, --version                   version for baton-slack
 
