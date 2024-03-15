@@ -8,12 +8,15 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/helpers"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
+	enterprise "github.com/conductorone/baton-slack/pkg/slack"
 	"github.com/slack-go/slack"
 )
 
 type userResourceType struct {
-	resourceType *v2.ResourceType
-	client       *slack.Client
+	resourceType     *v2.ResourceType
+	client           *slack.Client
+	enterpriseID     string
+	enterpriseClient *enterprise.Client
 }
 
 func (o *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -141,9 +144,11 @@ func (o *userResourceType) List(ctx context.Context, parentResourceID *v2.Resour
 	return rv, pageToken, nil, nil
 }
 
-func userBuilder(client *slack.Client) *userResourceType {
+func userBuilder(client *slack.Client, enterpriseID string, enterpriseClient *enterprise.Client) *userResourceType {
 	return &userResourceType{
-		resourceType: resourceTypeUser,
-		client:       client,
+		resourceType:     resourceTypeUser,
+		client:           client,
+		enterpriseID:     enterpriseID,
+		enterpriseClient: enterpriseClient,
 	}
 }

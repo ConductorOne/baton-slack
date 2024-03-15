@@ -127,7 +127,7 @@ func New(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool) (*S
 
 func (s *Slack) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
 	return []connectorbuilder.ResourceSyncer{
-		userBuilder(s.client),
+		userBuilder(s.client, s.enterpriseID, s.enterpriseClient),
 		workspaceBuilder(s.client, s.enterpriseID, s.enterpriseClient),
 		userGroupBuilder(s.client, s.enterpriseID, s.enterpriseClient),
 		workspaceRoleBuilder(s.client, s.enterpriseClient),
