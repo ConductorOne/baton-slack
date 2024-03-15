@@ -121,7 +121,7 @@ func (g *groupResourceType) Grant(ctx context.Context, principal *v2.Resource, e
 		return nil, fmt.Errorf("baton-slack: only users can be added to an IDP group")
 	}
 
-	err := g.enterpriseClient.GroupPatch(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource, false)
+	err := g.enterpriseClient.AddUserToGroup(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
 	if err != nil {
 		return nil, fmt.Errorf("baton-slack: failed to add user to an IDP group: %w", err)
 	}
@@ -144,7 +144,7 @@ func (g *groupResourceType) Revoke(ctx context.Context, grant *v2.Grant) (annota
 		return nil, fmt.Errorf("baton-slack: only users can be removed from an IDP group")
 	}
 
-	err := g.enterpriseClient.GroupPatch(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource, true)
+	err := g.enterpriseClient.RemoveUserFromGroup(ctx, entitlement.Resource.Id.Resource, principal.Id.Resource)
 
 	if err != nil {
 		return nil, fmt.Errorf("baton-slack: failed to remove user from IDP group: %w", err)

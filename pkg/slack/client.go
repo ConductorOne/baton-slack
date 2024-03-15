@@ -401,29 +401,67 @@ type UserID struct {
 	Value string `json:"value"`
 }
 
-// GroupPatch patches a group by adding or removing a user.
-func (c *Client) GroupPatch(ctx context.Context, groupID string, user string, remove bool) error {
-	groupSCIMUrl, err := url.JoinPath(baseScimUrl, "Groups", groupID)
-	if err != nil {
-		return err
-	}
-
-	var operation = "add"
-	if remove {
-		operation = "remove"
-	}
-
+// AddUserToGroup patches a group by adding a user to it.
+func (c *Client) AddUserToGroup(ctx context.Context, groupID string, user string) error {
 	requestBody := PatchOp{
 		Schemas: []string{"urn:ietf:params:scim:api:messages:2.0:PatchOp"},
 		Operations: []ScimOperate{
 			{
-				Op:   operation,
+				Op:   "add",
 				Path: "members",
 				Value: []UserID{
 					{Value: user},
 				},
 			},
 		},
+	}
+
+	err := c.patchGroup(ctx, groupID, requestBody)
+	if err != nil {
+		return fmt.Errorf("error adding user to IDP group: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveUserFromGroup patches a group by removing a user from it.
+func (c *Client) RemoveUserFromGroup(ctx context.Context, groupID string, user string) error {
+	// need to fetch group to get existing members
+	group, err := c.GetIDPGroup(ctx, groupID)
+	if err != nil {
+		return fmt.Errorf("error fetching IDP group: %w", err)
+	}
+
+	var result []UserID
+	for _, member := range group.Members {
+		if member.Value != user {
+			result = append(result, UserID{Value: member.Value})
+		}
+	}
+
+	requestBody := PatchOp{
+		Schemas: []string{"urn:ietf:params:scim:api:messages:2.0:PatchOp"},
+		Operations: []ScimOperate{
+			{
+				Op:    "replace",
+				Path:  "members",
+				Value: result,
+			},
+		},
+	}
+
+	err = c.patchGroup(ctx, groupID, requestBody)
+	if err != nil {
+		return fmt.Errorf("error removing user from IDP group: %w", err)
+	}
+
+	return nil
+}
+
+func (c *Client) patchGroup(ctx context.Context, groupID string, requestBody PatchOp) error {
+	groupSCIMUrl, err := url.JoinPath(baseScimUrl, "Groups", groupID)
+	if err != nil {
+		return err
 	}
 
 	payload, err := json.Marshal(requestBody)
@@ -451,7 +489,7 @@ func (r *RateLimitError) Error() string {
 func (c *Client) doRequest(ctx context.Context, url string, res interface{}, method string, payload []byte, values url.Values) error {
 	var reqBody io.Reader
 
-	if strings.Contains(url, baseScimUrl) {
+	if strings.HasPrefix(url, baseScimUrl) {
 		reqBody = bytes.NewReader(payload)
 	} else {
 		reqBody = strings.NewReader(values.Encode())
@@ -466,7 +504,7 @@ func (c *Client) doRequest(ctx context.Context, url string, res interface{}, met
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	// different headers for SCIM API
-	if strings.Contains(url, baseScimUrl) {
+	if strings.HasPrefix(url, baseScimUrl) {
 		req.Header.Add("Authorization", "Bearer "+c.token)
 		req.Header.Set("Content-Type", "application/json")
 

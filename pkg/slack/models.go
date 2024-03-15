@@ -139,13 +139,15 @@ type Manager struct {
 	ManagerID string `json:"managerId"`
 }
 
+type Member struct {
+	Value   string `json:"value"`
+	Display string `json:"display"`
+}
+
 type GroupResource struct {
 	Schemas     []string `json:"schemas"`
 	ID          string   `json:"id"`
 	Meta        Meta     `json:"meta"`
 	DisplayName string   `json:"displayName"`
-	Members     []struct {
-		Value   string `json:"value"`
-		Display string `json:"display"`
-	} `json:"members"`
+	Members     []Member `json:"members"`
 }
