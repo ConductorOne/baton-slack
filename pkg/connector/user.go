@@ -33,6 +33,16 @@ func userResource(ctx context.Context, user *slack.User, parentResourceID *v2.Re
 	profile["user_id"] = user.ID
 	profile["status_text"] = user.Profile.StatusText
 	profile["status_emoji"] = user.Profile.StatusEmoji
+	profile["is_admin"] = user.IsAdmin
+	profile["is_owner"] = user.IsOwner
+	profile["is_primary_owner"] = user.IsPrimaryOwner
+	profile["is_bot"] = user.IsBot
+	profile["is_app_user"] = user.IsAppUser
+	profile["is_invited_user"] = user.IsInvitedUser
+	profile["is_restricted"] = user.IsRestricted
+	profile["is_ultra_restricted"] = user.IsUltraRestricted
+	profile["is_stranger"] = user.IsStranger
+	profile["is_deleted"] = user.Deleted
 
 	var userStatus v2.UserTrait_Status_Status
 	if user.Deleted {
