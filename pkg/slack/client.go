@@ -12,7 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
+	"go.uber.org/zap"
 )
 
 const baseUrl = "https://slack.com/api/"
@@ -78,7 +80,7 @@ func (c *Client) GetUserInfo(ctx context.Context, userID string) (*User, error) 
 	}
 
 	if res.Error != "" {
-		return nil, fmt.Errorf(res.Error)
+		return nil, fmt.Errorf("error fetching user info: %v", res.Error)
 	}
 
 	return res.User, nil
@@ -108,7 +110,7 @@ func (c *Client) GetUserGroupMembers(ctx context.Context, userGroupID, teamID st
 	}
 
 	if res.Error != "" {
-		return nil, fmt.Errorf(res.Error)
+		return nil, fmt.Errorf("error fetching user group members: %v", res.Error)
 	}
 
 	return res.Users, nil
@@ -181,7 +183,7 @@ func (c *Client) GetUsers(ctx context.Context, teamID, cursor string) ([]User, s
 	}
 
 	if res.Error != "" {
-		return nil, "", fmt.Errorf(res.Error)
+		return nil, "", fmt.Errorf("error fetching users: %v", res.Error)
 	}
 
 	if res.ResponseMetadata.NextCursor != "" {
@@ -218,7 +220,7 @@ func (c *Client) GetTeams(ctx context.Context, cursor string) ([]slack.Team, str
 	}
 
 	if res.Error != "" {
-		return nil, "", fmt.Errorf(res.Error)
+		return nil, "", fmt.Errorf("error fetching teams: %v", res.Error)
 	}
 
 	if res.ResponseMetadata.NextCursor != "" {
@@ -251,7 +253,7 @@ func (c *Client) GetRoleAssignments(ctx context.Context, roleID string) ([]RoleA
 	}
 
 	if res.Error != "" {
-		return nil, fmt.Errorf(res.Error)
+		return nil, fmt.Errorf("error fetching role assignments: %v", res.Error)
 	}
 
 	return res.RoleAssignments, nil
@@ -281,7 +283,7 @@ func (c *Client) GetUserGroups(ctx context.Context, teamID string) ([]slack.User
 	}
 
 	if res.Error != "" {
-		return nil, fmt.Errorf(res.Error)
+		return nil, fmt.Errorf("error fetching user groups: %v", res.Error)
 	}
 
 	return res.UserGroups, nil
@@ -329,7 +331,7 @@ func (c *Client) SetWorkspaceRole(ctx context.Context, teamID, userID, roleID st
 	}
 
 	if res.Error != "" {
-		return fmt.Errorf(res.Error)
+		return fmt.Errorf("error setting user role: %v", res.Error)
 	}
 
 	return nil
@@ -487,6 +489,7 @@ func (r *RateLimitError) Error() string {
 }
 
 func (c *Client) doRequest(ctx context.Context, url string, res interface{}, method string, payload []byte, values url.Values) error {
+	l := ctxzap.Extract(ctx)
 	var reqBody io.Reader
 
 	if strings.HasPrefix(url, baseScimUrl) {
@@ -495,6 +498,7 @@ func (c *Client) doRequest(ctx context.Context, url string, res interface{}, met
 		reqBody = strings.NewReader(values.Encode())
 	}
 
+	l.Debug("making request", zap.String("method", method), zap.String("url", url))
 	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
 	if err != nil {
 		return err

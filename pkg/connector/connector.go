@@ -110,6 +110,9 @@ func New(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool) (*S
 	var enterpriseId string
 	if res.EnterpriseID != "" {
 		enterpriseId = res.EnterpriseID
+		if enterpriseKey == "" {
+			return nil, fmt.Errorf("slack-connector: enterprise account detected, but no enterprise token specified")
+		}
 	}
 	enterpriseClient := enterprise.NewClient(httpClient, enterpriseKey, apiKey, res.EnterpriseID, ssoEnabled)
 

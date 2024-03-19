@@ -44,14 +44,27 @@ func userResource(ctx context.Context, user *slack.User, parentResourceID *v2.Re
 	profile["is_stranger"] = user.IsStranger
 	profile["is_deleted"] = user.Deleted
 
-	var userStatus v2.UserTrait_Status_Status
-	if user.Deleted {
-		userStatus = v2.UserTrait_Status_STATUS_DELETED
-	} else {
-		userStatus = v2.UserTrait_Status_STATUS_ENABLED
+	userTraitOptions := []resource.UserTraitOption{
+		resource.WithUserProfile(profile),
+		resource.WithEmail(user.Profile.Email, true),
 	}
 
-	userTraitOptions := []resource.UserTraitOption{resource.WithUserProfile(profile), resource.WithEmail(user.Profile.Email, true), resource.WithStatus(userStatus)}
+	userStatus := v2.UserTrait_Status_STATUS_ENABLED
+	if user.Deleted {
+		userStatus = v2.UserTrait_Status_STATUS_DELETED
+	}
+	userTraitOptions = append(userTraitOptions, resource.WithStatus(userStatus))
+
+	if user.IsBot {
+		userTraitOptions = append(userTraitOptions, resource.WithAccountType(v2.UserTrait_ACCOUNT_TYPE_SERVICE))
+	}
+
+	// If the credentials we're hitting the API with don't have admin, this can be false even if the user has mfa enabled
+	// See https://api.slack.com/types/user for more info
+	if user.Has2FA {
+		userTraitOptions = append(userTraitOptions, resource.WithMFAStatus(&v2.UserTrait_MFAStatus{MfaEnabled: true}))
+	}
+
 	ret, err := resource.NewUserResource(user.Name, resourceTypeUser, user.ID, userTraitOptions, resource.WithParentResourceID(parentResourceID))
 	if err != nil {
 		return nil, err
@@ -79,7 +92,29 @@ func baseUserResource(ctx context.Context, user enterprise.UserAdmin) (*v2.Resou
 		userStatus = v2.UserTrait_Status_STATUS_DISABLED
 	}
 
-	userTraitOptions := []resource.UserTraitOption{resource.WithUserProfile(profile), resource.WithEmail(user.Email, true), resource.WithStatus(userStatus)}
+	userTraitOptions := []resource.UserTraitOption{
+		resource.WithUserProfile(profile),
+		resource.WithEmail(user.Email, true),
+		resource.WithStatus(userStatus),
+		resource.WithUserLogin(user.Username),
+	}
+
+	if user.IsBot {
+		userTraitOptions = append(userTraitOptions, resource.WithAccountType(v2.UserTrait_ACCOUNT_TYPE_SERVICE))
+	}
+
+	// If the credentials we're hitting the API with don't have admin, this can be false even if the user has mfa enabled
+	// See https://api.slack.com/types/user for more info
+	if user.Has2Fa {
+		userTraitOptions = append(userTraitOptions, resource.WithMFAStatus(&v2.UserTrait_MFAStatus{MfaEnabled: true}))
+	}
+
+	ssoStatus := &v2.UserTrait_SSOStatus{SsoEnabled: false}
+	if user.HasSso {
+		ssoStatus = &v2.UserTrait_SSOStatus{SsoEnabled: true}
+	}
+	userTraitOptions = append(userTraitOptions, resource.WithSSOStatus(ssoStatus))
+
 	ret, err := resource.NewUserResource(user.FullName, resourceTypeUser, user.ID, userTraitOptions)
 	if err != nil {
 		return nil, err
