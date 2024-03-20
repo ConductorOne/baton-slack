@@ -194,6 +194,14 @@ func (o *workspaceResourceType) Grants(ctx context.Context, resource *v2.Resourc
 			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 		}
 
+		if !user.IsRestricted && user.IsUltraRestricted && !user.IsInvitedUser && !user.IsBot && !user.Deleted {
+			rr, err := roleResource(MemberRoleID, resource.Id)
+			if err != nil {
+				return nil, "", nil, err
+			}
+			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+		}
+
 		if user.IsBot {
 			rr, err := roleResource(BotRoleID, resource.Id)
 			if err != nil {
