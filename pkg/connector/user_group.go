@@ -67,7 +67,9 @@ func (o *userGroupResourceType) List(ctx context.Context, parentResourceID *v2.R
 	} else {
 		opts := []slack.GetUserGroupsOption{
 			slack.GetUserGroupsOptionIncludeUsers(true),
-			slack.GetUserGroupsOptionIncludeDisabled(true),
+			// We need to add a way to signify disabled resources in baton in order to include disabled groups
+			// We should also be doing this for both enterprise and non-enterprise groups
+			// slack.GetUserGroupsOptionIncludeDisabled(true),
 		}
 		userGroups, err = o.client.GetUserGroupsContext(ctx, opts...)
 		if err != nil {
