@@ -157,6 +157,14 @@ func (o *workspaceRoleType) Revoke(ctx context.Context, grant *v2.Grant) (annota
 		return nil, fmt.Errorf("baton-slack: only users can have role revoked")
 	}
 
+	if principal.ParentResourceId == nil {
+		l.Warn(
+			"baton-slack: user does not have a parent resource",
+			zap.String("principal_id", principal.Id.Resource),
+		)
+		return nil, fmt.Errorf("baton-slack: user does not have a parent resource")
+	}
+
 	// empty role type means regular user
 	err := o.enterpriseClient.SetWorkspaceRole(ctx, principal.ParentResourceId.Resource, principal.Id.Resource, "")
 
