@@ -135,6 +135,15 @@ func (o *workspaceRoleType) Grant(ctx context.Context, principal *v2.Resource, e
 		return nil, fmt.Errorf("baton-slack: only users can be assigned a role")
 	}
 
+	// TODO: put the team ID in the entitlement or user ID, not the parent resource
+	if principal.ParentResourceId == nil {
+		l.Warn(
+			"baton-slack: user does not have a parent resource",
+			zap.String("principal_id", principal.Id.Resource),
+		)
+		return nil, fmt.Errorf("baton-slack: user does not have a parent resource")
+	}
+
 	err := o.enterpriseClient.SetWorkspaceRole(ctx, principal.ParentResourceId.Resource, principal.Id.Resource, entitlement.Resource.Id.Resource)
 	if err != nil {
 		return nil, fmt.Errorf("baton-slack: failed to assign user role: %w", err)
@@ -157,6 +166,7 @@ func (o *workspaceRoleType) Revoke(ctx context.Context, grant *v2.Grant) (annota
 		return nil, fmt.Errorf("baton-slack: only users can have role revoked")
 	}
 
+	// TODO: put the team ID in the entitlement or user ID, not the parent resource
 	if principal.ParentResourceId == nil {
 		l.Warn(
 			"baton-slack: user does not have a parent resource",
