@@ -136,8 +136,13 @@ func (o *workspaceRoleType) Grant(ctx context.Context, principal *v2.Resource, e
 		return nil, fmt.Errorf("baton-slack: only users can be assigned a role")
 	}
 
+	parts := strings.Split(entitlement.Id, ":")
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("baton-slack: invalid entitlement ID: %s", entitlement.Id)
+	}
+
 	// teamID is in the entitlement ID at second position
-	teamID := strings.Split(entitlement.Id, ":")[1]
+	teamID := parts[1]
 
 	err := o.enterpriseClient.SetWorkspaceRole(ctx, teamID, principal.Id.Resource, entitlement.Resource.Id.Resource)
 	if err != nil {
@@ -161,8 +166,13 @@ func (o *workspaceRoleType) Revoke(ctx context.Context, grant *v2.Grant) (annota
 		return nil, fmt.Errorf("baton-slack: only users can have role revoked")
 	}
 
+	parts := strings.Split(grant.Id, ":")
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("baton-slack: invalid grant ID: %s", grant.Id)
+	}
+
 	// teamID is in the grant ID at second position
-	teamID := strings.Split(grant.Id, ":")[1]
+	teamID := parts[1]
 
 	// empty role type means regular user
 	err := o.enterpriseClient.SetWorkspaceRole(ctx, teamID, principal.Id.Resource, "")
