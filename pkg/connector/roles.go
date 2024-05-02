@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
@@ -135,16 +136,15 @@ func (o *workspaceRoleType) Grant(ctx context.Context, principal *v2.Resource, e
 		return nil, fmt.Errorf("baton-slack: only users can be assigned a role")
 	}
 
-	// TODO: put the team ID in the entitlement or user ID, not the parent resource
-	if principal.ParentResourceId == nil {
-		l.Warn(
-			"baton-slack: user does not have a parent resource",
-			zap.String("principal_id", principal.Id.Resource),
-		)
-		return nil, fmt.Errorf("baton-slack: user does not have a parent resource")
+	parts := strings.Split(entitlement.Id, ":")
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("baton-slack: invalid entitlement ID: %s", entitlement.Id)
 	}
 
-	err := o.enterpriseClient.SetWorkspaceRole(ctx, principal.ParentResourceId.Resource, principal.Id.Resource, entitlement.Resource.Id.Resource)
+	// teamID is in the entitlement ID at second position
+	teamID := parts[1]
+
+	err := o.enterpriseClient.SetWorkspaceRole(ctx, teamID, principal.Id.Resource, entitlement.Resource.Id.Resource)
 	if err != nil {
 		return nil, fmt.Errorf("baton-slack: failed to assign user role: %w", err)
 	}
@@ -166,17 +166,16 @@ func (o *workspaceRoleType) Revoke(ctx context.Context, grant *v2.Grant) (annota
 		return nil, fmt.Errorf("baton-slack: only users can have role revoked")
 	}
 
-	// TODO: put the team ID in the entitlement or user ID, not the parent resource
-	if principal.ParentResourceId == nil {
-		l.Warn(
-			"baton-slack: user does not have a parent resource",
-			zap.String("principal_id", principal.Id.Resource),
-		)
-		return nil, fmt.Errorf("baton-slack: user does not have a parent resource")
+	parts := strings.Split(grant.Id, ":")
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("baton-slack: invalid grant ID: %s", grant.Id)
 	}
 
+	// teamID is in the grant ID at second position
+	teamID := parts[1]
+
 	// empty role type means regular user
-	err := o.enterpriseClient.SetWorkspaceRole(ctx, principal.ParentResourceId.Resource, principal.Id.Resource, "")
+	err := o.enterpriseClient.SetWorkspaceRole(ctx, teamID, principal.Id.Resource, "")
 
 	if err != nil {
 		return nil, fmt.Errorf("baton-slack: failed to revoke user role: %w", err)
