@@ -1,6 +1,7 @@
 package connector
 
 import (
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -12,6 +13,51 @@ import (
 
 	enterprise "github.com/conductorone/baton-slack/pkg/slack"
 )
+
+type enterpriseRolesPagination struct {
+	Cursor   string          `json:"cursor"`
+	FoundMap map[string]bool `json:"foundMap"`
+}
+
+func (e *enterpriseRolesPagination) Marshal() (string, error) {
+	if e.Cursor == "" {
+		return "", nil
+	}
+	bytes, err := json.Marshal(e)
+	if err != nil {
+		return "", err
+	}
+
+	return string(bytes), nil
+}
+
+func (e *enterpriseRolesPagination) Unmarshal(input string) error {
+	if input == "" {
+		e.FoundMap = make(map[string]bool)
+		return nil
+	}
+
+	err := json.Unmarshal([]byte(input), e)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func parseRolesPageToken(i string, resourceID *v2.ResourceId) (*enterpriseRolesPagination, error) {
+	b := &enterpriseRolesPagination{}
+	err := b.Unmarshal(i)
+	if err != nil {
+		return nil, err
+	}
+
+	if b.FoundMap == nil {
+		b.FoundMap = make(map[string]bool)
+	}
+
+	return b, nil
+}
 
 func parsePageToken(i string, resourceID *v2.ResourceId) (*pagination.Bag, error) {
 	b := &pagination.Bag{}

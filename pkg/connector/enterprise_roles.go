@@ -110,31 +110,62 @@ func enterpriseRoleResource(roleID string, parentResourceID *v2.ResourceId) (*v2
 }
 
 func (o *enterpriseRoleType) List(ctx context.Context, parentResourceID *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+	var ret []*v2.Resource
 	// no need to sync roles if we don't have an enterprise plan
 	if o.enterpriseID == "" {
 		return nil, "", nil, nil
 	}
 
-	var ret []*v2.Resource
-	for systemRoleID := range systemRoles {
-		r, err := enterpriseRoleResource(systemRoleID, parentResourceID)
+	bag, err := parseRolesPageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeEnterpriseRole.Id})
+	if err != nil {
+		return nil, "", nil, err
+	}
+
+	// We only want to do this once
+	if bag.Cursor == "" {
+		for orgRoleID := range organizationRoles {
+			r, err := enterpriseRoleResource(orgRoleID, parentResourceID)
+			if err != nil {
+				return nil, "", nil, err
+			}
+
+			ret = append(ret, r)
+		}
+	}
+
+	roleAssignments, nextPage, err := o.enterpriseClient.GetRoleAssignments(ctx, "", bag.Cursor)
+	if err != nil {
+		annos, err := annotationsForError(err)
+		return nil, "", annos, err
+	}
+
+	bag.Cursor = nextPage
+
+	for _, roleAssignment := range roleAssignments {
+		if _, ok := bag.FoundMap[roleAssignment.RoleID]; ok {
+			continue
+		}
+
+		if _, ok := systemRoles[roleAssignment.RoleID]; !ok {
+			continue
+		}
+
+		r, err := enterpriseRoleResource(roleAssignment.RoleID, parentResourceID)
 		if err != nil {
 			return nil, "", nil, err
 		}
 
 		ret = append(ret, r)
+
+		bag.FoundMap[roleAssignment.RoleID] = true
 	}
 
-	for orgRoleID := range organizationRoles {
-		r, err := enterpriseRoleResource(orgRoleID, parentResourceID)
-		if err != nil {
-			return nil, "", nil, err
-		}
-
-		ret = append(ret, r)
+	nextPageToken, err := bag.Marshal()
+	if err != nil {
+		return nil, "", nil, err
 	}
 
-	return ret, "", nil, nil
+	return ret, nextPageToken, nil, nil
 }
 
 func (o *enterpriseRoleType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
@@ -154,15 +185,25 @@ func (o *enterpriseRoleType) Entitlements(ctx context.Context, resource *v2.Reso
 func (o *enterpriseRoleType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
 	var rv []*v2.Grant
 
+	bag, err := parsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeEnterpriseRole.Id})
+	if err != nil {
+		return nil, "", nil, err
+	}
+
 	// if current role is one of organization roles, don't return any grants since we grant those on the user itself
 	if _, ok := organizationRoles[resource.Id.Resource]; ok {
 		return nil, "", nil, nil
 	}
 
-	roleAssignments, err := o.enterpriseClient.GetRoleAssignments(ctx, resource.Id.Resource)
+	roleAssignments, nextPage, err := o.enterpriseClient.GetRoleAssignments(ctx, resource.Id.Resource, bag.PageToken())
 	if err != nil {
 		annos, err := annotationsForError(err)
 		return nil, "", annos, err
+	}
+
+	pageToken, err := bag.NextToken(nextPage)
+	if err != nil {
+		return nil, "", nil, err
 	}
 
 	for _, assignment := range roleAssignments {
@@ -174,5 +215,5 @@ func (o *enterpriseRoleType) Grants(ctx context.Context, resource *v2.Resource, 
 		rv = append(rv, grant.NewGrant(resource, RoleAssignmentEntitlement, userID))
 	}
 
-	return rv, "", nil, nil
+	return rv, pageToken, nil, nil
 }
