@@ -231,32 +231,44 @@ func (c *Client) GetTeams(ctx context.Context, cursor string) ([]slack.Team, str
 }
 
 // GetRoleAssignments returns the role assignments for the given role ID.
-func (c *Client) GetRoleAssignments(ctx context.Context, roleID string) ([]RoleAssignment, error) {
+func (c *Client) GetRoleAssignments(ctx context.Context, roleID string, cursor string) ([]RoleAssignment, string, error) {
 	values := url.Values{
-		"token":    {c.token},
-		"role_ids": {roleID},
+		"token": {c.token},
+	}
+
+	if roleID != "" {
+		values.Add("role_ids", roleID)
+	}
+
+	if cursor != "" {
+		values.Add("cursor", cursor)
 	}
 
 	teamsUrl, err := url.JoinPath(baseUrl, "admin.roles.listAssignments")
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	var res struct {
 		BaseResponse
 		RoleAssignments []RoleAssignment `json:"role_assignments"`
+		Pagination
 	}
 
 	err = c.doRequest(ctx, teamsUrl, &res, http.MethodPost, nil, values)
 	if err != nil {
-		return nil, fmt.Errorf("error fetching role assignments: %w", err)
+		return nil, "", fmt.Errorf("error fetching role assignments: %w", err)
 	}
 
 	if res.Error != "" {
-		return nil, fmt.Errorf("error fetching role assignments: %v", res.Error)
+		return nil, "", fmt.Errorf("error fetching role assignments: %v", res.Error)
 	}
 
-	return res.RoleAssignments, nil
+	if res.ResponseMetadata.NextCursor != "" {
+		return res.RoleAssignments, res.ResponseMetadata.NextCursor, nil
+	}
+
+	return res.RoleAssignments, "", nil
 }
 
 // GetUserGroups returns the user groups for the given team.
