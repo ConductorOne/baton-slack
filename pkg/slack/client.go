@@ -264,11 +264,7 @@ func (c *Client) GetRoleAssignments(ctx context.Context, roleID string, cursor s
 		return nil, "", fmt.Errorf("error fetching role assignments: %v", res.Error)
 	}
 
-	if res.ResponseMetadata.NextCursor != "" {
-		return res.RoleAssignments, res.ResponseMetadata.NextCursor, nil
-	}
-
-	return res.RoleAssignments, "", nil
+	return res.RoleAssignments, res.ResponseMetadata.NextCursor, nil
 }
 
 // GetUserGroups returns the user groups for the given team.
