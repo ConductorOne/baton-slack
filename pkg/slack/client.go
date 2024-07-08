@@ -29,8 +29,10 @@ type Client struct {
 }
 
 type BaseResponse struct {
-	Ok    bool   `json:"ok"`
-	Error string `json:"error"`
+	Ok       bool   `json:"ok"`
+	Error    string `json:"error"`
+	Needed   string `json:"needed"`
+	Provided string `json:"provided"`
 }
 
 type Pagination struct {
@@ -343,7 +345,7 @@ func (c *Client) SetWorkspaceRole(ctx context.Context, teamID, userID, roleID st
 	}
 
 	if res.Error != "" {
-		return fmt.Errorf("error setting user role: %v", res.Error)
+		return fmt.Errorf("error setting user role: error %v needed %v provided %v", res.Error, res.Needed, res.Provided)
 	}
 
 	return nil
