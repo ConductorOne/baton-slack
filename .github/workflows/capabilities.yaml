@@ -24,6 +24,9 @@ jobs:
         run: go build -o connector ./cmd/baton-slack
 
       - name: Run and save output
+        env:
+          BATON_ENTERPRISE_TOKEN: ${{ secrets.BATON_ENTERPRISE_TOKEN }}
+          BATON_TOKEN: ${{ secrets.BATON_TOKEN }}
         run: ./connector capabilities > baton_capabilities.json
 
       - name: Commit changes
