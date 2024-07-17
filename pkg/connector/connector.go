@@ -11,6 +11,7 @@ import (
 	enterprise "github.com/conductorone/baton-slack/pkg/slack"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
+	"go.uber.org/zap"
 )
 
 type Slack struct {
@@ -93,14 +94,31 @@ func (s *Slack) Validate(ctx context.Context) (annotations.Annotations, error) {
 	return nil, nil
 }
 
+type slackLogger struct {
+	ZapLog *zap.Logger
+}
+
+// Needed to prevent slack client from logging in its own format.
+func (s *slackLogger) Output(callDepth int, msg string) error {
+	s.ZapLog.Info(msg, zap.Int("callDepth", callDepth))
+	return nil
+}
+
 // New returns the Slack connector.
 func New(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool) (*Slack, error) {
-	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, ctxzap.Extract(ctx)))
+	l := ctxzap.Extract(ctx)
+	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, l))
 	if err != nil {
 		return nil, err
 	}
 
-	client := slack.New(apiKey, slack.OptionDebug(true), slack.OptionHTTPClient(httpClient))
+	logger := &slackLogger{ZapLog: l}
+	opts := []slack.Option{
+		slack.OptionDebug(true),
+		slack.OptionHTTPClient(httpClient),
+		slack.OptionLog(logger),
+	}
+	client := slack.New(apiKey, opts...)
 
 	res, err := client.AuthTestContext(ctx)
 	if err != nil {
