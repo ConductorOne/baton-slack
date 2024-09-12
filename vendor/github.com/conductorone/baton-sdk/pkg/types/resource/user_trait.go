@@ -4,10 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
-	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
+	"github.com/conductorone/baton-sdk/pkg/annotations"
 )
 
 type UserTraitOption func(ut *v2.UserTrait) error
@@ -15,6 +16,14 @@ type UserTraitOption func(ut *v2.UserTrait) error
 func WithStatus(status v2.UserTrait_Status_Status) UserTraitOption {
 	return func(ut *v2.UserTrait) error {
 		ut.Status = &v2.UserTrait_Status{Status: status}
+
+		return nil
+	}
+}
+
+func WithDetailedStatus(status v2.UserTrait_Status_Status, details string) UserTraitOption {
+	return func(ut *v2.UserTrait) error {
+		ut.Status = &v2.UserTrait_Status{Status: status, Details: details}
 
 		return nil
 	}
@@ -36,6 +45,7 @@ func WithEmail(email string, primary bool) UserTraitOption {
 		return nil
 	}
 }
+
 func WithUserLogin(login string, aliases ...string) UserTraitOption {
 	return func(ut *v2.UserTrait) error {
 		if login == "" {
