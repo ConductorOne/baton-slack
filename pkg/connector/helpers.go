@@ -8,10 +8,9 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
+	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/slack-go/slack"
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	enterprise "github.com/conductorone/baton-slack/pkg/slack"
 )
 
 type enterpriseRolesPagination struct {

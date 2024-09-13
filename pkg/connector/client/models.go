@@ -2,6 +2,27 @@ package enterprise
 
 import "github.com/slack-go/slack"
 
+type BaseResponse struct {
+	Ok       bool   `json:"ok"`
+	Error    string `json:"error"`
+	Needed   string `json:"needed"`
+	Provided string `json:"provided"`
+}
+
+type Pagination struct {
+	ResponseMetadata struct {
+		NextCursor string `json:"next_cursor"`
+	} `json:"response_metadata"`
+}
+
+type SCIMResponse[T any] struct {
+	Schemas      []string `json:"schemas"`
+	Resources    []T      `json:"Resources"`
+	TotalResults int      `json:"totalResults"`
+	ItemsPerPage int      `json:"itemsPerPage"`
+	StartIndex   int      `json:"startIndex"`
+}
+
 type UserAdmin struct {
 	ID                string   `json:"id"`
 	Email             string   `json:"email"`
@@ -67,7 +88,7 @@ type EnterpriseUser struct {
 	Teams          []string `json:"teams"`
 }
 
-// SCIM resources.
+// UserResource SCIM resources.
 type UserResource struct {
 	Schemas                                           []string                                               `json:"schemas"`
 	ID                                                string                                                 `json:"id"`
@@ -150,4 +171,19 @@ type GroupResource struct {
 	Meta        Meta     `json:"meta"`
 	DisplayName string   `json:"displayName"`
 	Members     []Member `json:"members"`
+}
+
+type PatchOp struct {
+	Schemas    []string      `json:"schemas"`
+	Operations []ScimOperate `json:"Operations"`
+}
+
+type ScimOperate struct {
+	Op    string   `json:"op"`
+	Path  string   `json:"path"`
+	Value []UserID `json:"value"`
+}
+
+type UserID struct {
+	Value string `json:"value"`
 }

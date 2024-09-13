@@ -8,7 +8,7 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
-	enterprise "github.com/conductorone/baton-slack/pkg/slack"
+	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
 	"go.uber.org/zap"

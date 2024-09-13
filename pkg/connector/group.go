@@ -10,7 +10,7 @@ import (
 	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
-	enterprise "github.com/conductorone/baton-slack/pkg/slack"
+	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
 )

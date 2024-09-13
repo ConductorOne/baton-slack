@@ -7,7 +7,7 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
-	enterprise "github.com/conductorone/baton-slack/pkg/slack"
+	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/slack-go/slack"
 )
 
