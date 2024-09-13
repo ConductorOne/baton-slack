@@ -58,13 +58,23 @@ func userResource(ctx context.Context, user *slack.User, parentResourceID *v2.Re
 		userTraitOptions = append(userTraitOptions, resource.WithAccountType(v2.UserTrait_ACCOUNT_TYPE_SERVICE))
 	}
 
-	// If the credentials we're hitting the API with don't have admin, this can be false even if the user has mfa enabled
+	// If the credentials we're hitting the API with don't have admin, this can
+	// be false even if the user has mfa enabled.
 	// See https://api.slack.com/types/user for more info
 	if user.Has2FA {
-		userTraitOptions = append(userTraitOptions, resource.WithMFAStatus(&v2.UserTrait_MFAStatus{MfaEnabled: true}))
+		userTraitOptions = append(
+			userTraitOptions,
+			resource.WithMFAStatus(&v2.UserTrait_MFAStatus{MfaEnabled: true}),
+		)
 	}
 
-	ret, err := resource.NewUserResource(user.Name, resourceTypeUser, user.ID, userTraitOptions, resource.WithParentResourceID(parentResourceID))
+	ret, err := resource.NewUserResource(
+		user.Name,
+		resourceTypeUser,
+		user.ID,
+		userTraitOptions,
+		resource.WithParentResourceID(parentResourceID),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -99,13 +109,19 @@ func baseUserResource(ctx context.Context, user enterprise.UserAdmin) (*v2.Resou
 	}
 
 	if user.IsBot {
-		userTraitOptions = append(userTraitOptions, resource.WithAccountType(v2.UserTrait_ACCOUNT_TYPE_SERVICE))
+		userTraitOptions = append(
+			userTraitOptions,
+			resource.WithAccountType(v2.UserTrait_ACCOUNT_TYPE_SERVICE),
+		)
 	}
 
 	// If the credentials we're hitting the API with don't have admin, this can be false even if the user has mfa enabled
 	// See https://api.slack.com/types/user for more info
 	if user.Has2Fa {
-		userTraitOptions = append(userTraitOptions, resource.WithMFAStatus(&v2.UserTrait_MFAStatus{MfaEnabled: true}))
+		userTraitOptions = append(
+			userTraitOptions,
+			resource.WithMFAStatus(&v2.UserTrait_MFAStatus{MfaEnabled: true}),
+		)
 	}
 
 	ssoStatus := &v2.UserTrait_SSOStatus{SsoEnabled: false}
@@ -114,7 +130,12 @@ func baseUserResource(ctx context.Context, user enterprise.UserAdmin) (*v2.Resou
 	}
 	userTraitOptions = append(userTraitOptions, resource.WithSSOStatus(ssoStatus))
 
-	ret, err := resource.NewUserResource(user.FullName, resourceTypeUser, user.ID, userTraitOptions)
+	ret, err := resource.NewUserResource(
+		user.FullName,
+		resourceTypeUser,
+		user.ID,
+		userTraitOptions,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -122,15 +143,42 @@ func baseUserResource(ctx context.Context, user enterprise.UserAdmin) (*v2.Resou
 	return ret, nil
 }
 
-func (o *userResourceType) Entitlements(_ context.Context, _ *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
+func (o *userResourceType) Entitlements(
+	_ context.Context,
+	_ *v2.Resource,
+	_ *pagination.Token,
+) (
+	[]*v2.Entitlement,
+	string,
+	annotations.Annotations,
+	error,
+) {
 	return nil, "", nil, nil
 }
 
-func (o *userResourceType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
+func (o *userResourceType) Grants(
+	ctx context.Context,
+	resource *v2.Resource,
+	pt *pagination.Token,
+) (
+	[]*v2.Grant,
+	string,
+	annotations.Annotations,
+	error,
+) {
 	return nil, "", nil, nil
 }
 
-func (o *userResourceType) List(ctx context.Context, parentResourceID *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (o *userResourceType) List(
+	ctx context.Context,
+	parentResourceID *v2.ResourceId,
+	pt *pagination.Token,
+) (
+	[]*v2.Resource,
+	string,
+	annotations.Annotations,
+	error,
+) {
 	if parentResourceID == nil {
 		return nil, "", nil, nil
 	}
@@ -188,7 +236,11 @@ func (o *userResourceType) List(ctx context.Context, parentResourceID *v2.Resour
 	return rv, pageToken, nil, nil
 }
 
-func userBuilder(client *slack.Client, enterpriseID string, enterpriseClient *enterprise.Client) *userResourceType {
+func userBuilder(
+	client *slack.Client,
+	enterpriseID string,
+	enterpriseClient *enterprise.Client,
+) *userResourceType {
 	return &userResourceType{
 		resourceType:     resourceTypeUser,
 		client:           client,
