@@ -53,7 +53,7 @@ type slackLogger struct {
 	ZapLog *zap.Logger
 }
 
-// Needed to prevent slack client from logging in its own format.
+// Output Needed to prevent slack client from logging in its own format.
 func (s *slackLogger) Output(callDepth int, msg string) error {
 	s.ZapLog.Info(msg, zap.Int("callDepth", callDepth))
 	return nil
@@ -87,7 +87,16 @@ func New(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool) (*S
 			return nil, fmt.Errorf("slack-connector: enterprise account detected, but no enterprise token specified")
 		}
 	}
-	enterpriseClient := enterprise.NewClient(httpClient, enterpriseKey, apiKey, res.EnterpriseID, ssoEnabled)
+	enterpriseClient, err := enterprise.NewClient(
+		httpClient,
+		enterpriseKey,
+		apiKey,
+		res.EnterpriseID,
+		ssoEnabled,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("slack-connector: failed to create enterprise client. Error: %w", err)
+	}
 
 	return &Slack{
 		client:           client,
