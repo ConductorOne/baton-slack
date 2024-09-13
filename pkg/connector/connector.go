@@ -22,51 +22,6 @@ type Slack struct {
 	ssoEnabled       bool
 }
 
-var (
-	resourceTypeUser = &v2.ResourceType{
-		Id:          "user",
-		DisplayName: "User",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_USER,
-		},
-	}
-	resourceTypeWorkspace = &v2.ResourceType{
-		Id:          "workspace",
-		DisplayName: "Workspace",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_GROUP,
-		},
-	}
-	resourceTypeUserGroup = &v2.ResourceType{
-		Id:          "userGroup",
-		DisplayName: "User Group",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_GROUP,
-		},
-	}
-	resourceTypeGroup = &v2.ResourceType{
-		Id:          "group",
-		DisplayName: "IDP Group",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_GROUP,
-		},
-	}
-	resourceTypeWorkspaceRole = &v2.ResourceType{
-		Id:          "workspaceRole",
-		DisplayName: "Workspace Role",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_ROLE,
-		},
-	}
-	resourceTypeEnterpriseRole = &v2.ResourceType{
-		Id:          "enterpriseRole",
-		DisplayName: "Enterprise Role",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_ROLE,
-		},
-	}
-)
-
 // Metadata returns metadata about the connector.
 func (c *Slack) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
 	return &v2.ConnectorMetadata{
