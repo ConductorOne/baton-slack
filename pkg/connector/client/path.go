@@ -7,20 +7,22 @@ import (
 )
 
 const (
-	UrlPathGetRoleAssignments  = "/api/admin.roles.listAssignments"
-	UrlPathGetTeams            = "/api/admin.teams.list"
-	UrlPathGetUserGroupMembers = "/api/usergroups.users.list"
-	UrlPathGetUserGroups       = "/api/usergroups.list"
-	UrlPathGetUserInfo         = "/api/users.info"
-	UrlPathGetUsers            = "/api/users.list"
-	UrlPathGetUsersAdmin       = "/api/admin.users.list"
-	UrlPathIDPGroup            = "/scim/v2/Groups/%s"
-	UrlPathIDPGroups           = "/scim/v2/Groups"
-	UrlPathSetAdmin            = "/api/admin.users.setAdmin"
-	UrlPathSetOwner            = "/api/admin.users.setOwner"
-	UrlPathSetRegular          = "/api/admin.users.setRegular"
-	baseScimUrl                = "https://api.slack.com"
-	baseUrl                    = "https://slack.com"
+	UrlPathGetRoleAssignments    = "/api/admin.roles.listAssignments"
+	UrlPathAddRoleAssignments    = "/api/admin.roles.addAssignments"
+	UrlPathRemoveRoleAssignments = "/api/admin.roles.removeAssignments"
+	UrlPathGetTeams              = "/api/admin.teams.list"
+	UrlPathGetUserGroupMembers   = "/api/usergroups.users.list"
+	UrlPathGetUserGroups         = "/api/usergroups.list"
+	UrlPathGetUserInfo           = "/api/users.info"
+	UrlPathGetUsers              = "/api/users.list"
+	UrlPathGetUsersAdmin         = "/api/admin.users.list"
+	UrlPathIDPGroup              = "/scim/v2/Groups/%s"
+	UrlPathIDPGroups             = "/scim/v2/Groups"
+	UrlPathSetAdmin              = "/api/admin.users.setAdmin"
+	UrlPathSetOwner              = "/api/admin.users.setOwner"
+	UrlPathSetRegular            = "/api/admin.users.setRegular"
+	baseScimUrl                  = "https://api.slack.com"
+	baseUrl                      = "https://slack.com"
 )
 
 func getWorkspaceUrlPathByRole(roleID string) (string, error) {
