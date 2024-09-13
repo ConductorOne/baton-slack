@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
+	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/slack-go/slack"
 )
@@ -77,13 +78,17 @@ func (a BaseResponse) handleError(err error, action string) error {
 func (c *Client) GetUserInfo(
 	ctx context.Context,
 	userID string,
-) (*User, error) {
+) (
+	*User,
+	*v2.RateLimitDescription,
+	error,
+) {
 	var response struct {
 		BaseResponse
 		User *User `json:"user"`
 	}
 
-	_, _, err := c.post(
+	ratelimitData, err := c.post(
 		ctx,
 		UrlPathGetUserInfo,
 		&response,
@@ -91,10 +96,10 @@ func (c *Client) GetUserInfo(
 		true,
 	)
 	if err := response.handleError(err, "fetching user info"); err != nil {
-		return nil, err
+		return nil, ratelimitData, err
 	}
 
-	return response.User, nil
+	return response.User, ratelimitData, nil
 }
 
 // GetUserGroupMembers returns the members of the given user group from a given team.
@@ -102,13 +107,17 @@ func (c *Client) GetUserGroupMembers(
 	ctx context.Context,
 	userGroupID string,
 	teamID string,
-) ([]string, error) {
+) (
+	[]string,
+	*v2.RateLimitDescription,
+	error,
+) {
 	var response struct {
 		BaseResponse
 		Users []string `json:"users"`
 	}
 
-	_, _, err := c.post(
+	ratelimitData, err := c.post(
 		ctx,
 		UrlPathGetUserGroupMembers,
 		&response,
@@ -119,17 +128,22 @@ func (c *Client) GetUserGroupMembers(
 		true,
 	)
 	if err := response.handleError(err, "fetching user group members"); err != nil {
-		return nil, err
+		return nil, ratelimitData, err
 	}
 
-	return response.Users, nil
+	return response.Users, ratelimitData, nil
 }
 
 // GetUsersAdmin returns all users in Enterprise grid.
 func (c *Client) GetUsersAdmin(
 	ctx context.Context,
 	cursor string,
-) ([]UserAdmin, string, error) {
+) (
+	[]UserAdmin,
+	string,
+	*v2.RateLimitDescription,
+	error,
+) {
 	values := map[string]interface{}{}
 
 	// We need to check if cursor is empty because API throws error if empty string is passed.
@@ -143,7 +157,7 @@ func (c *Client) GetUsersAdmin(
 		Pagination
 	}
 
-	_, _, err := c.post(
+	ratelimitData, err := c.post(
 		ctx,
 		UrlPathGetUsersAdmin,
 		&response,
@@ -151,11 +165,11 @@ func (c *Client) GetUsersAdmin(
 		false,
 	)
 	if err := response.handleError(err, "fetching users"); err != nil {
-		return nil, "", err
+		return nil, "", ratelimitData, err
 	}
 
 	nextToken := response.ResponseMetadata.NextCursor
-	return response.Users, nextToken, nil
+	return response.Users, nextToken, ratelimitData, nil
 }
 
 // GetUsers returns the users of the given team.
@@ -163,7 +177,12 @@ func (c *Client) GetUsers(
 	ctx context.Context,
 	teamID string,
 	cursor string,
-) ([]User, string, error) {
+) (
+	[]User,
+	string,
+	*v2.RateLimitDescription,
+	error,
+) {
 	values := map[string]interface{}{"team_id": teamID}
 
 	// need to check if cursor is empty because API throws error if empty string is passed
@@ -177,7 +196,7 @@ func (c *Client) GetUsers(
 		Pagination
 	}
 
-	_, _, err := c.post(
+	ratelimitData, err := c.post(
 		ctx,
 		UrlPathGetUsers,
 		&response,
@@ -185,17 +204,25 @@ func (c *Client) GetUsers(
 		true,
 	)
 	if err := response.handleError(err, "fetching users"); err != nil {
-		return nil, "", err
+		return nil, "", ratelimitData, err
 	}
 
-	return response.Users, response.ResponseMetadata.NextCursor, nil
+	return response.Users,
+		response.ResponseMetadata.NextCursor,
+		ratelimitData,
+		nil
 }
 
 // GetTeams returns the teams of the given enterprise.
 func (c *Client) GetTeams(
 	ctx context.Context,
 	cursor string,
-) ([]slack.Team, string, error) {
+) (
+	[]slack.Team,
+	string,
+	*v2.RateLimitDescription,
+	error,
+) {
 	values := map[string]interface{}{}
 
 	if cursor != "" {
@@ -208,7 +235,7 @@ func (c *Client) GetTeams(
 		Pagination
 	}
 
-	_, _, err := c.post(
+	ratelimitData, err := c.post(
 		ctx,
 		UrlPathGetTeams,
 		&response,
@@ -217,10 +244,13 @@ func (c *Client) GetTeams(
 	)
 
 	if err := response.handleError(err, "fetching teams"); err != nil {
-		return nil, "", err
+		return nil, "", ratelimitData, err
 	}
 
-	return response.Teams, response.ResponseMetadata.NextCursor, nil
+	return response.Teams,
+		response.ResponseMetadata.NextCursor,
+		ratelimitData,
+		nil
 }
 
 // GetRoleAssignments returns the role assignments for the given role ID.
@@ -228,7 +258,12 @@ func (c *Client) GetRoleAssignments(
 	ctx context.Context,
 	roleID string,
 	cursor string,
-) ([]RoleAssignment, string, error) {
+) (
+	[]RoleAssignment,
+	string,
+	*v2.RateLimitDescription,
+	error,
+) {
 	values := map[string]interface{}{}
 
 	if roleID != "" {
@@ -245,7 +280,7 @@ func (c *Client) GetRoleAssignments(
 		Pagination
 	}
 
-	_, _, err := c.post(
+	ratelimitData, err := c.post(
 		ctx,
 		UrlPathGetRoleAssignments,
 		&response,
@@ -253,32 +288,43 @@ func (c *Client) GetRoleAssignments(
 		false,
 	)
 	if err := response.handleError(err, "fetching role assignments"); err != nil {
-		return nil, "", err
+		return nil, "", ratelimitData, err
 	}
 
-	return response.RoleAssignments, response.ResponseMetadata.NextCursor, nil
+	return response.RoleAssignments,
+		response.ResponseMetadata.NextCursor,
+		ratelimitData,
+		nil
 }
 
 // GetUserGroups returns the user groups for the given team.
-func (c *Client) GetUserGroups(ctx context.Context, teamID string) ([]slack.UserGroup, error) {
+func (c *Client) GetUserGroups(
+	ctx context.Context,
+	teamID string,
+) (
+	[]slack.UserGroup,
+	*v2.RateLimitDescription,
+	error,
+) {
 	var response struct {
 		BaseResponse
 		UserGroups []slack.UserGroup `json:"usergroups"`
 	}
 
-	_, _, err := c.post(
+	ratelimitData, err := c.post(
 		ctx,
 		UrlPathGetUserGroups,
 		&response,
 		map[string]interface{}{"team_id": teamID},
-		// bot token needed here cause user token doesn't work unless user is in all workspaces
+		// The bot token needed here because user token doesn't work unless user
+		// is in all workspaces.
 		true,
 	)
 	if err := response.handleError(err, "fetching user groups"); err != nil {
-		return nil, err
+		return nil, ratelimitData, err
 	}
 
-	return response.UserGroups, nil
+	return response.UserGroups, ratelimitData, nil
 }
 
 // SetWorkspaceRole sets the role for the given user in the given team.
@@ -287,15 +333,18 @@ func (c *Client) SetWorkspaceRole(
 	teamID string,
 	userID string,
 	roleID string,
-) error {
+) (
+	*v2.RateLimitDescription,
+	error,
+) {
 	actionUrl, err := getWorkspaceUrlPathByRole(roleID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var response BaseResponse
 
-	_, _, err = c.post(
+	ratelimitData, err := c.post(
 		ctx,
 		actionUrl,
 		&response,
@@ -305,58 +354,57 @@ func (c *Client) SetWorkspaceRole(
 		},
 		false,
 	)
-	return response.handleError(err, "setting user role")
+	return ratelimitData, response.handleError(err, "setting user role")
 }
 
 // ListIDPGroups returns all IDP groups from the SCIM API.
-func (c *Client) ListIDPGroups(ctx context.Context) ([]GroupResource, error) {
-	var allGroups []GroupResource
-	startIndex := 1
-
-	for {
-		var response SCIMResponse[GroupResource]
-		_, _, err := c.getScim(
-			ctx,
-			UrlPathIDPGroups,
-			&response,
-			map[string]interface{}{
-				"startIndex": startIndex,
-				"count":      PageSizeDefault,
-			},
-		)
-		if err != nil {
-			return nil, fmt.Errorf("error fetching IDP groups: %w", err)
-		}
-
-		allGroups = append(allGroups, response.Resources...)
-
-		startIndex += response.ItemsPerPage
-
-		if response.TotalResults < startIndex {
-			break
-		}
+func (c *Client) ListIDPGroups(
+	ctx context.Context,
+	startIndex int,
+	count int,
+) (
+	*SCIMResponse[GroupResource],
+	*v2.RateLimitDescription,
+	error,
+) {
+	var response SCIMResponse[GroupResource]
+	ratelimitData, err := c.getScim(
+		ctx,
+		UrlPathIDPGroups,
+		&response,
+		map[string]interface{}{
+			"startIndex": startIndex,
+			"count":      count,
+		},
+	)
+	if err != nil {
+		return nil, ratelimitData, fmt.Errorf("error fetching IDP groups: %w", err)
 	}
 
-	return allGroups, nil
+	return &response, ratelimitData, nil
 }
 
 // GetIDPGroup returns a single IDP group from the SCIM API.
 func (c *Client) GetIDPGroup(
 	ctx context.Context,
 	groupID string,
-) (*GroupResource, error) {
+) (
+	*GroupResource,
+	*v2.RateLimitDescription,
+	error,
+) {
 	var response GroupResource
-	_, _, err := c.getScim(
+	ratelimitData, err := c.getScim(
 		ctx,
 		fmt.Sprintf(UrlPathIDPGroup, groupID),
 		&response,
 		nil,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("error fetching IDP group: %w", err)
+		return nil, ratelimitData, fmt.Errorf("error fetching IDP group: %w", err)
 	}
 
-	return &response, nil
+	return &response, ratelimitData, nil
 }
 
 // AddUserToGroup patches a group by adding a user to it.
@@ -364,7 +412,10 @@ func (c *Client) AddUserToGroup(
 	ctx context.Context,
 	groupID string,
 	user string,
-) error {
+) (
+	*v2.RateLimitDescription,
+	error,
+) {
 	requestBody := PatchOp{
 		Schemas: []string{"urn:ietf:params:scim:api:messages:2.0:PatchOp"},
 		Operations: []ScimOperate{
@@ -378,12 +429,12 @@ func (c *Client) AddUserToGroup(
 		},
 	}
 
-	err := c.patchGroup(ctx, groupID, requestBody)
+	ratelimitData, err := c.patchGroup(ctx, groupID, requestBody)
 	if err != nil {
-		return fmt.Errorf("error adding user to IDP group: %w", err)
+		return ratelimitData, fmt.Errorf("error adding user to IDP group: %w", err)
 	}
 
-	return nil
+	return ratelimitData, nil
 }
 
 // RemoveUserFromGroup patches a group by removing a user from it.
@@ -391,18 +442,30 @@ func (c *Client) RemoveUserFromGroup(
 	ctx context.Context,
 	groupID string,
 	user string,
-) error {
-	// need to fetch group to get existing members
-	group, err := c.GetIDPGroup(ctx, groupID)
+) (
+	bool,
+	*v2.RateLimitDescription,
+	error,
+) {
+	// First, we need to fetch group to get existing members.
+	group, ratelimitData, err := c.GetIDPGroup(ctx, groupID)
 	if err != nil {
-		return fmt.Errorf("error fetching IDP group: %w", err)
+		return false, ratelimitData, fmt.Errorf("error fetching IDP group: %w", err)
 	}
 
+	found := false
 	var result []UserID
 	for _, member := range group.Members {
-		if member.Value != user {
+		if member.Value == user {
+			found = true
+		} else {
 			result = append(result, UserID{Value: member.Value})
 		}
+	}
+
+	// If we don't find the user, we can short-circuit here.
+	if !found {
+		return false, ratelimitData, nil
 	}
 
 	requestBody := PatchOp{
@@ -416,34 +479,37 @@ func (c *Client) RemoveUserFromGroup(
 		},
 	}
 
-	err = c.patchGroup(ctx, groupID, requestBody)
+	ratelimitData, err = c.patchGroup(ctx, groupID, requestBody)
 	if err != nil {
-		return fmt.Errorf("error removing user from IDP group: %w", err)
+		return false, ratelimitData, fmt.Errorf("error removing user from IDP group: %w", err)
 	}
 
-	return nil
+	return true, ratelimitData, nil
 }
 
 func (c *Client) patchGroup(
 	ctx context.Context,
 	groupID string,
 	requestBody PatchOp,
-) error {
+) (
+	*v2.RateLimitDescription,
+	error,
+) {
 	payload, err := json.Marshal(requestBody)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var response *GroupResource
-	_, _, err = c.patchScim(
+	ratelimitData, err := c.patchScim(
 		ctx,
 		fmt.Sprintf(UrlPathIDPGroup, groupID),
 		&response,
 		payload,
 	)
 	if err != nil {
-		return fmt.Errorf("error patching IDP group: %w", err)
+		return ratelimitData, fmt.Errorf("error patching IDP group: %w", err)
 	}
 
-	return nil
+	return ratelimitData, nil
 }

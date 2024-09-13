@@ -2,36 +2,29 @@ package enterprise
 
 import (
 	"fmt"
-	"strings"
+
+	"github.com/conductorone/baton-slack/pkg"
 )
 
 const (
-	UrlPathGetRoleAssignments  = "admin.roles.listAssignments"
-	UrlPathGetTeams            = "admin.teams.list"
-	UrlPathGetUserGroupMembers = "usergroups.users.list"
-	UrlPathGetUserGroups       = "usergroups.list"
-	UrlPathGetUserInfo         = "users.info"
-	UrlPathGetUsers            = "users.list"
-	UrlPathGetUsersAdmin       = "admin.users.list"
-	UrlPathIDPGroup            = "Groups/%s"
-	UrlPathIDPGroups           = "Groups"
-	UrlPathSetAdmin            = "admin.users.setAdmin"
-	UrlPathSetOwner            = "admin.users.setOwner"
-	UrlPathSetRegular          = "admin.users.setRegular"
-	baseScimUrl                = "https://api.slack.com/scim/v2/"
-	baseUrl                    = "https://slack.com/api/"
+	UrlPathGetRoleAssignments  = "/api/admin.roles.listAssignments"
+	UrlPathGetTeams            = "/api/admin.teams.list"
+	UrlPathGetUserGroupMembers = "/api/usergroups.users.list"
+	UrlPathGetUserGroups       = "/api/usergroups.list"
+	UrlPathGetUserInfo         = "/api/users.info"
+	UrlPathGetUsers            = "/api/users.list"
+	UrlPathGetUsersAdmin       = "/api/admin.users.list"
+	UrlPathIDPGroup            = "/scim/v2/Groups/%s"
+	UrlPathIDPGroups           = "/scim/v2/Groups"
+	UrlPathSetAdmin            = "/api/admin.users.setAdmin"
+	UrlPathSetOwner            = "/api/admin.users.setOwner"
+	UrlPathSetRegular          = "/api/admin.users.setRegular"
+	baseScimUrl                = "https://api.slack.com"
+	baseUrl                    = "https://slack.com"
 )
 
 func getWorkspaceUrlPathByRole(roleID string) (string, error) {
-	var role string
-
-	if roleID != "" {
-		roleSplit := strings.Split(roleID, ":")
-		if len(roleSplit) >= 2 {
-			role = roleSplit[1]
-		}
-	}
-
+	role, _ := pkg.ParseID(roleID)
 	switch role {
 	case "owner":
 		return UrlPathSetOwner, nil

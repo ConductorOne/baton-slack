@@ -60,7 +60,6 @@ func (c *Client) post(
 	payload map[string]interface{},
 	useBotToken bool,
 ) (
-	*http.Response,
 	*v2.RateLimitDescription,
 	error,
 ) {
@@ -85,7 +84,6 @@ func (c *Client) getScim(
 	target interface{},
 	queryParameters map[string]interface{},
 ) (
-	*http.Response,
 	*v2.RateLimitDescription,
 	error,
 ) {
@@ -104,7 +102,6 @@ func (c *Client) patchScim(
 	target interface{},
 	payload []byte,
 ) (
-	*http.Response,
 	*v2.RateLimitDescription,
 	error,
 ) {
@@ -125,7 +122,6 @@ func (c *Client) doRequest(
 	target interface{},
 	options ...uhttp.RequestOption,
 ) (
-	*http.Response,
 	*v2.RateLimitDescription,
 	error,
 ) {
@@ -148,7 +144,7 @@ func (c *Client) doRequest(
 		options...,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	var ratelimitData v2.RateLimitDescription
 	response, err := c.wrapper.Do(
@@ -156,18 +152,18 @@ func (c *Client) doRequest(
 		uhttp.WithRatelimitData(&ratelimitData),
 	)
 	if err != nil {
-		return nil, &ratelimitData, err
+		return &ratelimitData, err
 	}
 	defer response.Body.Close()
 
 	bodyBytes, err := io.ReadAll(response.Body)
 	if err != nil {
-		return nil, &ratelimitData, err
+		return &ratelimitData, err
 	}
 
 	if err := json.Unmarshal(bodyBytes, &target); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return response, &ratelimitData, nil
+	return &ratelimitData, nil
 }
