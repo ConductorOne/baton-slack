@@ -3,14 +3,16 @@ package connector
 import (
 	"context"
 	"fmt"
-	"strings"
+	"maps"
+	"slices"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
-	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
+	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
-	enterprise "github.com/conductorone/baton-slack/pkg/slack"
+	"github.com/conductorone/baton-slack/pkg"
+	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
 	"go.uber.org/zap"
@@ -58,7 +60,11 @@ func workspaceRoleBuilder(client *slack.Client, enterpriseClient *enterprise.Cli
 	}
 }
 
-func roleResource(roleID string, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
+func roleResource(
+	_ context.Context,
+	roleID string,
+	parentResourceID *v2.ResourceId,
+) (*v2.Resource, error) {
 	roleName, ok := roles[roleID]
 	if !ok {
 		return nil, fmt.Errorf("invalid roleID: %s", roleID)
@@ -79,56 +85,102 @@ func roleResource(roleID string, parentResourceID *v2.ResourceId) (*v2.Resource,
 	return r, nil
 }
 
-func (o *workspaceRoleType) List(ctx context.Context, parentResourceID *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (o *workspaceRoleType) List(
+	ctx context.Context,
+	parentResourceID *v2.ResourceId,
+	_ *pagination.Token,
+) (
+	[]*v2.Resource,
+	string,
+	annotations.Annotations,
+	error,
+) {
 	if parentResourceID == nil {
 		return nil, "", nil, nil
 	}
 
-	var ret []*v2.Resource
-
-	for roleID := range roles {
-		r, err := roleResource(roleID, parentResourceID)
-		if err != nil {
-			return nil, "", nil, err
-		}
-
-		ret = append(ret, r)
+	output, err := pkg.MakeResourceList(
+		ctx,
+		slices.Collect(maps.Keys(roles)),
+		parentResourceID,
+		roleResource,
+	)
+	if err != nil {
+		return nil, "", nil, err
 	}
-
-	return ret, "", nil, nil
+	return output, "", nil, nil
 }
 
-func (o *workspaceRoleType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
-	var rv []*v2.Entitlement
-
-	workspaceName, ok := workspacesMap[resource.ParentResourceId.Resource]
+func (o *workspaceRoleType) Entitlements(
+	_ context.Context,
+	resource *v2.Resource,
+	_ *pagination.Token,
+) (
+	[]*v2.Entitlement,
+	string,
+	annotations.Annotations,
+	error,
+) {
+	workspaceName, ok := workspacesNameCache[resource.ParentResourceId.Resource]
 	if !ok {
 		return nil, "", nil, fmt.Errorf("invalid workspace: %s", resource.ParentResourceId.Resource)
 	}
-
-	options := []ent.EntitlementOption{
-		ent.WithGrantableTo(resourceTypeUser),
-		ent.WithDescription(fmt.Sprintf("Has the %s role in the Slack %s workspace", resource.DisplayName, workspaceName)),
-		ent.WithDisplayName(fmt.Sprintf("%s workspace %s role", workspaceName, resource.DisplayName)),
-	}
-
-	roleEntitlement := ent.NewAssignmentEntitlement(resource, RoleAssignmentEntitlement, options...)
-	rv = append(rv, roleEntitlement)
-
-	return rv, "", nil, nil
+	return []*v2.Entitlement{
+			entitlement.NewAssignmentEntitlement(
+				resource,
+				RoleAssignmentEntitlement,
+				entitlement.WithGrantableTo(resourceTypeUser),
+				entitlement.WithDescription(
+					fmt.Sprintf(
+						"Has the %s role in the Slack %s workspace",
+						resource.DisplayName,
+						workspaceName,
+					),
+				),
+				entitlement.WithDisplayName(
+					fmt.Sprintf(
+						"%s workspace %s role",
+						workspaceName,
+						resource.DisplayName,
+					),
+				),
+			),
+		},
+		"",
+		nil,
+		nil
 }
 
-// Grants would normally return the grants for each role resource. Due to how the Slack API works, it is more efficient to emit these roles while listing
-// grants for each individual user. Instead of having to list users for each role we can divine which roles a user should be granted when calculating their grants.
-func (o *workspaceRoleType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
+// Grants would normally return the grants for each role resource. Due to how
+// the Slack API works, it is more efficient to emit these roles while listing
+// grants for each individual user. Instead of having to list users for each
+// role we can divine which roles a user should be granted when calculating
+// their grants.
+func (o *workspaceRoleType) Grants(
+	_ context.Context,
+	_ *v2.Resource,
+	_ *pagination.Token,
+) (
+	[]*v2.Grant,
+	string,
+	annotations.Annotations,
+	error,
+) {
 	return nil, "", nil, nil
 }
 
-func (o *workspaceRoleType) Grant(ctx context.Context, principal *v2.Resource, entitlement *v2.Entitlement) (annotations.Annotations, error) {
-	l := ctxzap.Extract(ctx)
+func (o *workspaceRoleType) Grant(
+	ctx context.Context,
+	principal *v2.Resource,
+	entitlement *v2.Entitlement,
+) (
+	annotations.Annotations,
+	error,
+) {
+	logger := ctxzap.Extract(ctx)
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
-		l.Warn(
+		logger.Warn(
 			"baton-slack: only users can be assigned a role",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
@@ -136,29 +188,40 @@ func (o *workspaceRoleType) Grant(ctx context.Context, principal *v2.Resource, e
 		return nil, fmt.Errorf("baton-slack: only users can be assigned a role")
 	}
 
-	parts := strings.Split(entitlement.Id, ":")
-	if len(parts) < 2 {
-		return nil, fmt.Errorf("baton-slack: invalid entitlement ID: %s", entitlement.Id)
-	}
-
 	// teamID is in the entitlement ID at second position
-	teamID := parts[1]
-
-	err := o.enterpriseClient.SetWorkspaceRole(ctx, teamID, principal.Id.Resource, entitlement.Resource.Id.Resource)
+	teamID, err := pkg.ParseID(entitlement.Id)
 	if err != nil {
-		return nil, fmt.Errorf("baton-slack: failed to assign user role: %w", err)
+		return nil, err
 	}
 
-	return nil, nil
+	outputAnnotations := annotations.New()
+	ratelimitData, err := o.enterpriseClient.SetWorkspaceRole(
+		ctx,
+		teamID,
+		principal.Id.Resource,
+		entitlement.Resource.Id.Resource,
+	)
+	outputAnnotations.WithRateLimiting(ratelimitData)
+	if err != nil {
+		return outputAnnotations, fmt.Errorf("baton-slack: failed to assign user role: %w", err)
+	}
+
+	return outputAnnotations, nil
 }
 
-func (o *workspaceRoleType) Revoke(ctx context.Context, grant *v2.Grant) (annotations.Annotations, error) {
-	l := ctxzap.Extract(ctx)
+func (o *workspaceRoleType) Revoke(
+	ctx context.Context,
+	grant *v2.Grant,
+) (
+	annotations.Annotations,
+	error,
+) {
+	logger := ctxzap.Extract(ctx)
 
 	principal := grant.Principal
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
-		l.Warn(
+		logger.Warn(
 			"baton-slack: only users can have role revoked",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
@@ -166,20 +229,26 @@ func (o *workspaceRoleType) Revoke(ctx context.Context, grant *v2.Grant) (annota
 		return nil, fmt.Errorf("baton-slack: only users can have role revoked")
 	}
 
-	parts := strings.Split(grant.Id, ":")
-	if len(parts) < 2 {
-		return nil, fmt.Errorf("baton-slack: invalid grant ID: %s", grant.Id)
+	// teamID is in the grant ID at second position
+	teamID, err := pkg.ParseID(grant.Id)
+	if err != nil {
+		return nil, err
 	}
 
-	// teamID is in the grant ID at second position
-	teamID := parts[1]
+	outputAnnotations := annotations.New()
 
 	// empty role type means regular user
-	err := o.enterpriseClient.SetWorkspaceRole(ctx, teamID, principal.Id.Resource, "")
+	ratelimitData, err := o.enterpriseClient.SetWorkspaceRole(
+		ctx,
+		teamID,
+		principal.Id.Resource,
+		"",
+	)
+	outputAnnotations.WithRateLimiting(ratelimitData)
 
 	if err != nil {
-		return nil, fmt.Errorf("baton-slack: failed to revoke user role: %w", err)
+		return outputAnnotations, fmt.Errorf("baton-slack: failed to revoke user role: %w", err)
 	}
 
-	return nil, nil
+	return outputAnnotations, nil
 }

@@ -7,11 +7,11 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
-	ent "github.com/conductorone/baton-sdk/pkg/types/entitlement"
+	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
-
-	enterprise "github.com/conductorone/baton-slack/pkg/slack"
+	"github.com/conductorone/baton-slack/pkg"
+	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 )
 
 const (
@@ -82,7 +82,11 @@ func enterpriseRoleBuilder(enterpriseID string, enterpriseClient *enterprise.Cli
 	}
 }
 
-func enterpriseRoleResource(roleID string, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
+func enterpriseRoleResource(
+	_ context.Context,
+	roleID string,
+	_ *v2.ResourceId,
+) (*v2.Resource, error) {
 	var roleName string
 	systemRoleName, ok := systemRoles[roleID]
 	if !ok {
@@ -96,35 +100,39 @@ func enterpriseRoleResource(roleID string, parentResourceID *v2.ResourceId) (*v2
 		roleName = systemRoleName
 	}
 
-	r, err := resources.NewRoleResource(
+	return resources.NewRoleResource(
 		roleName,
 		resourceTypeEnterpriseRole,
 		roleID,
-		nil)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return r, nil
+		nil,
+	)
 }
 
-func (o *enterpriseRoleType) List(ctx context.Context, parentResourceID *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (o *enterpriseRoleType) List(
+	ctx context.Context,
+	parentResourceID *v2.ResourceId,
+	pt *pagination.Token,
+) (
+	[]*v2.Resource,
+	string,
+	annotations.Annotations,
+	error,
+) {
 	var ret []*v2.Resource
-	// no need to sync roles if we don't have an enterprise plan
+	// There is no need to sync roles if we don't have an enterprise plan.
 	if o.enterpriseID == "" {
 		return nil, "", nil, nil
 	}
 
-	bag, err := parseRolesPageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeEnterpriseRole.Id})
+	bag, err := pkg.ParseRolesPageToken(pt.Token)
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	// We only want to do this once
+	// We only want to do this once.
 	if bag.Cursor == "" {
 		for orgRoleID := range organizationRoles {
-			r, err := enterpriseRoleResource(orgRoleID, parentResourceID)
+			r, err := enterpriseRoleResource(ctx, orgRoleID, parentResourceID)
 			if err != nil {
 				return nil, "", nil, err
 			}
@@ -133,10 +141,11 @@ func (o *enterpriseRoleType) List(ctx context.Context, parentResourceID *v2.Reso
 		}
 	}
 
-	roleAssignments, nextPage, err := o.enterpriseClient.GetRoleAssignments(ctx, "", bag.Cursor)
+	outputAnnotations := annotations.New()
+	roleAssignments, nextPage, ratelimitData, err := o.enterpriseClient.GetRoleAssignments(ctx, "", bag.Cursor)
+	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		annos, err := annotationsForError(err)
-		return nil, "", annos, err
+		return nil, "", outputAnnotations, err
 	}
 
 	bag.Cursor = nextPage
@@ -150,7 +159,7 @@ func (o *enterpriseRoleType) List(ctx context.Context, parentResourceID *v2.Reso
 			continue
 		}
 
-		r, err := enterpriseRoleResource(roleAssignment.RoleID, parentResourceID)
+		r, err := enterpriseRoleResource(ctx, roleAssignment.RoleID, parentResourceID)
 		if err != nil {
 			return nil, "", nil, err
 		}
@@ -165,40 +174,75 @@ func (o *enterpriseRoleType) List(ctx context.Context, parentResourceID *v2.Reso
 		return nil, "", nil, err
 	}
 
-	return ret, nextPageToken, nil, nil
+	return ret, nextPageToken, outputAnnotations, nil
 }
 
-func (o *enterpriseRoleType) Entitlements(ctx context.Context, resource *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
-	rv := []*v2.Entitlement{
-		ent.NewAssignmentEntitlement(
-			resource,
-			RoleAssignmentEntitlement,
-			ent.WithGrantableTo(resourceTypeUser),
-			ent.WithDescription(fmt.Sprintf("Has the %s role in the Slack enterprise", resource.DisplayName)),
-			ent.WithDisplayName(fmt.Sprintf("%s Enterprise Role", resource.DisplayName)),
-		),
-	}
-
-	return rv, "", nil, nil
+func (o *enterpriseRoleType) Entitlements(
+	_ context.Context,
+	resource *v2.Resource,
+	_ *pagination.Token,
+) (
+	[]*v2.Entitlement,
+	string,
+	annotations.Annotations,
+	error,
+) {
+	return []*v2.Entitlement{
+			entitlement.NewAssignmentEntitlement(
+				resource,
+				RoleAssignmentEntitlement,
+				entitlement.WithGrantableTo(resourceTypeUser),
+				entitlement.WithDescription(
+					fmt.Sprintf(
+						"Has the %s role in the Slack enterprise",
+						resource.DisplayName,
+					),
+				),
+				entitlement.WithDisplayName(
+					fmt.Sprintf(
+						"%s Enterprise Role",
+						resource.DisplayName,
+					),
+				),
+			),
+		},
+		"",
+		nil,
+		nil
 }
 
-func (o *enterpriseRoleType) Grants(ctx context.Context, resource *v2.Resource, pt *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
+func (o *enterpriseRoleType) Grants(
+	ctx context.Context,
+	resource *v2.Resource,
+	pt *pagination.Token,
+) (
+	[]*v2.Grant,
+	string,
+	annotations.Annotations,
+	error,
+) {
 	var rv []*v2.Grant
 
-	bag, err := parsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeEnterpriseRole.Id})
+	bag, err := pkg.ParsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeEnterpriseRole.Id})
 	if err != nil {
 		return nil, "", nil, err
 	}
 
-	// if current role is one of organization roles, don't return any grants since we grant those on the user itself
+	// If current role is one of organization roles, don't return any grants
+	// since we grant those on the user itself.
 	if _, ok := organizationRoles[resource.Id.Resource]; ok {
 		return nil, "", nil, nil
 	}
 
-	roleAssignments, nextPage, err := o.enterpriseClient.GetRoleAssignments(ctx, resource.Id.Resource, bag.PageToken())
+	outputAnnotations := annotations.New()
+	roleAssignments, nextPage, ratelimitData, err := o.enterpriseClient.GetRoleAssignments(
+		ctx,
+		resource.Id.Resource,
+		bag.PageToken(),
+	)
+	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		annos, err := annotationsForError(err)
-		return nil, "", annos, err
+		return nil, "", outputAnnotations, err
 	}
 
 	pageToken, err := bag.NextToken(nextPage)
@@ -215,5 +259,5 @@ func (o *enterpriseRoleType) Grants(ctx context.Context, resource *v2.Resource, 
 		rv = append(rv, grant.NewGrant(resource, RoleAssignmentEntitlement, userID))
 	}
 
-	return rv, pageToken, nil, nil
+	return rv, pageToken, outputAnnotations, nil
 }

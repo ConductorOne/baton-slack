@@ -8,7 +8,7 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
-	enterprise "github.com/conductorone/baton-slack/pkg/slack"
+	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
 	"go.uber.org/zap"
@@ -21,51 +21,6 @@ type Slack struct {
 	enterpriseID     string
 	ssoEnabled       bool
 }
-
-var (
-	resourceTypeUser = &v2.ResourceType{
-		Id:          "user",
-		DisplayName: "User",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_USER,
-		},
-	}
-	resourceTypeWorkspace = &v2.ResourceType{
-		Id:          "workspace",
-		DisplayName: "Workspace",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_GROUP,
-		},
-	}
-	resourceTypeUserGroup = &v2.ResourceType{
-		Id:          "userGroup",
-		DisplayName: "User Group",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_GROUP,
-		},
-	}
-	resourceTypeGroup = &v2.ResourceType{
-		Id:          "group",
-		DisplayName: "IDP Group",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_GROUP,
-		},
-	}
-	resourceTypeWorkspaceRole = &v2.ResourceType{
-		Id:          "workspaceRole",
-		DisplayName: "Workspace Role",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_ROLE,
-		},
-	}
-	resourceTypeEnterpriseRole = &v2.ResourceType{
-		Id:          "enterpriseRole",
-		DisplayName: "Enterprise Role",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_ROLE,
-		},
-	}
-)
 
 // Metadata returns metadata about the connector.
 func (c *Slack) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
@@ -98,7 +53,7 @@ type slackLogger struct {
 	ZapLog *zap.Logger
 }
 
-// Needed to prevent slack client from logging in its own format.
+// Output Needed to prevent slack client from logging in its own format.
 func (s *slackLogger) Output(callDepth int, msg string) error {
 	s.ZapLog.Info(msg, zap.Int("callDepth", callDepth))
 	return nil
@@ -132,7 +87,16 @@ func New(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool) (*S
 			return nil, fmt.Errorf("slack-connector: enterprise account detected, but no enterprise token specified")
 		}
 	}
-	enterpriseClient := enterprise.NewClient(httpClient, enterpriseKey, apiKey, res.EnterpriseID, ssoEnabled)
+	enterpriseClient, err := enterprise.NewClient(
+		httpClient,
+		enterpriseKey,
+		apiKey,
+		res.EnterpriseID,
+		ssoEnabled,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("slack-connector: failed to create enterprise client. Error: %w", err)
+	}
 
 	return &Slack{
 		client:           client,

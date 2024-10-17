@@ -43,7 +43,7 @@ func main() {
 }
 
 func getConnector(ctx context.Context, v *viper.Viper) (types.ConnectorServer, error) {
-	l := ctxzap.Extract(ctx)
+	logger := ctxzap.Extract(ctx)
 	cb, err := connector.New(
 		ctx,
 		v.GetString(AccessTokenField.FieldName),
@@ -51,13 +51,13 @@ func getConnector(ctx context.Context, v *viper.Viper) (types.ConnectorServer, e
 		v.GetBool(SSOEnabledField.FieldName),
 	)
 	if err != nil {
-		l.Error("error creating connector", zap.Error(err))
+		logger.Error("error creating connector", zap.Error(err))
 		return nil, err
 	}
 
 	c, err := connectorbuilder.NewConnector(ctx, cb)
 	if err != nil {
-		l.Error("error creating connector", zap.Error(err))
+		logger.Error("error creating connector", zap.Error(err))
 		return nil, err
 	}
 
