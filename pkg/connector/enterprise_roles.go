@@ -12,6 +12,8 @@ import (
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.uber.org/zap"
 )
 
 const (
@@ -223,7 +225,8 @@ func (o *enterpriseRoleType) Grants(
 ) {
 	var rv []*v2.Grant
 
-	bag, err := pkg.ParsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeEnterpriseRole.Id})
+	resourceId := &v2.ResourceId{ResourceType: resourceTypeEnterpriseRole.Id}
+	bag, err := pkg.ParsePageToken(pt.Token, resourceId)
 	if err != nil {
 		return nil, "", nil, err
 	}
@@ -260,4 +263,74 @@ func (o *enterpriseRoleType) Grants(
 	}
 
 	return rv, pageToken, outputAnnotations, nil
+}
+
+func (o *enterpriseRoleType) Grant(
+	ctx context.Context,
+	principal *v2.Resource,
+	entitlement *v2.Entitlement,
+) (
+	annotations.Annotations,
+	error,
+) {
+	logger := ctxzap.Extract(ctx)
+
+	if principal.Id.ResourceType != resourceTypeUser.Id {
+		logger.Warn(
+			"baton-slack: only users can be assigned an enterprise role",
+			zap.String("principal_type", principal.Id.ResourceType),
+			zap.String("principal_id", principal.Id.Resource),
+		)
+		return nil, fmt.Errorf("baton-slack: only users can be assigned a role")
+	}
+
+	outputAnnotations := annotations.New()
+	ratelimitData, err := o.enterpriseClient.AddRoleAssignment(
+		ctx,
+		principal.Id.Resource,
+		entitlement.Resource.Id.Resource,
+	)
+	outputAnnotations.WithRateLimiting(ratelimitData)
+	if err != nil {
+		return outputAnnotations, fmt.Errorf("baton-slack: failed to add role: %w", err)
+	}
+
+	return outputAnnotations, nil
+}
+
+func (o *enterpriseRoleType) Revoke(
+	ctx context.Context,
+	grant *v2.Grant,
+) (
+	annotations.Annotations,
+	error,
+) {
+	logger := ctxzap.Extract(ctx)
+
+	principal := grant.Principal
+	entitlement := grant.Entitlement
+
+	if principal.Id.ResourceType != resourceTypeUser.Id {
+		logger.Warn(
+			"baton-slack: only users can have enterprise role revoked",
+			zap.String("principal_type", principal.Id.ResourceType),
+			zap.String("principal_id", principal.Id.Resource),
+		)
+		return nil, fmt.Errorf("baton-slack: only users can have role revoked")
+	}
+	outputAnnotations := annotations.New()
+
+	// empty role type means regular user
+	ratelimitData, err := o.enterpriseClient.RemoveRoleAssignment(
+		ctx,
+		principal.Id.Resource,
+		entitlement.Resource.Id.Resource,
+	)
+	outputAnnotations.WithRateLimiting(ratelimitData)
+
+	if err != nil {
+		return outputAnnotations, fmt.Errorf("baton-slack: failed to revoke user role: %w", err)
+	}
+
+	return outputAnnotations, nil
 }

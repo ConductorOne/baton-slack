@@ -297,6 +297,60 @@ func (c *Client) GetRoleAssignments(
 		nil
 }
 
+func (c *Client) AddRoleAssignment(
+	ctx context.Context,
+	userID string,
+	roleID string,
+) (
+	*v2.RateLimitDescription,
+	error,
+) {
+	var response BaseResponse
+	ratelimitData, err := c.post(
+		ctx,
+		UrlPathAddRoleAssignments,
+		&response,
+		map[string]interface{}{
+			"entity_ids": []string{},
+			"role_id":    roleID,
+			"user_ids":   []string{userID},
+		},
+		false,
+	)
+	if err := response.handleError(err, "adding role assignments"); err != nil {
+		return ratelimitData, err
+	}
+
+	return ratelimitData, nil
+}
+
+func (c *Client) RemoveRoleAssignment(
+	ctx context.Context,
+	userID string,
+	roleID string,
+) (
+	*v2.RateLimitDescription,
+	error,
+) {
+	var response BaseResponse
+	ratelimitData, err := c.post(
+		ctx,
+		UrlPathRemoveRoleAssignments,
+		&response,
+		map[string]interface{}{
+			"entity_ids": []string{},
+			"role_id":    roleID,
+			"user_ids":   []string{userID},
+		},
+		false,
+	)
+	if err := response.handleError(err, "removing role assignments"); err != nil {
+		return ratelimitData, err
+	}
+
+	return ratelimitData, nil
+}
+
 // GetUserGroups returns the user groups for the given team.
 func (c *Client) GetUserGroups(
 	ctx context.Context,
