@@ -5,7 +5,6 @@ import (
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/helpers"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
 	enterprise "github.com/conductorone/baton-slack/pkg/slack"
@@ -77,7 +76,7 @@ func userResource(ctx context.Context, user *slack.User, parentResourceID *v2.Re
 // Admin API doesn't return the same values as the user API.
 // We need to create a base resource for users without workspace that are fetched by the Admin API.
 func baseUserResource(ctx context.Context, user enterprise.UserAdmin) (*v2.Resource, error) {
-	firstname, lastname := helpers.SplitFullName(user.FullName)
+	firstname, lastname := resource.SplitFullName(user.FullName)
 	profile := make(map[string]interface{})
 	profile["first_name"] = firstname
 	profile["last_name"] = lastname

@@ -6,7 +6,7 @@ Check out [Baton](https://github.com/conductorone/baton) to learn more the proje
 
 ## Prerequisites
 
-1. Create a Slack app. You can follow [this guide](https://api.slack.com/authentication/basics).
+1. Create a Slack app. You can follow [this Slack quickstart guide](https://api.slack.com/authentication/basics).
 2. Set needed Bot Token Scopes for the app: 
   - channels:join
   - channels:read
@@ -19,7 +19,10 @@ Check out [Baton](https://github.com/conductorone/baton) to learn more the proje
 3. Install the app to your workspace.
 4. Use Bot User OAuth Token as token in `baton-slack`.
 
-For the enterprise grid plan the same rules apply for creating an app. There is a difference in setting scopes, for applications that will be installed on organization level, User Token Scopes should be set as well as bot scopes. User Token is used for Admin API needed to sync additional resources in the enterprise.
+For the enterprise grid plan the same rules apply for creating an app. There is 
+a difference in setting scopes, for applications that will be installed on 
+organization level, User Token Scopes should be set as well as bot scopes. User 
+Token is used for Admin API needed to sync additional resources in the enterprise.
 Additional scopes for User Token are:
   - admin
   - admin.roles:read
@@ -27,8 +30,13 @@ Additional scopes for User Token are:
   - admin.usergroups:read
   - admin.users:read
 
-Other difference is in the way the application is installed, on enterprise grid app should be installed on the Organization level and on all the Workspaces from which you want to sync the resources. The installation has to be done by Admin or Owner of an Enterprise Grid organization. More info with an example [here](https://api.slack.com/methods/admin.teams.list#markdown).
-To work with Enterprise Grid APIs use User OAuth Token passed as `--enterprise-token` along with the Bot User OAuth Token passed via `--token` flag.
+Other difference is in the way the application is installed, on enterprise grid 
+app should be installed on the Organization level and on all the Workspaces from 
+which you want to sync the resources. The installation has to be done by Admin 
+or Owner of an Enterprise Grid organization. More info with an example is 
+available in the [Slack API Docs](https://api.slack.com/methods/admin.teams.list#markdown).
+To work with Enterprise Grid APIs use User OAuth Token passed as 
+`--enterprise-token` along with the Bot User OAuth Token passed via `--token` flag.
  
 
 ## brew
@@ -71,11 +79,15 @@ Enterprise grid additional resources:
 With SSO configured (enterprise grid):
 - IDP groups
 
-If you have SSO configured for your enterprise grid organization you can also sync IDP groups and provision them. Just pass the --sso-enabled=true flag.
+If you have SSO configured for your enterprise grid organization you can also 
+sync IDP groups and provision them. Just pass the `--sso-enabled=true` flag.
 
 # Contributing, Support, and Issues
 
-We started Baton because we were tired of taking screenshots and manually building spreadsheets. We welcome contributions, and ideas, no matter how small -- our goal is to make identity and permissions sprawl less painful for everyone. If you have questions, problems, or ideas: Please open a Github Issue!
+We started Baton because we were tired of taking screenshots and manually 
+building spreadsheets. We welcome contributions, and ideas, no matter how 
+small&mdash;our goal is to make identity and permissions sprawl less painful for 
+everyone. If you have questions, problems, or ideas: Please open a GitHub Issue!
 
 See [CONTRIBUTING.md](https://github.com/ConductorOne/baton/blob/main/CONTRIBUTING.md) for more details.
 
@@ -96,14 +108,16 @@ Available Commands:
 Flags:
       --client-id string          The client ID used to authenticate with ConductorOne ($BATON_CLIENT_ID)
       --client-secret string      The client secret used to authenticate with ConductorOne ($BATON_CLIENT_SECRET)
-      --enterprise-token string   The Slack user oauth token used to connect to the Slack Enterprise Grid Admin API. ($BATON_ENTERPRISE_TOKEN)
+      --enterprise-token string   The Slack user oauth token used to connect to the Slack Enterprise Grid Admin API ($BATON_ENTERPRISE_TOKEN)
   -f, --file string               The path to the c1z file to sync with ($BATON_FILE) (default "sync.c1z")
   -h, --help                      help for baton-slack
       --log-format string         The output format for logs: json, console ($BATON_LOG_FORMAT) (default "json")
       --log-level string          The log level: debug, info, warn, error ($BATON_LOG_LEVEL) (default "info")
-  -p, --provisioning              This must be set in order for provisioning actions to be enabled. ($BATON_PROVISIONING)
-      --sso-enabled string        Flag indicating that the SSO has been configured for Enterprise Grid Organization. Enables usage of SCIM API. ($BATON_SSO_ENABLED)
-      --token string              The Slack bot user oauth token used to connect to the Slack API. ($BATON_TOKEN)
+  -p, --provisioning              This must be set in order for provisioning actions to be enabled ($BATON_PROVISIONING)
+      --skip-full-sync            This must be set to skip a full sync ($BATON_SKIP_FULL_SYNC)
+      --sso-enabled               Flag indicating that the SSO has been configured for Enterprise Grid Organization. Enables usage of SCIM API ($BATON_SSO_ENABLED)
+      --ticketing                 This must be set to enable ticketing support ($BATON_TICKETING)
+      --token string              required: The Slack bot user oauth token used to connect to the Slack API ($BATON_TOKEN)
   -v, --version                   version for baton-slack
 
 Use "baton-slack [command] --help" for more information about a command.

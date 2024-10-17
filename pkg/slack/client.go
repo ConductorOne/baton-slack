@@ -146,7 +146,7 @@ func (c *Client) GetUsersAdmin(ctx context.Context, cursor string) ([]UserAdmin,
 	}
 
 	if res.Error != "" {
-		return nil, "", fmt.Errorf(res.Error)
+		return nil, "", fmt.Errorf("%s", res.Error)
 	}
 
 	if res.ResponseMetadata.NextCursor != "" {
