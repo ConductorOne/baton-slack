@@ -46,17 +46,19 @@ type workspaceRoleType struct {
 	resourceType     *v2.ResourceType
 	client           *slack.Client
 	enterpriseClient *enterprise.Client
+	enterpriseID     string
 }
 
 func (o *workspaceRoleType) ResourceType(_ context.Context) *v2.ResourceType {
 	return o.resourceType
 }
 
-func workspaceRoleBuilder(client *slack.Client, enterpriseClient *enterprise.Client) *workspaceRoleType {
+func workspaceRoleBuilder(client *slack.Client, enterpriseID string, enterpriseClient *enterprise.Client) *workspaceRoleType {
 	return &workspaceRoleType{
 		resourceType:     resourceTypeWorkspaceRole,
 		client:           client,
 		enterpriseClient: enterpriseClient,
+		enterpriseID:     enterpriseID,
 	}
 }
 
@@ -216,6 +218,10 @@ func (o *workspaceRoleType) Revoke(
 	annotations.Annotations,
 	error,
 ) {
+	if o.enterpriseID == "" {
+		return nil, fmt.Errorf("baton-slack: enterprise ID and enterprise token are both required to revoke roles")
+	}
+
 	logger := ctxzap.Extract(ctx)
 
 	principal := grant.Principal

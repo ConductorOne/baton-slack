@@ -6,7 +6,10 @@ import (
 	"github.com/conductorone/baton-slack/pkg"
 )
 
+// docs: https://api.slack.com/methods
 const (
+	baseScimUrl                = "https://api.slack.com"
+	baseUrl                    = "https://slack.com"
 	UrlPathGetRoleAssignments  = "/api/admin.roles.listAssignments"
 	UrlPathGetTeams            = "/api/admin.teams.list"
 	UrlPathGetUserGroupMembers = "/api/usergroups.users.list"
@@ -16,11 +19,12 @@ const (
 	UrlPathGetUsersAdmin       = "/api/admin.users.list"
 	UrlPathIDPGroup            = "/scim/v2/Groups/%s"
 	UrlPathIDPGroups           = "/scim/v2/Groups"
-	UrlPathSetAdmin            = "/api/admin.users.setAdmin"
-	UrlPathSetOwner            = "/api/admin.users.setOwner"
-	UrlPathSetRegular          = "/api/admin.users.setRegular"
-	baseScimUrl                = "https://api.slack.com"
-	baseUrl                    = "https://slack.com"
+
+	// NOTE: these are only for enterprise grid workspaces
+	// docs: https://api.slack.com/methods/admin.users.setRegular
+	UrlPathSetRegular = "/api/admin.users.setRegular"
+	UrlPathSetAdmin   = "/api/admin.users.setAdmin"
+	UrlPathSetOwner   = "/api/admin.users.setOwner"
 )
 
 func getWorkspaceUrlPathByRole(roleID string) (string, error) {
