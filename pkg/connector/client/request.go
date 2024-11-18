@@ -72,7 +72,7 @@ func (c *Client) post(
 		ctx,
 		http.MethodPost,
 		c.getUrl(path, nil, false),
-		&target,
+		target,
 		WithBearerToken(token),
 		uhttp.WithFormBody(toValues(payload)),
 	)
