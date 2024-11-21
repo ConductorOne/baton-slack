@@ -1,5 +1,5 @@
 {
-  "source": ["./dist/macos-arm64_darwin_arm64/baton-slack"],
+  "source": ["./dist/macos-arm64_darwin_arm64_v8.0/baton-slack"],
   "bundle_id": "com.conductorone.baton-slack",
   "apple_id": {
     "username" : "justin.gallardo@conductorone.com"
