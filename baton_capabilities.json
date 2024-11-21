@@ -32,6 +32,11 @@
         "displayName": "User",
         "traits": [
           "TRAIT_USER"
+        ],
+        "annotations": [
+          {
+            "@type": "type.googleapis.com/c1.connector.v2.SkipEntitlementsAndGrants"
+          }
         ]
       },
       "capabilities": [
@@ -77,7 +82,7 @@
     }
   ],
   "connectorCapabilities": [
-    "CAPABILITY_SYNC",
-    "CAPABILITY_PROVISION"
+    "CAPABILITY_PROVISION",
+    "CAPABILITY_SYNC"
   ]
 }
