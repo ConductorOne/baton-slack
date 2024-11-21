@@ -92,7 +92,7 @@ func (o *workspaceResourceType) List(
 	)
 	if o.enterpriseID != "" {
 		outputAnnotations := annotations.New()
-		workspaces, nextCursor, ratelimitData, err = o.enterpriseClient.GetTeams(ctx, bag.PageToken())
+		workspaces, nextCursor, ratelimitData, err = o.enterpriseClient.GetAuthTeamsList(ctx, bag.PageToken())
 		outputAnnotations.WithRateLimiting(ratelimitData)
 		if err != nil {
 			return nil, "", outputAnnotations, err

@@ -19,6 +19,7 @@ const (
 	UrlPathGetUsersAdmin       = "/api/admin.users.list"
 	UrlPathIDPGroup            = "/scim/v2/Groups/%s"
 	UrlPathIDPGroups           = "/scim/v2/Groups"
+	UrlPathAuthTeamsList       = "/api/auth.teams.list"
 
 	// NOTE: these are only for enterprise grid workspaces
 	// docs: https://api.slack.com/methods/admin.users.setRegular

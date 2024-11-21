@@ -327,6 +327,45 @@ func (c *Client) GetUserGroups(
 	return response.UserGroups, ratelimitData, nil
 }
 
+// GetAuthTeamsList returns the list of teams for which the app is authed.
+func (c *Client) GetAuthTeamsList(
+	ctx context.Context,
+	cursor string,
+) (
+	[]slack.Team,
+	string,
+	*v2.RateLimitDescription,
+	error,
+) {
+	values := map[string]interface{}{}
+
+	if cursor != "" {
+		values["cursor"] = cursor
+	}
+
+	var response struct {
+		BaseResponse
+		Teams []slack.Team `json:"teams"`
+		Pagination
+	}
+
+	ratelimitData, err := c.post(
+		ctx,
+		UrlPathAuthTeamsList,
+		&response,
+		values,
+		false,
+	)
+	if err := response.handleError(err, "fetching authed teams"); err != nil {
+		return nil, "", ratelimitData, err
+	}
+
+	return response.Teams,
+		response.ResponseMetadata.NextCursor,
+		ratelimitData,
+		nil
+}
+
 // SetWorkspaceRole sets the role for the given user in the given team.
 func (c *Client) SetWorkspaceRole(
 	ctx context.Context,
