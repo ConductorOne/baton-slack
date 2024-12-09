@@ -380,6 +380,8 @@ func (c *Client) SetWorkspaceRole(
 	if err != nil {
 		return nil, err
 	}
+	// __AUTO_GENERATED_PRINTF_START__
+	fmt.Println("SetWorkspaceRole 1") // __AUTO_GENERATED_PRINTF_END__
 
 	var response BaseResponse
 
@@ -393,6 +395,8 @@ func (c *Client) SetWorkspaceRole(
 		},
 		false,
 	)
+	// __AUTO_GENERATED_PRINT_VAR_START__
+	fmt.Println(fmt.Sprintf("SetWorkspaceRole response: %+v", response)) // __AUTO_GENERATED_PRINT_VAR_END__
 	return ratelimitData, response.handleError(err, "setting user role")
 }
 

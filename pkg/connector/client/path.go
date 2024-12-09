@@ -28,6 +28,7 @@ const (
 	UrlPathSetOwner   = "/api/admin.users.setOwner"
 )
 
+// TODO: add this https://api.slack.com/methods/admin.roles.addAssignments
 func getWorkspaceUrlPathByRole(roleID string) (string, error) {
 	role, _ := pkg.ParseID(roleID)
 	switch role {
