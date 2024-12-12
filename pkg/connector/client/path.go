@@ -2,8 +2,6 @@ package enterprise
 
 import (
 	"fmt"
-
-	"github.com/conductorone/baton-slack/pkg"
 )
 
 // docs: https://api.slack.com/methods
@@ -26,19 +24,19 @@ const (
 	UrlPathSetRegular = "/api/admin.users.setRegular"
 	UrlPathSetAdmin   = "/api/admin.users.setAdmin"
 	UrlPathSetOwner   = "/api/admin.users.setOwner"
+	UrlPathUserRemove = "/api/admin.users.remove"
+	UrlPathUserAdd    = "/api/admin.users.assign"
 )
 
-// TODO: add this https://api.slack.com/methods/admin.roles.addAssignments
 func getWorkspaceUrlPathByRole(roleID string) (string, error) {
-	role, _ := pkg.ParseID(roleID)
-	switch role {
+	switch roleID {
 	case "owner":
 		return UrlPathSetOwner, nil
 	case "admin":
 		return UrlPathSetAdmin, nil
-	case "":
+	case "", "member":
 		return UrlPathSetRegular, nil
 	default:
-		return "", fmt.Errorf("invalid role type: %s", role)
+		return "", fmt.Errorf("invalid role type: %s", roleID)
 	}
 }

@@ -380,8 +380,6 @@ func (c *Client) SetWorkspaceRole(
 	if err != nil {
 		return nil, err
 	}
-	// __AUTO_GENERATED_PRINTF_START__
-	fmt.Println("SetWorkspaceRole 1") // __AUTO_GENERATED_PRINTF_END__
 
 	var response BaseResponse
 
@@ -395,8 +393,6 @@ func (c *Client) SetWorkspaceRole(
 		},
 		false,
 	)
-	// __AUTO_GENERATED_PRINT_VAR_START__
-	fmt.Println(fmt.Sprintf("SetWorkspaceRole response: %+v", response)) // __AUTO_GENERATED_PRINT_VAR_END__
 	return ratelimitData, response.handleError(err, "setting user role")
 }
 
@@ -552,6 +548,54 @@ func (c *Client) patchGroup(
 	)
 	if err != nil {
 		return ratelimitData, fmt.Errorf("error patching IDP group: %w", err)
+	}
+
+	return ratelimitData, nil
+}
+
+func (o *Client) AddUser(ctx context.Context, teamID, userID string) (*v2.RateLimitDescription, error) {
+	var response BaseResponse
+	ratelimitData, err := o.post(
+		ctx,
+		UrlPathUserAdd,
+		&response,
+		map[string]interface{}{
+			"team_id": teamID,
+			"user_id": userID,
+		},
+		false,
+	)
+
+	if err := response.handleError(err, "adding user"); err != nil {
+		return ratelimitData, err
+	}
+
+	if response.Error != "" {
+		return ratelimitData, fmt.Errorf("baton-slack: error adding user: %s", response.Error)
+	}
+
+	return ratelimitData, nil
+}
+
+func (o *Client) RemoveUser(ctx context.Context, teamID, userID string) (*v2.RateLimitDescription, error) {
+	var response BaseResponse
+	ratelimitData, err := o.post(
+		ctx,
+		UrlPathUserRemove,
+		&response,
+		map[string]interface{}{
+			"team_id": teamID,
+			"user_id": userID,
+		},
+		false,
+	)
+
+	if err := response.handleError(err, "removing user"); err != nil {
+		return ratelimitData, err
+	}
+
+	if response.Error != "" {
+		return ratelimitData, fmt.Errorf("baton-slack: error removing user: %s", response.Error)
 	}
 
 	return ratelimitData, nil

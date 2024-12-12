@@ -30,6 +30,9 @@ Additional scopes for User Token are:
   - admin.usergroups:read
   - admin.users:read
 
+For provisioning you will need this scope.
+  - admin.users:write 
+
 Other difference is in the way the application is installed, on enterprise grid 
 app should be installed on the Organization level and on all the Workspaces from 
 which you want to sync the resources. The installation has to be done by Admin 

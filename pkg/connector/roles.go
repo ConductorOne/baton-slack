@@ -19,16 +19,17 @@ import (
 )
 
 const (
-	PrimaryOwnerRoleID       = "primary_owner"
-	OwnerRoleID              = "owner"
-	AdminRoleID              = "admin"
-	MultiChannelGuestRoleID  = "multi_channel_guest"
-	SingleChannelGuestRoleID = "single_channel_guest"
-	InvitedMemberRoleID      = "invited_member"
-	BotRoleID                = "bot"
-	MemberRoleID             = "member"
-
+	PrimaryOwnerRoleID        = "primary_owner"
+	OwnerRoleID               = "owner"
+	AdminRoleID               = "admin"
+	MultiChannelGuestRoleID   = "multi_channel_guest"
+	SingleChannelGuestRoleID  = "single_channel_guest"
+	InvitedMemberRoleID       = "invited_member"
+	BotRoleID                 = "bot"
+	MemberRoleID              = "member"
 	RoleAssignmentEntitlement = "assigned"
+	// empty role type means regular user.
+	RegularRoleID = ""
 )
 
 var roles = map[string]string{
@@ -196,14 +197,21 @@ func (o *workspaceRoleType) Grant(
 		return nil, err
 	}
 
-	outputAnnotations := annotations.New()
-	ratelimitData, err := o.enterpriseClient.SetWorkspaceRole(
+	roleID, err := pkg.ParseRole(entitlement.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	var rateLimitData *v2.RateLimitDescription
+	rateLimitData, err = o.enterpriseClient.SetWorkspaceRole(
 		ctx,
 		teamID,
 		principal.Id.Resource,
-		entitlement.Resource.Id.Resource,
+		roleID,
 	)
-	outputAnnotations.WithRateLimiting(ratelimitData)
+
+	outputAnnotations := annotations.New()
+	outputAnnotations.WithRateLimiting(rateLimitData)
 	if err != nil {
 		return outputAnnotations, fmt.Errorf("baton-slack: failed to assign user role: %w", err)
 	}
@@ -241,16 +249,31 @@ func (o *workspaceRoleType) Revoke(
 		return nil, err
 	}
 
+	role, err := pkg.ParseRole(grant.Id)
+	if err != nil {
+		return nil, err
+	}
+
 	outputAnnotations := annotations.New()
 
-	// empty role type means regular user
-	ratelimitData, err := o.enterpriseClient.SetWorkspaceRole(
-		ctx,
-		teamID,
-		principal.Id.Resource,
-		"",
-	)
-	outputAnnotations.WithRateLimiting(ratelimitData)
+	var rateLimitData *v2.RateLimitDescription
+	switch role {
+	case AdminRoleID, OwnerRoleID:
+		rateLimitData, err = o.enterpriseClient.SetWorkspaceRole(
+			ctx,
+			teamID,
+			principal.Id.Resource,
+			RegularRoleID,
+		)
+
+	case MemberRoleID:
+		rateLimitData, err = o.enterpriseClient.RemoveUser(
+			ctx,
+			teamID,
+			principal.Id.Resource,
+		)
+	}
+	outputAnnotations.WithRateLimiting(rateLimitData)
 
 	if err != nil {
 		return outputAnnotations, fmt.Errorf("baton-slack: failed to revoke user role: %w", err)

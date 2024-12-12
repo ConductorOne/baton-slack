@@ -28,6 +28,14 @@ func ParseID(id string) (string, error) {
 	return parts[1], nil
 }
 
+func ParseRole(id string) (string, error) {
+	parts := strings.Split(id, ":")
+	if len(parts) < 2 {
+		return "", fmt.Errorf("baton-slack: invalid ID: %s", id)
+	}
+	return parts[2], nil
+}
+
 // MakeResourceList - turning arbitrary data into Resource slices is and
 // incredibly common thing. TODO(marcos): move to baton-sdk
 func MakeResourceList[T any](
