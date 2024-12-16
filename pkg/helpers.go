@@ -30,7 +30,7 @@ func ParseID(id string) (string, error) {
 
 func ParseRole(id string) (string, error) {
 	parts := strings.Split(id, ":")
-	if len(parts) < 2 {
+	if len(parts) < 3 {
 		return "", fmt.Errorf("baton-slack: invalid ID: %s", id)
 	}
 	return parts[2], nil
