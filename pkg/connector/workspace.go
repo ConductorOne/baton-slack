@@ -292,6 +292,8 @@ func (o *workspaceResourceType) Grants(
 			}
 		}
 
+		// confused about Workspace vs Workspace Role? check this link:
+		// https://github.com/ConductorOne/baton-slack/pull/4
 		rv = append(rv, grant.NewGrant(resource, memberEntitlement, userID))
 	}
 

@@ -552,3 +552,51 @@ func (c *Client) patchGroup(
 
 	return ratelimitData, nil
 }
+
+func (o *Client) AddUser(ctx context.Context, teamID, userID string) (*v2.RateLimitDescription, error) {
+	var response BaseResponse
+	ratelimitData, err := o.post(
+		ctx,
+		UrlPathUserAdd,
+		&response,
+		map[string]interface{}{
+			"team_id": teamID,
+			"user_id": userID,
+		},
+		false,
+	)
+
+	if err := response.handleError(err, "adding user"); err != nil {
+		return ratelimitData, err
+	}
+
+	if response.Error != "" {
+		return ratelimitData, fmt.Errorf("baton-slack: error adding user: %s", response.Error)
+	}
+
+	return ratelimitData, nil
+}
+
+func (o *Client) RemoveUser(ctx context.Context, teamID, userID string) (*v2.RateLimitDescription, error) {
+	var response BaseResponse
+	ratelimitData, err := o.post(
+		ctx,
+		UrlPathUserRemove,
+		&response,
+		map[string]interface{}{
+			"team_id": teamID,
+			"user_id": userID,
+		},
+		false,
+	)
+
+	if err := response.handleError(err, "removing user"); err != nil {
+		return ratelimitData, err
+	}
+
+	if response.Error != "" {
+		return ratelimitData, fmt.Errorf("baton-slack: error removing user: %s", response.Error)
+	}
+
+	return ratelimitData, nil
+}

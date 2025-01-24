@@ -2,6 +2,7 @@ package connector
 
 import (
 	"context"
+	"fmt"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
@@ -196,7 +197,7 @@ func (o *userResourceType) List(
 	if o.enterpriseID != "" {
 		bag, err := pkg.ParsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 		if err != nil {
-			return nil, "", nil, err
+			return nil, "", nil, fmt.Errorf("failed to parse page token: %w", err)
 		}
 
 		// We need to fetch all users because users without workspace won't be

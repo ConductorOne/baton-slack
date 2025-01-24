@@ -7,7 +7,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v4
         with:
-          go-version: 1.22.x
+          go-version: 1.23.x
       - name: Checkout code
         uses: actions/checkout@v3
       - name: Run linters
@@ -15,24 +15,196 @@ jobs:
         with:
           version: latest
           args: --timeout=3m
-  go-test:
-    strategy:
-      matrix:
-        go-version: [1.22.x]
-        platform: [ubuntu-latest]
-    runs-on: ${{ matrix.platform }}
+
+  test-member:
+    runs-on: ubuntu-latest
+    env:
+      BATON_LOG_LEVEL: debug
+
+      CONNECTOR_GRANT: 'workspaceRole:T08101AQL31:member:assigned:user:U083SJ36LCD'
+      CONNECTOR_ENTITLEMENT: 'workspaceRole:T08101AQL31:member:assigned'
+      CONNECTOR_PRINCIPAL: 'U083SJ36LCD'
+      CONNECTOR_PRINCIPAL_TYPE: 'user'
+
+      BATON_TOKEN: "${{ secrets.BATON_TOKEN }}"
+      BATON_ENTERPRISE_TOKEN: "${{ secrets.BATON_ENTERPRISE_TOKEN }}"
+
     steps:
       - name: Install Go
-        if: success()
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version: 1.23.x
       - name: Checkout code
-        uses: actions/checkout@v3
-      - name: go tests
-        run: (set -o pipefail && go test -v -covermode=count -json ./... | tee test.json)
-      - name: annotate go tests
-        if: always()
-        uses: guyarb/golang-test-annotations@v0.5.1
+        uses: actions/checkout@v4
+      - name: Build baton-slack
+        run: go build ./cmd/baton-slack
+      - name: Run baton-slack
+        run: ./baton-slack
+      - name: Install baton
+        run: ./scripts/get-baton.sh && mv baton /usr/local/bin
+
+      - name: Grant entitlement first time
+        run: |
+          ./baton-slack --grant-entitlement="${{ env.CONNECTOR_ENTITLEMENT }}" \
+                          --grant-principal="${{ env.CONNECTOR_PRINCIPAL }}" \
+                          --grant-principal-type="${{ env.CONNECTOR_PRINCIPAL_TYPE }}"
+
+      - name: Check for grant before revoking
+        run: |
+          ./baton-slack && \
+          baton grants --entitlement="${{ env.CONNECTOR_ENTITLEMENT }}" --output-format=json | \
+          jq --exit-status ".grants[].principal.id.resource == \"${{ env.CONNECTOR_PRINCIPAL }}\"" | grep true
+
+      - name: Revoke grants
+        run: ./baton-slack --revoke-grant="${{ env.CONNECTOR_GRANT }}"
+
+      - name: Check grant was revoked
+        run: |
+          ./baton-slack && \
+          baton grants --entitlement="${{ env.CONNECTOR_ENTITLEMENT }}" --output-format=json | \
+          jq --exit-status "if .grants then .grants[]?.principal.id.resource != \"${{ env.CONNECTOR_PRINCIPAL }}\" else . end"
+
+      - name: Grant entitlement second time
+        run: |
+          ./baton-slack --grant-entitlement="${{ env.CONNECTOR_ENTITLEMENT }}" \
+                          --grant-principal="${{ env.CONNECTOR_PRINCIPAL }}" \
+                          --grant-principal-type="${{ env.CONNECTOR_PRINCIPAL_TYPE }}"
+
+      - name: Wait 10 seconds
+        run: sleep 10
+
+      - name: Check grant was re-granted
+        run: |
+          ./baton-slack && \
+          baton grants --entitlement="${{ env.CONNECTOR_ENTITLEMENT }}" --output-format=json | \
+          jq --exit-status ".grants[].principal.id.resource == \"${{ env.CONNECTOR_PRINCIPAL }}\""
+
+  test-admin:
+    needs: [test-member]
+    runs-on: ubuntu-latest
+    env:
+      # Logging level for Baton
+      BATON_LOG_LEVEL: debug
+
+      # Connector-specific details
+      CONNECTOR_GRANT: 'workspaceRole:T08101AQL31:admin:assigned:user:U083SJ36LCD'
+      CONNECTOR_ENTITLEMENT: 'workspaceRole:T08101AQL31:admin:assigned'
+      CONNECTOR_PRINCIPAL: 'U083SJ36LCD'
+      CONNECTOR_PRINCIPAL_TYPE: 'user'
+
+      # Secrets for Baton authentication
+      BATON_TOKEN: "${{ secrets.BATON_TOKEN }}"
+      BATON_ENTERPRISE_TOKEN: "${{ secrets.BATON_ENTERPRISE_TOKEN }}"
+
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v5
         with:
-          test-results: test.json
+          go-version: 1.23.x
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Build baton-slack
+        run: go build ./cmd/baton-slack
+
+      - name: Run baton-slack
+        run: ./baton-slack
+      - name: Install baton
+        run: ./scripts/get-baton.sh && mv baton /usr/local/bin
+
+      - name: Grant entitlement first time
+        run: |
+          ./baton-slack --grant-entitlement="${{ env.CONNECTOR_ENTITLEMENT }}" \
+                          --grant-principal="${{ env.CONNECTOR_PRINCIPAL }}" \
+                          --grant-principal-type="${{ env.CONNECTOR_PRINCIPAL_TYPE }}"
+
+      - name: Check for grant before revoking
+        run: |
+          ./baton-slack && \
+          baton grants --entitlement="${{ env.CONNECTOR_ENTITLEMENT }}" --output-format=json | \
+          jq --exit-status ".grants[].principal.id.resource == \"${{ env.CONNECTOR_PRINCIPAL }}\"" | grep true
+
+      - name: Revoke grants
+        run: ./baton-slack --revoke-grant="${{ env.CONNECTOR_GRANT }}"
+
+      - name: Check grant was revoked
+        run: |
+          ./baton-slack && \
+          baton grants --entitlement="${{ env.CONNECTOR_ENTITLEMENT }}" --output-format=json | \
+          jq --exit-status "if .grants then .grants[]?.principal.id.resource != \"${{ env.CONNECTOR_PRINCIPAL }}\" else . end"
+      #
+      - name: Grant entitlement second time
+        run: |
+          ./baton-slack --grant-entitlement="${{ env.CONNECTOR_ENTITLEMENT }}" \
+                          --grant-principal="${{ env.CONNECTOR_PRINCIPAL }}" \
+                          --grant-principal-type="${{ env.CONNECTOR_PRINCIPAL_TYPE }}"
+
+      - name: Check grant was re-granted
+        run: |
+          ./baton-slack && \
+          baton grants --entitlement="${{ env.CONNECTOR_ENTITLEMENT }}" --output-format=json | \
+          jq --exit-status ".grants[].principal.id.resource == \"${{ env.CONNECTOR_PRINCIPAL }}\""
+
+
+  test-owner:
+    needs: [test-member, test-admin]
+    runs-on: ubuntu-latest
+    env:
+      BATON_LOG_LEVEL: debug
+
+      CONNECTOR_GRANT: 'workspaceRole:T08101AQL31:owner:assigned:user:U083SJ36LCD'
+      CONNECTOR_ENTITLEMENT: 'workspaceRole:T08101AQL31:owner:assigned'
+      CONNECTOR_PRINCIPAL: 'U083SJ36LCD'
+      CONNECTOR_PRINCIPAL_TYPE: 'user'
+
+      BATON_TOKEN: "${{ secrets.BATON_TOKEN }}"
+      BATON_ENTERPRISE_TOKEN: "${{ secrets.BATON_ENTERPRISE_TOKEN }}"
+
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.23.x
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Build baton-slack
+        run: go build ./cmd/baton-slack
+
+      - name: Run baton-slack
+        run: ./baton-slack
+      - name: Install baton
+        run: ./scripts/get-baton.sh && mv baton /usr/local/bin
+
+      - name: Grant entitlement first time
+        run: |
+          ./baton-slack --grant-entitlement="${{ env.CONNECTOR_ENTITLEMENT }}" \
+                          --grant-principal="${{ env.CONNECTOR_PRINCIPAL }}" \
+                          --grant-principal-type="${{ env.CONNECTOR_PRINCIPAL_TYPE }}"
+
+      - name: Check for grant before revoking
+        run: |
+          ./baton-slack && \
+          baton grants --entitlement="${{ env.CONNECTOR_ENTITLEMENT }}" --output-format=json | \
+          jq --exit-status ".grants[].principal.id.resource == \"${{ env.CONNECTOR_PRINCIPAL }}\"" | grep true
+
+      - name: Revoke grants
+        run: ./baton-slack --revoke-grant="${{ env.CONNECTOR_GRANT }}"
+
+      - name: Check grant was revoked
+        run: |
+          ./baton-slack && \
+          baton grants --entitlement="${{ env.CONNECTOR_ENTITLEMENT }}" --output-format=json | \
+          jq --exit-status "if .grants then .grants[]?.principal.id.resource != \"${{ env.CONNECTOR_PRINCIPAL }}\" else . end"
+
+      - name: Grant entitlement second time
+        run: |
+          ./baton-slack --grant-entitlement="${{ env.CONNECTOR_ENTITLEMENT }}" \
+                          --grant-principal="${{ env.CONNECTOR_PRINCIPAL }}" \
+                          --grant-principal-type="${{ env.CONNECTOR_PRINCIPAL_TYPE }}"
+
+      - name: Check grant was re-granted
+        run: |
+          ./baton-slack && \
+          baton grants --entitlement="${{ env.CONNECTOR_ENTITLEMENT }}" --output-format=json | \
+          jq --exit-status ".grants[].principal.id.resource == \"${{ env.CONNECTOR_PRINCIPAL }}\""
+
+
