@@ -36,8 +36,8 @@ func ParseRole(id string) (string, error) {
 	return parts[2], nil
 }
 
-// MakeResourceList - turning arbitrary data into Resource slices is and
-// incredibly common thing. TODO(marcos): move to baton-sdk
+// MakeResourceList - turning arbitrary data into Resource slices is an incredibly common thing.
+// TODO(marcos): move to baton-sdk.
 func MakeResourceList[T any](
 	ctx context.Context,
 	objects []T,
