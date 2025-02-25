@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -24,6 +25,8 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/tasks"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 )
+
+var tracer = otel.Tracer("baton-sdk/pkg.connectorbuilder")
 
 type ResourceSyncer interface {
 	ResourceType(ctx context.Context) *v2.ResourceType
@@ -56,10 +59,12 @@ type CreateAccountResponse interface {
 
 type AccountManager interface {
 	CreateAccount(ctx context.Context, accountInfo *v2.AccountInfo, credentialOptions *v2.CredentialOptions) (CreateAccountResponse, []*v2.PlaintextData, annotations.Annotations, error)
+	CreateAccountCapabilityDetails(ctx context.Context) (*v2.CredentialDetailsAccountProvisioning, annotations.Annotations, error)
 }
 
 type CredentialManager interface {
 	Rotate(ctx context.Context, resourceId *v2.ResourceId, credentialOptions *v2.CredentialOptions) ([]*v2.PlaintextData, annotations.Annotations, error)
+	RotateCapabilityDetails(ctx context.Context) (*v2.CredentialDetailsCredentialRotation, annotations.Annotations, error)
 }
 
 type EventProvider interface {
@@ -97,6 +102,9 @@ type builderImpl struct {
 }
 
 func (b *builderImpl) BulkCreateTickets(ctx context.Context, request *v2.TicketsServiceBulkCreateTicketsRequest) (*v2.TicketsServiceBulkCreateTicketsResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.BulkCreateTickets")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.BulkCreateTicketsType
 	if b.ticketManager == nil {
@@ -123,6 +131,9 @@ func (b *builderImpl) BulkCreateTickets(ctx context.Context, request *v2.Tickets
 }
 
 func (b *builderImpl) BulkGetTickets(ctx context.Context, request *v2.TicketsServiceBulkGetTicketsRequest) (*v2.TicketsServiceBulkGetTicketsResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.BulkGetTickets")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.BulkGetTicketsType
 	if b.ticketManager == nil {
@@ -149,6 +160,9 @@ func (b *builderImpl) BulkGetTickets(ctx context.Context, request *v2.TicketsSer
 }
 
 func (b *builderImpl) ListTicketSchemas(ctx context.Context, request *v2.TicketsServiceListTicketSchemasRequest) (*v2.TicketsServiceListTicketSchemasResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.ListTicketSchemas")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.ListTicketSchemasType
 	if b.ticketManager == nil {
@@ -178,6 +192,9 @@ func (b *builderImpl) ListTicketSchemas(ctx context.Context, request *v2.Tickets
 }
 
 func (b *builderImpl) CreateTicket(ctx context.Context, request *v2.TicketsServiceCreateTicketRequest) (*v2.TicketsServiceCreateTicketResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.CreateTicket")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.CreateTicketType
 	if b.ticketManager == nil {
@@ -220,6 +237,9 @@ func (b *builderImpl) CreateTicket(ctx context.Context, request *v2.TicketsServi
 }
 
 func (b *builderImpl) GetTicket(ctx context.Context, request *v2.TicketsServiceGetTicketRequest) (*v2.TicketsServiceGetTicketResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.GetTicket")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.GetTicketType
 	if b.ticketManager == nil {
@@ -248,6 +268,9 @@ func (b *builderImpl) GetTicket(ctx context.Context, request *v2.TicketsServiceG
 }
 
 func (b *builderImpl) GetTicketSchema(ctx context.Context, request *v2.TicketsServiceGetTicketSchemaRequest) (*v2.TicketsServiceGetTicketSchemaResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.GetTicketSchema")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.GetTicketSchemaType
 	if b.ticketManager == nil {
@@ -403,6 +426,9 @@ func (b *builderImpl) ListResourceTypes(
 	ctx context.Context,
 	request *v2.ResourceTypesServiceListResourceTypesRequest,
 ) (*v2.ResourceTypesServiceListResourceTypesResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.ListResourceTypes")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.ListResourceTypesType
 	var out []*v2.ResourceType
@@ -417,6 +443,9 @@ func (b *builderImpl) ListResourceTypes(
 
 // ListResources returns all available resources for a given resource type ID.
 func (b *builderImpl) ListResources(ctx context.Context, request *v2.ResourcesServiceListResourcesRequest) (*v2.ResourcesServiceListResourcesResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.ListResources")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.ListResourcesType
 	rb, ok := b.resourceBuilders[request.ResourceTypeId]
@@ -449,6 +478,9 @@ func (b *builderImpl) ListResources(ctx context.Context, request *v2.ResourcesSe
 
 // ListEntitlements returns all the entitlements for a given resource.
 func (b *builderImpl) ListEntitlements(ctx context.Context, request *v2.EntitlementsServiceListEntitlementsRequest) (*v2.EntitlementsServiceListEntitlementsResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.ListEntitlements")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.ListEntitlementsType
 	rb, ok := b.resourceBuilders[request.Resource.Id.ResourceType]
@@ -481,6 +513,9 @@ func (b *builderImpl) ListEntitlements(ctx context.Context, request *v2.Entitlem
 
 // ListGrants lists all the grants for a given resource.
 func (b *builderImpl) ListGrants(ctx context.Context, request *v2.GrantsServiceListGrantsRequest) (*v2.GrantsServiceListGrantsResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.ListGrants")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.ListGrantsType
 	rid := request.Resource.Id
@@ -516,6 +551,9 @@ func (b *builderImpl) ListGrants(ctx context.Context, request *v2.GrantsServiceL
 
 // GetMetadata gets all metadata for a connector.
 func (b *builderImpl) GetMetadata(ctx context.Context, request *v2.ConnectorServiceGetMetadataRequest) (*v2.ConnectorServiceGetMetadataResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.GetMetadata")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.GetMetadataType
 	md, err := b.cb.Metadata(ctx)
@@ -524,7 +562,11 @@ func (b *builderImpl) GetMetadata(ctx context.Context, request *v2.ConnectorServ
 		return nil, err
 	}
 
-	md.Capabilities = getCapabilities(ctx, b)
+	md.Capabilities, err = getCapabilities(ctx, b)
+	if err != nil {
+		b.m.RecordTaskFailure(ctx, tt, b.nowFunc().Sub(start))
+		return nil, err
+	}
 
 	annos := annotations.Annotations(md.Annotations)
 	if b.ticketManager != nil {
@@ -536,8 +578,63 @@ func (b *builderImpl) GetMetadata(ctx context.Context, request *v2.ConnectorServ
 	return &v2.ConnectorServiceGetMetadataResponse{Metadata: md}, nil
 }
 
+func validateCapabilityDetails(ctx context.Context, credDetails *v2.CredentialDetails) error {
+	if credDetails.CapabilityAccountProvisioning != nil {
+		// Ensure that the preferred option is included and is part of the supported options
+		if credDetails.CapabilityAccountProvisioning.PreferredCredentialOption == v2.CapabilityDetailCredentialOption_CAPABILITY_DETAIL_CREDENTIAL_OPTION_UNSPECIFIED {
+			return status.Error(codes.InvalidArgument, "error: preferred credential creation option is not set")
+		}
+		if !slices.Contains(credDetails.CapabilityAccountProvisioning.SupportedCredentialOptions, credDetails.CapabilityAccountProvisioning.PreferredCredentialOption) {
+			return status.Error(codes.InvalidArgument, "error: preferred credential creation option is not part of the supported options")
+		}
+	}
+
+	if credDetails.CapabilityCredentialRotation != nil {
+		// Ensure that the preferred option is included and is part of the supported options
+		if credDetails.CapabilityCredentialRotation.PreferredCredentialOption == v2.CapabilityDetailCredentialOption_CAPABILITY_DETAIL_CREDENTIAL_OPTION_UNSPECIFIED {
+			return status.Error(codes.InvalidArgument, "error: preferred credential rotation option is not set")
+		}
+		if !slices.Contains(credDetails.CapabilityCredentialRotation.SupportedCredentialOptions, credDetails.CapabilityCredentialRotation.PreferredCredentialOption) {
+			return status.Error(codes.InvalidArgument, "error: preferred credential rotation option is not part of the supported options")
+		}
+	}
+
+	return nil
+}
+
+func getCredentialDetails(ctx context.Context, b *builderImpl) (*v2.CredentialDetails, error) {
+	l := ctxzap.Extract(ctx)
+	rv := &v2.CredentialDetails{}
+
+	for _, rb := range b.resourceBuilders {
+		if am, ok := rb.(AccountManager); ok {
+			accountProvisioningCapabilityDetails, _, err := am.CreateAccountCapabilityDetails(ctx)
+			if err != nil {
+				l.Error("error: getting account provisioning details", zap.Error(err))
+				return nil, fmt.Errorf("error: getting account provisioning details: %w", err)
+			}
+			rv.CapabilityAccountProvisioning = accountProvisioningCapabilityDetails
+		}
+
+		if cm, ok := rb.(CredentialManager); ok {
+			credentialRotationCapabilityDetails, _, err := cm.RotateCapabilityDetails(ctx)
+			if err != nil {
+				l.Error("error: getting credential management details", zap.Error(err))
+				return nil, fmt.Errorf("error: getting credential management details: %w", err)
+			}
+			rv.CapabilityCredentialRotation = credentialRotationCapabilityDetails
+		}
+	}
+
+	err := validateCapabilityDetails(ctx, rv)
+	if err != nil {
+		return nil, fmt.Errorf("error: validating capability details: %w", err)
+	}
+	return rv, nil
+}
+
 // getCapabilities gets all capabilities for a connector.
-func getCapabilities(ctx context.Context, b *builderImpl) *v2.ConnectorCapabilities {
+func getCapabilities(ctx context.Context, b *builderImpl) (*v2.ConnectorCapabilities, error) {
 	connectorCaps := make(map[v2.Capability]struct{})
 	resourceTypeCapabilities := []*v2.ResourceTypeCapability{}
 	for _, rb := range b.resourceBuilders {
@@ -589,14 +686,23 @@ func getCapabilities(ctx context.Context, b *builderImpl) *v2.ConnectorCapabilit
 	}
 	slices.Sort(caps)
 
+	credDetails, err := getCredentialDetails(ctx, b)
+	if err != nil {
+		return nil, err
+	}
+
 	return &v2.ConnectorCapabilities{
 		ResourceTypeCapabilities: resourceTypeCapabilities,
 		ConnectorCapabilities:    caps,
-	}
+		CredentialDetails:        credDetails,
+	}, nil
 }
 
 // Validate validates the connector.
 func (b *builderImpl) Validate(ctx context.Context, request *v2.ConnectorServiceValidateRequest) (*v2.ConnectorServiceValidateResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.Validate")
+	defer span.End()
+
 	annos, err := b.cb.Validate(ctx)
 	if err != nil {
 		return nil, err
@@ -606,6 +712,9 @@ func (b *builderImpl) Validate(ctx context.Context, request *v2.ConnectorService
 }
 
 func (b *builderImpl) Grant(ctx context.Context, request *v2.GrantManagerServiceGrantRequest) (*v2.GrantManagerServiceGrantResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.Grant")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.GrantType
 	l := ctxzap.Extract(ctx)
@@ -643,6 +752,9 @@ func (b *builderImpl) Grant(ctx context.Context, request *v2.GrantManagerService
 }
 
 func (b *builderImpl) Revoke(ctx context.Context, request *v2.GrantManagerServiceRevokeRequest) (*v2.GrantManagerServiceRevokeResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.Revoke")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.RevokeType
 
@@ -681,10 +793,16 @@ func (b *builderImpl) Revoke(ctx context.Context, request *v2.GrantManagerServic
 // GetAsset streams the asset to the client.
 // FIXME(jirwin): Asset streaming is disabled.
 func (b *builderImpl) GetAsset(request *v2.AssetServiceGetAssetRequest, server v2.AssetService_GetAssetServer) error {
+	_, span := tracer.Start(server.Context(), "builderImpl.GetAsset")
+	defer span.End()
+
 	return nil
 }
 
 func (b *builderImpl) ListEvents(ctx context.Context, request *v2.ListEventsRequest) (*v2.ListEventsResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.ListEvents")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.ListEventsType
 	if b.eventFeed == nil {
@@ -709,6 +827,9 @@ func (b *builderImpl) ListEvents(ctx context.Context, request *v2.ListEventsRequ
 }
 
 func (b *builderImpl) CreateResource(ctx context.Context, request *v2.CreateResourceRequest) (*v2.CreateResourceResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.CreateResource")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.CreateResourceType
 	l := ctxzap.Extract(ctx)
@@ -730,6 +851,9 @@ func (b *builderImpl) CreateResource(ctx context.Context, request *v2.CreateReso
 }
 
 func (b *builderImpl) DeleteResource(ctx context.Context, request *v2.DeleteResourceRequest) (*v2.DeleteResourceResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.DeleteResource")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.DeleteResourceType
 
@@ -752,6 +876,9 @@ func (b *builderImpl) DeleteResource(ctx context.Context, request *v2.DeleteReso
 }
 
 func (b *builderImpl) RotateCredential(ctx context.Context, request *v2.RotateCredentialRequest) (*v2.RotateCredentialResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.RotateCredential")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.RotateCredentialsType
 	l := ctxzap.Extract(ctx)
@@ -807,6 +934,9 @@ func (b *builderImpl) Cleanup(ctx context.Context, request *v2.ConnectorServiceC
 }
 
 func (b *builderImpl) CreateAccount(ctx context.Context, request *v2.CreateAccountRequest) (*v2.CreateAccountResponse, error) {
+	ctx, span := tracer.Start(ctx, "builderImpl.CreateAccount")
+	defer span.End()
+
 	start := b.nowFunc()
 	tt := tasks.CreateAccountType
 	l := ctxzap.Extract(ctx)
