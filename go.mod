@@ -5,7 +5,7 @@ go 1.23
 toolchain go1.23.0
 
 require (
-	github.com/conductorone/baton-sdk v0.2.68
+	github.com/conductorone/baton-sdk v0.2.69
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/slack-go/slack v0.14.0
 	github.com/spf13/viper v1.19.0
