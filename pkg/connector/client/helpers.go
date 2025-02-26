@@ -2,14 +2,19 @@ package enterprise
 
 import (
 	"context"
-	"io"
+	"net/http"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
 )
 
-func logBody(ctx context.Context, bodyCloser io.ReadCloser) {
+func logBody(ctx context.Context, response *http.Response) {
 	l := ctxzap.Extract(ctx)
+	if response == nil {
+		l.Error("response is nil")
+		return
+	}
+	bodyCloser := response.Body
 	body := make([]byte, 512)
 	_, err := bodyCloser.Read(body)
 	if err != nil {

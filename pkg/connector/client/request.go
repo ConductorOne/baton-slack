@@ -152,19 +152,19 @@ func (c *Client) doRequest(
 		uhttp.WithRatelimitData(&ratelimitData),
 	)
 	if err != nil {
-		logBody(ctx, response.Body)
+		logBody(ctx, response)
 		return &ratelimitData, err
 	}
 	defer response.Body.Close()
 
 	bodyBytes, err := io.ReadAll(response.Body)
 	if err != nil {
-		logBody(ctx, response.Body)
+		logBody(ctx, response)
 		return &ratelimitData, err
 	}
 
 	if err := json.Unmarshal(bodyBytes, &target); err != nil {
-		logBody(ctx, response.Body)
+		logBody(ctx, response)
 		return nil, err
 	}
 
