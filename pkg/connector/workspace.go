@@ -15,8 +15,6 @@ import (
 	"github.com/slack-go/slack"
 )
 
-var workspacesNameCache = make(map[string]string)
-
 const memberEntitlement = "member"
 
 type workspaceResourceType struct {
@@ -113,7 +111,7 @@ func (o *workspaceResourceType) List(
 
 	// Seed the cache.
 	for _, workspace := range workspaces {
-		workspacesNameCache[workspace.ID] = workspace.Name
+		o.enterpriseClient.SetWorkspaceName(workspace.ID, workspace.Name)
 	}
 
 	output, err := pkg.MakeResourceList(
