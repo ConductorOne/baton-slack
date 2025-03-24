@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
@@ -17,13 +21,15 @@ const (
 )
 
 type Client struct {
-	baseScimUrl  *url.URL
-	baseUrl      *url.URL
-	token        string
-	enterpriseID string
-	botToken     string
-	ssoEnabled   bool
-	wrapper      *uhttp.BaseHttpClient
+	baseScimUrl              *url.URL
+	baseUrl                  *url.URL
+	token                    string
+	enterpriseID             string
+	botToken                 string
+	ssoEnabled               bool
+	wrapper                  *uhttp.BaseHttpClient
+	workspacesNameCache      map[string]string
+	workspacesNameCacheMutex sync.RWMutex
 }
 
 func NewClient(
@@ -44,13 +50,15 @@ func NewClient(
 	}
 
 	return &Client{
-		baseUrl:      baseUrl0,
-		baseScimUrl:  baseScimUrl0,
-		token:        token,
-		enterpriseID: enterpriseID,
-		botToken:     botToken,
-		ssoEnabled:   ssoEnabled,
-		wrapper:      uhttp.NewBaseHttpClient(httpClient),
+		baseUrl:                  baseUrl0,
+		baseScimUrl:              baseScimUrl0,
+		token:                    token,
+		enterpriseID:             enterpriseID,
+		botToken:                 botToken,
+		ssoEnabled:               ssoEnabled,
+		wrapper:                  uhttp.NewBaseHttpClient(httpClient),
+		workspacesNameCache:      make(map[string]string),
+		workspacesNameCacheMutex: sync.RWMutex{},
 	}, nil
 }
 
@@ -72,6 +80,77 @@ func (a BaseResponse) handleError(err error, action string) error {
 		)
 	}
 	return nil
+}
+
+func (c *Client) SetWorkspaceName(workspaceID, workspaceName string) {
+	c.workspacesNameCacheMutex.Lock()
+	defer c.workspacesNameCacheMutex.Unlock()
+	c.workspacesNameCache[workspaceID] = workspaceName
+}
+
+func (c *Client) GetWorkspaceName(ctx context.Context, client *slack.Client, workspaceID string) (string, error) {
+	if workspaceID == "" {
+		return "", fmt.Errorf("workspace ID is empty")
+	}
+	c.workspacesNameCacheMutex.RLock()
+	workspaceName, ok := c.workspacesNameCache[workspaceID]
+	if ok {
+		c.workspacesNameCacheMutex.RUnlock()
+		return workspaceName, nil
+	}
+	c.workspacesNameCacheMutex.RUnlock()
+
+	workspaceName = ""
+	if c.enterpriseID == "" {
+		nextCursor := ""
+		for {
+			var err error
+			var workspaces []slack.Team
+			params := slack.ListTeamsParameters{Cursor: nextCursor}
+			workspaces, nextCursor, err = client.ListTeamsContext(ctx, params)
+			if err != nil {
+				return "", fmt.Errorf("error getting auth teams list: %w", err)
+			}
+			for _, workspace := range workspaces {
+				c.SetWorkspaceName(workspace.ID, workspace.Name)
+				if workspace.ID == workspaceID {
+					workspaceName = workspace.Name
+					nextCursor = ""
+					break
+				}
+			}
+			if nextCursor == "" {
+				break
+			}
+		}
+	} else {
+		nextCursor := ""
+		for {
+			var err error
+			var workspaces []slack.Team
+			workspaces, nextCursor, _, err = c.GetAuthTeamsList(ctx, nextCursor)
+			if err != nil {
+				return "", fmt.Errorf("error getting auth teams list: %w", err)
+			}
+			for _, workspace := range workspaces {
+				c.SetWorkspaceName(workspace.ID, workspace.Name)
+				if workspace.ID == workspaceID {
+					workspaceName = workspace.Name
+					nextCursor = ""
+					break
+				}
+			}
+			if nextCursor == "" {
+				break
+			}
+		}
+	}
+
+	if workspaceName == "" {
+		return "", status.Errorf(codes.NotFound, "workspace not found: %s", workspaceID)
+	}
+
+	return workspaceName, nil
 }
 
 // GetUserInfo returns the user info for the given user ID.

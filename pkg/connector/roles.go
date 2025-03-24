@@ -115,7 +115,7 @@ func (o *workspaceRoleType) List(
 }
 
 func (o *workspaceRoleType) Entitlements(
-	_ context.Context,
+	ctx context.Context,
 	resource *v2.Resource,
 	_ *pagination.Token,
 ) (
@@ -124,9 +124,9 @@ func (o *workspaceRoleType) Entitlements(
 	annotations.Annotations,
 	error,
 ) {
-	workspaceName, ok := workspacesNameCache[resource.ParentResourceId.Resource]
-	if !ok {
-		return nil, "", nil, fmt.Errorf("invalid workspace: %s", resource.ParentResourceId.Resource)
+	workspaceName, err := o.enterpriseClient.GetWorkspaceName(ctx, o.client, resource.ParentResourceId.Resource)
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("error getting workspace name for workspace id %s: %w", resource.ParentResourceId.Resource, err)
 	}
 	return []*v2.Entitlement{
 			entitlement.NewAssignmentEntitlement(
