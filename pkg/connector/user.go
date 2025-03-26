@@ -63,7 +63,7 @@ func userResource(
 	if user.IsBot {
 		userTraitOptions = append(
 			userTraitOptions,
-			resource.WithAccountType(v2.UserTrait_ACCOUNT_TYPE_SERVICE),
+			resource.WithAccountType(v2.UserTrait_ACCOUNT_TYPE_SYSTEM),
 		)
 	}
 
@@ -125,7 +125,7 @@ func baseUserResource(
 	if user.IsBot {
 		userTraitOptions = append(
 			userTraitOptions,
-			resource.WithAccountType(v2.UserTrait_ACCOUNT_TYPE_SERVICE),
+			resource.WithAccountType(v2.UserTrait_ACCOUNT_TYPE_SYSTEM),
 		)
 	}
 
