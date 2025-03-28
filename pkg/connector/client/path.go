@@ -26,6 +26,7 @@ const (
 	UrlPathSetOwner   = "/api/admin.users.setOwner"
 	UrlPathUserRemove = "/api/admin.users.remove"
 	UrlPathUserAdd    = "/api/admin.users.assign"
+	UrlPathUserInvite = "/api/admin.users.invite"
 )
 
 func getWorkspaceUrlPathByRole(roleID string) (string, error) {
