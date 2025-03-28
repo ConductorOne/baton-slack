@@ -11,7 +11,9 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
+	"go.uber.org/zap"
 )
 
 type userResourceType struct {
@@ -264,6 +266,8 @@ func (o *userResourceType) CreateAccount(
 	annotations.Annotations,
 	error,
 ) {
+	l := ctxzap.Extract(ctx)
+	l.Debug("Slack: AccountInfo:", zap.Any("accountInfo", accountInfo))
 	params, err := getInviteUserParams(accountInfo)
 	if err != nil {
 		return nil, nil, nil, err
