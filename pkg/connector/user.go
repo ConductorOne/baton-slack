@@ -266,7 +266,7 @@ func (o *userResourceType) CreateAccount(
 ) {
 	params, err := getInviteUserParams(accountInfo)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, fmt.Errorf("baton-slack: create account get InviteUserParams failed %w", err)
 	}
 
 	ratelimitData, err := o.enterpriseClient.InviteUserToWorkspace(ctx, params)
