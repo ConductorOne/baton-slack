@@ -6,6 +6,7 @@ import (
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
+	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/conductorone/baton-slack/pkg"
@@ -251,6 +252,66 @@ func (o *userResourceType) List(
 		return nil, "", nil, err
 	}
 	return append(rv0, rv1...), pageToken, outputAnnotations, nil
+}
+
+func (o *userResourceType) CreateAccount(
+	ctx context.Context,
+	accountInfo *v2.AccountInfo,
+	credentialOptions *v2.CredentialOptions,
+) (
+	connectorbuilder.CreateAccountResponse,
+	[]*v2.PlaintextData,
+	annotations.Annotations,
+	error,
+) {
+	params, err := getInviteUserParams(accountInfo)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("baton-slack: create account get InviteUserParams failed %w", err)
+	}
+
+	ratelimitData, err := o.enterpriseClient.InviteUserToWorkspace(ctx, params)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	outputAnnotations := annotations.New()
+	outputAnnotations.WithRateLimiting(ratelimitData)
+
+	return &v2.CreateAccountResponse_SuccessResult{
+		Resource: &v2.Resource{},
+	}, nil, outputAnnotations, nil
+}
+
+func (o *userResourceType) CreateAccountCapabilityDetails(ctx context.Context) (*v2.CredentialDetailsAccountProvisioning, annotations.Annotations, error) {
+	return &v2.CredentialDetailsAccountProvisioning{
+		SupportedCredentialOptions: []v2.CapabilityDetailCredentialOption{
+			v2.CapabilityDetailCredentialOption_CAPABILITY_DETAIL_CREDENTIAL_OPTION_NO_PASSWORD,
+		},
+		PreferredCredentialOption: v2.CapabilityDetailCredentialOption_CAPABILITY_DETAIL_CREDENTIAL_OPTION_NO_PASSWORD,
+	}, nil, nil
+}
+
+func getInviteUserParams(accountInfo *v2.AccountInfo) (*enterprise.InviteUserParams, error) {
+	pMap := accountInfo.Profile.AsMap()
+	email, ok := pMap["email"].(string)
+	if !ok || email == "" {
+		return nil, fmt.Errorf("email is required")
+	}
+
+	chanIDs, ok := pMap["channel_ids"].(string)
+	if !ok || chanIDs == "" {
+		return nil, fmt.Errorf("channal_ids is required")
+	}
+
+	teamID, ok := pMap["team_id"].(string)
+	if !ok || teamID == "" {
+		return nil, fmt.Errorf("team_id is required")
+	}
+	return &enterprise.InviteUserParams{
+		TeamID:     teamID,
+		ChannelIDs: chanIDs,
+		Email:      email,
+	}, nil
 }
 
 func userBuilder(

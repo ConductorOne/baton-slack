@@ -679,3 +679,25 @@ func (o *Client) RemoveUser(ctx context.Context, teamID, userID string) (*v2.Rat
 
 	return ratelimitData, nil
 }
+
+type InviteUserParams struct {
+	TeamID     string
+	ChannelIDs string
+	Email      string
+}
+
+func (o *Client) InviteUserToWorkspace(ctx context.Context, p *InviteUserParams) (*v2.RateLimitDescription, error) {
+	var response BaseResponse
+	ratelimitData, err := o.post(
+		ctx,
+		UrlPathUserInvite,
+		&response,
+		map[string]interface{}{
+			"team_id":     p.TeamID,
+			"channel_ids": p.ChannelIDs,
+			"email":       p.Email,
+		},
+		false, /* bot token */
+	)
+	return ratelimitData, response.handleError(err, "invite user")
+}

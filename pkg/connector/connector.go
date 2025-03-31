@@ -27,6 +27,40 @@ func (c *Slack) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
 	return &v2.ConnectorMetadata{
 		DisplayName: "Slack",
 		Description: "Connector syncing users, workspaces, user groups and workspace roles from Slack to Baton.",
+		AccountCreationSchema: &v2.ConnectorAccountCreationSchema{
+			FieldMap: map[string]*v2.ConnectorAccountCreationSchema_Field{
+				"channel_ids": {
+					DisplayName: "ChannelIDs",
+					Required:    true,
+					Description: "Channel IDs the user will be invited to",
+					Field: &v2.ConnectorAccountCreationSchema_Field_StringField{
+						StringField: &v2.ConnectorAccountCreationSchema_StringField{},
+					},
+					Placeholder: "ChannelIDs",
+					Order:       1,
+				},
+				"email": {
+					DisplayName: "Email",
+					Required:    true,
+					Description: "This email will be used as the login for the user.",
+					Field: &v2.ConnectorAccountCreationSchema_Field_StringField{
+						StringField: &v2.ConnectorAccountCreationSchema_StringField{},
+					},
+					Placeholder: "Email",
+					Order:       2,
+				},
+				"team_id": {
+					DisplayName: "WorkspaceID",
+					Required:    true,
+					Description: "The workspaceID the user will be invited to",
+					Field: &v2.ConnectorAccountCreationSchema_Field_StringField{
+						StringField: &v2.ConnectorAccountCreationSchema_StringField{},
+					},
+					Placeholder: "TeamID",
+					Order:       3,
+				},
+			},
+		},
 	}, nil
 }
 
