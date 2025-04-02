@@ -78,12 +78,16 @@ func userResource(
 		)
 	}
 
+	opts := make([]resource.ResourceOption, 0, 1)
+	if parentResourceID != nil {
+		opts = append(opts, resource.WithParentResourceID(parentResourceID))
+	}
 	return resource.NewUserResource(
 		user.Name,
 		resourceTypeUser,
 		user.ID,
 		userTraitOptions,
-		resource.WithParentResourceID(parentResourceID),
+		opts...,
 	)
 }
 
@@ -274,11 +278,21 @@ func (o *userResourceType) CreateAccount(
 		return nil, nil, nil, err
 	}
 
+	user, err := o.client.GetUserByEmail(params.Email)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("baton-slack: get user by email failed: %w", err)
+	}
+
 	outputAnnotations := annotations.New()
 	outputAnnotations.WithRateLimiting(ratelimitData)
 
+	r, err := userResource(ctx, user, nil /* parentResource */)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("baton-slack: cannot create connector resource: %w", err)
+	}
+
 	return &v2.CreateAccountResponse_SuccessResult{
-		Resource: &v2.Resource{},
+		Resource: r,
 	}, nil, outputAnnotations, nil
 }
 
