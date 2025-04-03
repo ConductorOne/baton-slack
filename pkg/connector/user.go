@@ -269,16 +269,35 @@ func (o *userResourceType) CreateAccount(
 		return nil, nil, nil, fmt.Errorf("baton-slack: create account get InviteUserParams failed %w", err)
 	}
 
+	if o.enterpriseClient == nil {
+		return nil, nil, nil, fmt.Errorf("baton-slack: account provisioning only works for slack enterprise: %w", err)
+	}
+
 	ratelimitData, err := o.enterpriseClient.InviteUserToWorkspace(ctx, params)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
+	user, err := o.client.GetUserByEmail(params.Email)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("baton-slack: get user by email failed: %w", err)
+	}
+
 	outputAnnotations := annotations.New()
 	outputAnnotations.WithRateLimiting(ratelimitData)
 
+	parentResourceID, err := resource.NewResourceID(resourceTypeWorkspace, params.TeamID)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("baton-slack: create parent resource failed: %w", err)
+	}
+
+	r, err := userResource(ctx, user, parentResourceID)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("baton-slack: cannot create user resource: %w", err)
+	}
+
 	return &v2.CreateAccountResponse_SuccessResult{
-		Resource: &v2.Resource{},
+		Resource: r,
 	}, nil, outputAnnotations, nil
 }
 
