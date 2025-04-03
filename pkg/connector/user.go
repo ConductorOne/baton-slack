@@ -270,7 +270,7 @@ func (o *userResourceType) CreateAccount(
 	}
 
 	if o.enterpriseClient == nil {
-		return nil, nil, nil, fmt.Errorf("baton-slack: account provisioning only works for slace enterprise: %w", err)
+		return nil, nil, nil, fmt.Errorf("baton-slack: account provisioning only works for slack enterprise: %w", err)
 	}
 
 	ratelimitData, err := o.enterpriseClient.InviteUserToWorkspace(ctx, params)
@@ -288,12 +288,12 @@ func (o *userResourceType) CreateAccount(
 
 	parentResourceID, err := resource.NewResourceID(resourceTypeWorkspace, params.TeamID)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("baton-slack: create parent resource if failed: %w", err)
+		return nil, nil, nil, fmt.Errorf("baton-slack: create parent resource failed: %w", err)
 	}
 
 	r, err := userResource(ctx, user, parentResourceID)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("baton-slack: cannot create connector resource: %w", err)
+		return nil, nil, nil, fmt.Errorf("baton-slack: cannot create user resource: %w", err)
 	}
 
 	return &v2.CreateAccountResponse_SuccessResult{
