@@ -78,16 +78,12 @@ func userResource(
 		)
 	}
 
-	opts := make([]resource.ResourceOption, 0, 1)
-	if parentResourceID != nil {
-		opts = append(opts, resource.WithParentResourceID(parentResourceID))
-	}
 	return resource.NewUserResource(
 		user.Name,
 		resourceTypeUser,
 		user.ID,
 		userTraitOptions,
-		opts...,
+		resource.WithParentResourceID(parentResourceID),
 	)
 }
 
@@ -273,6 +269,10 @@ func (o *userResourceType) CreateAccount(
 		return nil, nil, nil, fmt.Errorf("baton-slack: create account get InviteUserParams failed %w", err)
 	}
 
+	if o.enterpriseClient == nil {
+		return nil, nil, nil, fmt.Errorf("baton-slack: account provisioning only works for slace enterprise: %w", err)
+	}
+
 	ratelimitData, err := o.enterpriseClient.InviteUserToWorkspace(ctx, params)
 	if err != nil {
 		return nil, nil, nil, err
@@ -286,7 +286,12 @@ func (o *userResourceType) CreateAccount(
 	outputAnnotations := annotations.New()
 	outputAnnotations.WithRateLimiting(ratelimitData)
 
-	r, err := userResource(ctx, user, nil /* parentResource */)
+	parentResourceID, err := resource.NewResourceID(resourceTypeWorkspace, params.TeamID)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("baton-slack: create parent resource if failed: %w", err)
+	}
+
+	r, err := userResource(ctx, user, parentResourceID)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("baton-slack: cannot create connector resource: %w", err)
 	}
