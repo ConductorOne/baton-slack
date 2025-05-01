@@ -296,9 +296,7 @@ func (o *workspaceResourceType) Grants(
 
 		// confused about Workspace vs Workspace Role? check this link:
 		// https://github.com/ConductorOne/baton-slack/pull/4
-		if !user.Deleted {
-			rv = append(rv, grant.NewGrant(resource, memberEntitlement, userID))
-		}
+		rv = append(rv, grant.NewGrant(resource, memberEntitlement, userID))
 	}
 
 	return rv, pageToken, outputAnnotations, nil
@@ -335,6 +333,12 @@ func (o *workspaceResourceType) Grant(
 	outputAnnotations.WithRateLimiting(rateLimitData)
 
 	if err != nil {
+		// Check if the error indicates the user is already a member.
+		if err.Error() == enterprise.SlackErrUserAlreadyTeamMember {
+			outputAnnotations.Append(&v2.GrantAlreadyExists{})
+			return outputAnnotations, nil
+		}
+		// Handle other errors.
 		return outputAnnotations, fmt.Errorf("baton-slack: failed to add user to workspace: %w", err)
 	}
 
@@ -375,6 +379,12 @@ func (o *workspaceResourceType) Revoke(
 	outputAnnotations.WithRateLimiting(rateLimitData)
 
 	if err != nil {
+		// Check if the error indicates the user is already deleted/removed.
+		if err.Error() == enterprise.SlackErrUserAlreadyDeleted {
+			outputAnnotations.Append(&v2.GrantAlreadyRevoked{})
+			return outputAnnotations, nil
+		}
+		// Handle other errors.
 		return outputAnnotations, fmt.Errorf("baton-slack: failed to remove user from workspace: %w", err)
 	}
 

@@ -3,6 +3,7 @@ package enterprise
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -18,6 +19,10 @@ import (
 
 const (
 	PageSizeDefault = 100
+
+	// Slack API error string constants.
+	SlackErrUserAlreadyTeamMember = "user_already_team_member"
+	SlackErrUserAlreadyDeleted    = "user_already_deleted"
 )
 
 type Client struct {
@@ -71,13 +76,22 @@ func (a BaseResponse) handleError(err error, action string) error {
 	}
 
 	if a.Error != "" {
-		return fmt.Errorf(
-			"baton-slack: error %s: error %v needed %v provided %v",
-			action,
-			a.Error,
-			a.Needed,
-			a.Provided,
-		)
+		switch a.Error {
+		case SlackErrUserAlreadyTeamMember:
+			// Return an error with the exact string for the Grant function to check.
+			return errors.New(SlackErrUserAlreadyTeamMember)
+		case SlackErrUserAlreadyDeleted:
+			// Return an error with the specific string for the Revoke function to check.
+			return errors.New(SlackErrUserAlreadyDeleted)
+		default:
+			return fmt.Errorf(
+				"baton-slack: error %s: error %v needed %v provided %v",
+				action,
+				a.Error,
+				a.Needed,
+				a.Provided,
+			)
+		}
 	}
 	return nil
 }
@@ -645,12 +659,10 @@ func (o *Client) AddUser(ctx context.Context, teamID, userID string) (*v2.RateLi
 		false,
 	)
 
+	// Check for Slack API errors.
+	// If the user is already a member of the team, the function returns the error "user_already_team_member".
 	if err := response.handleError(err, "adding user"); err != nil {
 		return ratelimitData, err
-	}
-
-	if response.Error != "" {
-		return ratelimitData, fmt.Errorf("baton-slack: error adding user: %s", response.Error)
 	}
 
 	return ratelimitData, nil
@@ -669,12 +681,10 @@ func (o *Client) RemoveUser(ctx context.Context, teamID, userID string) (*v2.Rat
 		false,
 	)
 
+	// Check for Slack API errors.
+	// If the user is already deleted, the function returns the error "user_already_deleted".
 	if err := response.handleError(err, "removing user"); err != nil {
 		return ratelimitData, err
-	}
-
-	if response.Error != "" {
-		return ratelimitData, fmt.Errorf("baton-slack: error removing user: %s", response.Error)
 	}
 
 	return ratelimitData, nil

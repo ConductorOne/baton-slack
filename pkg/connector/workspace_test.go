@@ -2,6 +2,7 @@ package connector
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -86,6 +87,36 @@ func TestWorkspaceGrantAndRevoke(t *testing.T) {
 		assert.Contains(t, err.Error(), "baton-slack: only users can be assigned to a workspace")
 	})
 
+	t.Run("Grant operation for workspace with already granted principal", func(t *testing.T) {
+		workspaceBuilder, mockService := newTestWorkspaceBuilder()
+		// Mock the add user to workspace call.
+		mockService.AddUserFunc = func(ctx context.Context, teamID, userID string) (*v2.RateLimitDescription, error) {
+			return nil, fmt.Errorf(enterprise.SlackErrUserAlreadyTeamMember)
+		}
+
+		principal := &v2.Resource{
+			Id: &v2.ResourceId{
+				ResourceType: resourceTypeUser.Id,
+				Resource:     "test-user",
+			},
+		}
+
+		entitlement := &v2.Entitlement{
+			Resource: &v2.Resource{
+				Id: &v2.ResourceId{
+					Resource: "test-team",
+				},
+			},
+		}
+
+		// Execute Grant.
+		annotations, err := workspaceBuilder.Grant(ctx, principal, entitlement)
+
+		// Verify the result.
+		require.NoError(t, err)
+		require.True(t, annotations.Contains(&v2.GrantAlreadyExists{}))
+	})
+
 	t.Run("Revoke operation for workspace with valid principal and entitlement", func(t *testing.T) {
 		workspaceBuilder, mockService := newTestWorkspaceBuilder()
 		// Mock the remove user from workspace call.
@@ -151,5 +182,40 @@ func TestWorkspaceGrantAndRevoke(t *testing.T) {
 		// Verify the error.
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "baton-slack: only users can be revoked from a workspace")
+	})
+
+	t.Run("Revoke operation for workspace with already revoked principal", func(t *testing.T) {
+		workspaceBuilder, mockService := newTestWorkspaceBuilder()
+		// Mock the remove user from workspace call.
+		mockService.RemoveUserFunc = func(ctx context.Context, teamID, userID string) (*v2.RateLimitDescription, error) {
+			return nil, fmt.Errorf(enterprise.SlackErrUserAlreadyDeleted)
+		}
+
+		principal := &v2.Resource{
+			Id: &v2.ResourceId{
+				ResourceType: resourceTypeUser.Id,
+				Resource:     "test-user",
+			},
+		}
+
+		entitlement := &v2.Entitlement{
+			Resource: &v2.Resource{
+				Id: &v2.ResourceId{
+					Resource: "test-team",
+				},
+			},
+		}
+
+		grant := &v2.Grant{
+			Principal:   principal,
+			Entitlement: entitlement,
+		}
+
+		// Execute Revoke.
+		annotations, err := workspaceBuilder.Revoke(ctx, grant)
+
+		// Verify the result.
+		require.NoError(t, err)
+		require.True(t, annotations.Contains(&v2.GrantAlreadyRevoked{}))
 	})
 }
