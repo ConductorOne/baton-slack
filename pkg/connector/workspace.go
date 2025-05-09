@@ -12,16 +12,19 @@ import (
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
+	"go.uber.org/zap"
 )
 
 const memberEntitlement = "member"
 
 type workspaceResourceType struct {
-	resourceType     *v2.ResourceType
-	client           *slack.Client
-	enterpriseID     string
-	enterpriseClient *enterprise.Client
+	resourceType      *v2.ResourceType
+	client            *slack.Client
+	enterpriseID      string
+	enterpriseService enterprise.SlackEnterpriseService
+	enterpriseClient  *enterprise.Client
 }
 
 func (o *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -34,10 +37,11 @@ func workspaceBuilder(
 	enterpriseClient *enterprise.Client,
 ) *workspaceResourceType {
 	return &workspaceResourceType{
-		resourceType:     resourceTypeWorkspace,
-		client:           client,
-		enterpriseID:     enterpriseID,
-		enterpriseClient: enterpriseClient,
+		resourceType:      resourceTypeWorkspace,
+		client:            client,
+		enterpriseID:      enterpriseID,
+		enterpriseClient:  enterpriseClient,
+		enterpriseService: enterprise.NewSlackEnterpriseService(enterpriseClient),
 	}
 }
 
@@ -296,4 +300,93 @@ func (o *workspaceResourceType) Grants(
 	}
 
 	return rv, pageToken, outputAnnotations, nil
+}
+
+func (o *workspaceResourceType) Grant(
+	ctx context.Context,
+	principal *v2.Resource,
+	entitlement *v2.Entitlement,
+) (annotations.Annotations, error) {
+	if o.enterpriseID == "" {
+		return nil, fmt.Errorf("baton-slack: enterprise ID and enterprise token are both required")
+	}
+
+	logger := ctxzap.Extract(ctx)
+
+	if principal.Id.ResourceType != resourceTypeUser.Id {
+		logger.Warn(
+			"baton-slack: only users can be assigned to a workspace",
+			zap.String("principal_type", principal.Id.ResourceType),
+			zap.String("principal_id", principal.Id.Resource),
+		)
+		return nil, fmt.Errorf("baton-slack: only users can be assigned to a workspace")
+	}
+
+	outputAnnotations := annotations.New()
+
+	// Add the user to the workspace directly without requiring confirmation
+	rateLimitData, err := o.enterpriseService.AddUser(
+		ctx,
+		entitlement.Resource.Id.Resource,
+		principal.Id.Resource,
+	)
+	outputAnnotations.WithRateLimiting(rateLimitData)
+
+	if err != nil {
+		// Check if the error indicates the user is already a member.
+		if err.Error() == enterprise.SlackErrUserAlreadyTeamMember {
+			outputAnnotations.Append(&v2.GrantAlreadyExists{})
+			return outputAnnotations, nil
+		}
+		// Handle other errors.
+		return outputAnnotations, fmt.Errorf("baton-slack: failed to add user to workspace: %w", err)
+	}
+
+	return outputAnnotations, nil
+}
+
+func (o *workspaceResourceType) Revoke(
+	ctx context.Context,
+	grant *v2.Grant,
+) (
+	annotations.Annotations,
+	error,
+) {
+	if o.enterpriseID == "" {
+		return nil, fmt.Errorf("baton-slack: enterprise ID and enterprise token are both required to revoke grants")
+	}
+
+	logger := ctxzap.Extract(ctx)
+
+	principal := grant.Principal
+	if principal.Id.ResourceType != resourceTypeUser.Id {
+		logger.Warn(
+			"baton-slack: only users can be revoked from a workspace",
+			zap.String("principal_type", principal.Id.ResourceType),
+			zap.String("principal_id", principal.Id.Resource),
+		)
+		return nil, fmt.Errorf("baton-slack: only users can be revoked from a workspace")
+	}
+
+	outputAnnotations := annotations.New()
+
+	// Remove the user from the workspace directly without requiring confirmation
+	rateLimitData, err := o.enterpriseService.RemoveUser(
+		ctx,
+		grant.Entitlement.Resource.Id.Resource,
+		principal.Id.Resource,
+	)
+	outputAnnotations.WithRateLimiting(rateLimitData)
+
+	if err != nil {
+		// Check if the error indicates the user is already deleted/removed.
+		if err.Error() == enterprise.SlackErrUserAlreadyDeleted {
+			outputAnnotations.Append(&v2.GrantAlreadyRevoked{})
+			return outputAnnotations, nil
+		}
+		// Handle other errors.
+		return outputAnnotations, fmt.Errorf("baton-slack: failed to remove user from workspace: %w", err)
+	}
+
+	return outputAnnotations, nil
 }
