@@ -20,7 +20,10 @@ type Slack struct {
 	enterpriseClient *enterprise.Client
 	enterpriseID     string
 	ssoEnabled       bool
+	govEnv           bool
 }
+
+const govSlackApiUrl = "https://api.slack-gov.com/api/"
 
 // Metadata returns metadata about the connector.
 func (c *Slack) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
@@ -94,7 +97,7 @@ func (s *slackLogger) Output(callDepth int, msg string) error {
 }
 
 // New returns the Slack connector.
-func New(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool) (*Slack, error) {
+func New(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool, govEnv bool) (*Slack, error) {
 	l := ctxzap.Extract(ctx)
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, l))
 	if err != nil {
@@ -106,6 +109,9 @@ func New(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool) (*S
 		slack.OptionDebug(true),
 		slack.OptionHTTPClient(httpClient),
 		slack.OptionLog(logger),
+	}
+	if govEnv {
+		opts = append(opts, slack.OptionAPIURL(govSlackApiUrl))
 	}
 	client := slack.New(apiKey, opts...)
 
@@ -127,6 +133,7 @@ func New(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool) (*S
 		apiKey,
 		res.EnterpriseID,
 		ssoEnabled,
+		govEnv,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("slack-connector: failed to create enterprise client. Error: %w", err)
@@ -137,6 +144,7 @@ func New(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool) (*S
 		enterpriseClient: enterpriseClient,
 		enterpriseID:     enterpriseId,
 		ssoEnabled:       ssoEnabled,
+		govEnv:           govEnv,
 	}, nil
 }
 
@@ -147,6 +155,6 @@ func (s *Slack) ResourceSyncers(ctx context.Context) []connectorbuilder.Resource
 		userGroupBuilder(s.client, s.enterpriseID, s.enterpriseClient),
 		workspaceRoleBuilder(s.client, s.enterpriseID, s.enterpriseClient),
 		enterpriseRoleBuilder(s.enterpriseID, s.enterpriseClient),
-		groupBuilder(s.enterpriseClient, s.enterpriseID, s.ssoEnabled),
+		groupBuilder(s.enterpriseClient, s.enterpriseID, s.ssoEnabled, s.govEnv),
 	}
 }

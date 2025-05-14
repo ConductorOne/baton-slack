@@ -40,7 +40,7 @@ or Owner of an Enterprise Grid organization. More info with an example is
 available in the [Slack API Docs](https://api.slack.com/methods/admin.teams.list#markdown).
 To work with Enterprise Grid APIs use User OAuth Token passed as 
 `--enterprise-token` along with the Bot User OAuth Token passed via `--token` flag.
- 
+To work with GovSlack instances use `--gov-env` flag along with the `--enterprise-token`.
 
 ## brew
 
@@ -119,6 +119,7 @@ Flags:
   -p, --provisioning              This must be set in order for provisioning actions to be enabled ($BATON_PROVISIONING)
       --skip-full-sync            This must be set to skip a full sync ($BATON_SKIP_FULL_SYNC)
       --sso-enabled               Flag indicating that the SSO has been configured for Enterprise Grid Organization. Enables usage of SCIM API ($BATON_SSO_ENABLED)
+      --gov-env                   Flag indicating that is a GovSlack instance. ($BATON_GOV_ENV)
       --ticketing                 This must be set to enable ticketing support ($BATON_TICKETING)
       --token string              required: The Slack bot user oauth token used to connect to the Slack API ($BATON_TOKEN)
   -v, --version                   version for baton-slack

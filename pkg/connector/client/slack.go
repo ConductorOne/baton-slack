@@ -23,6 +23,8 @@ const (
 	// Slack API error string constants.
 	SlackErrUserAlreadyTeamMember = "user_already_team_member"
 	SlackErrUserAlreadyDeleted    = "user_already_deleted"
+	ScimVersionV2                 = "v2"
+	ScimVersionV1                 = "v1"
 )
 
 type Client struct {
@@ -32,6 +34,7 @@ type Client struct {
 	enterpriseID             string
 	botToken                 string
 	ssoEnabled               bool
+	scimVersion              string
 	wrapper                  *uhttp.BaseHttpClient
 	workspacesNameCache      map[string]string
 	workspacesNameCacheMutex sync.RWMutex
@@ -43,13 +46,23 @@ func NewClient(
 	botToken string,
 	enterpriseID string,
 	ssoEnabled bool,
+	govEnv bool,
 ) (*Client, error) {
-	baseUrl0, err := url.Parse(baseUrl)
+	finalBaseUrl := baseUrl
+	finalBaseScimUrl := baseScimUrl
+	finalScimVersion := ScimVersionV2
+	if govEnv {
+		finalBaseUrl = baseGovUrl
+		finalBaseScimUrl = baseGovScimUrl
+		finalScimVersion = ScimVersionV1
+	}
+
+	baseUrl0, err := url.Parse(finalBaseUrl)
 	if err != nil {
 		return nil, err
 	}
 
-	baseScimUrl0, err := url.Parse(baseScimUrl)
+	baseScimUrl0, err := url.Parse(finalBaseScimUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -61,6 +74,7 @@ func NewClient(
 		enterpriseID:             enterpriseID,
 		botToken:                 botToken,
 		ssoEnabled:               ssoEnabled,
+		scimVersion:              finalScimVersion,
 		wrapper:                  uhttp.NewBaseHttpClient(httpClient),
 		workspacesNameCache:      make(map[string]string),
 		workspacesNameCacheMutex: sync.RWMutex{},
@@ -500,9 +514,10 @@ func (c *Client) ListIDPGroups(
 	error,
 ) {
 	var response SCIMResponse[GroupResource]
+	urlPathIDPGroups := fmt.Sprintf(UrlPathIDPGroups, c.scimVersion)
 	ratelimitData, err := c.getScim(
 		ctx,
-		UrlPathIDPGroups,
+		urlPathIDPGroups,
 		&response,
 		map[string]interface{}{
 			"startIndex": startIndex,
@@ -528,7 +543,7 @@ func (c *Client) GetIDPGroup(
 	var response GroupResource
 	ratelimitData, err := c.getScim(
 		ctx,
-		fmt.Sprintf(UrlPathIDPGroup, groupID),
+		fmt.Sprintf(UrlPathIDPGroup, c.scimVersion, groupID),
 		&response,
 		nil,
 	)
@@ -635,7 +650,7 @@ func (c *Client) patchGroup(
 	var response *GroupResource
 	ratelimitData, err := c.patchScim(
 		ctx,
-		fmt.Sprintf(UrlPathIDPGroup, groupID),
+		fmt.Sprintf(UrlPathIDPGroup, c.scimVersion, groupID),
 		&response,
 		payload,
 	)

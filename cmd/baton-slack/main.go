@@ -49,6 +49,7 @@ func getConnector(ctx context.Context, v *viper.Viper) (types.ConnectorServer, e
 		v.GetString(AccessTokenField.FieldName),
 		v.GetString(EnterpriseTokenField.FieldName),
 		v.GetBool(SSOEnabledField.FieldName),
+		v.GetBool(GovEnvironmentField.FieldName),
 	)
 	if err != nil {
 		logger.Error("error creating connector", zap.Error(err))
