@@ -25,18 +25,20 @@ type groupResourceType struct {
 	enterpriseID     string
 	enterpriseClient *enterprise.Client
 	ssoEnabled       bool
+	govEnv           bool
 }
 
 func (g *groupResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return g.resourceType
 }
 
-func groupBuilder(enterpriseClient *enterprise.Client, enterpriseID string, ssoEnabled bool) *groupResourceType {
+func groupBuilder(enterpriseClient *enterprise.Client, enterpriseID string, ssoEnabled bool, govEnv bool) *groupResourceType {
 	return &groupResourceType{
 		resourceType:     resourceTypeGroup,
 		enterpriseID:     enterpriseID,
 		enterpriseClient: enterpriseClient,
 		ssoEnabled:       ssoEnabled,
+		govEnv:           govEnv,
 	}
 }
 
@@ -87,7 +89,7 @@ func parsePaginationToken(pToken *pagination.Token) (int, int, error) {
 
 func getNextToken(offset int, limit int, total int) string {
 	nextOffset := offset + limit
-	if nextOffset >= total {
+	if nextOffset > total {
 		return ""
 	}
 	return strconv.Itoa(nextOffset)
@@ -113,7 +115,7 @@ func (g *groupResourceType) List(
 	}
 
 	outputAnnotations := annotations.New()
-	groupsResponse, ratelimitData, err := g.enterpriseClient.ListIDPGroups(ctx, limit, offset)
+	groupsResponse, ratelimitData, err := g.enterpriseClient.ListIDPGroups(ctx, offset, limit)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
 		return nil, "", outputAnnotations, err
@@ -193,8 +195,12 @@ func (g *groupResourceType) Grants(
 		if err != nil {
 			return nil, "", nil, err
 		}
+		grantOptions := []grant.GrantOption{}
+		if g.govEnv {
+			grantOptions = append(grantOptions, grant.WithAnnotation(&v2.GrantImmutable{}))
+		}
 
-		grant := grant.NewGrant(resource, memberEntitlement, userID)
+		grant := grant.NewGrant(resource, memberEntitlement, userID, grantOptions...)
 		rv = append(rv, grant)
 	}
 
@@ -210,6 +216,15 @@ func (g *groupResourceType) Grant(
 	error,
 ) {
 	logger := ctxzap.Extract(ctx)
+
+	if g.govEnv {
+		logger.Debug(
+			"baton-slack: IDP group provisioning is not supported in Gov environment",
+			zap.String("principal_type", principal.Id.ResourceType),
+			zap.String("principal_id", principal.Id.Resource),
+		)
+		return nil, fmt.Errorf("baton-slack: IDP group provisioning is not supported in Gov environment")
+	}
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
 		logger.Warn(
@@ -245,6 +260,15 @@ func (g *groupResourceType) Revoke(
 
 	principal := grant.Principal
 	entitlement := grant.Entitlement
+
+	if g.govEnv {
+		logger.Debug(
+			"baton-slack: IDP group provisioning is not supported in Gov environment",
+			zap.String("principal_type", principal.Id.ResourceType),
+			zap.String("principal_id", principal.Id.Resource),
+		)
+		return nil, fmt.Errorf("baton-slack: IDP group provisioning is not supported in Gov environment")
+	}
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
 		logger.Warn(

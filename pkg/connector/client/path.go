@@ -7,7 +7,9 @@ import (
 // docs: https://api.slack.com/methods
 const (
 	baseScimUrl                = "https://api.slack.com"
+	baseGovScimUrl             = "https://api.slack-gov.com"
 	baseUrl                    = "https://slack.com"
+	baseGovUrl                 = "https://slack-gov.com"
 	UrlPathGetRoleAssignments  = "/api/admin.roles.listAssignments"
 	UrlPathGetTeams            = "/api/admin.teams.list"
 	UrlPathGetUserGroupMembers = "/api/usergroups.users.list"
@@ -15,8 +17,8 @@ const (
 	UrlPathGetUserInfo         = "/api/users.info"
 	UrlPathGetUsers            = "/api/users.list"
 	UrlPathGetUsersAdmin       = "/api/admin.users.list"
-	UrlPathIDPGroup            = "/scim/v2/Groups/%s"
-	UrlPathIDPGroups           = "/scim/v2/Groups"
+	UrlPathIDPGroup            = "/scim/%s/Groups/%s"
+	UrlPathIDPGroups           = "/scim/%s/Groups"
 	UrlPathAuthTeamsList       = "/api/auth.teams.list"
 
 	// NOTE: these are only for enterprise grid workspaces
