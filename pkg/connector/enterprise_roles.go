@@ -261,3 +261,75 @@ func (o *enterpriseRoleType) Grants(
 
 	return rv, pageToken, outputAnnotations, nil
 }
+
+func (o *enterpriseRoleType) Grant(
+	ctx context.Context,
+	principal *v2.Resource,
+	entitlement *v2.Entitlement,
+) (
+	annotations.Annotations,
+	error,
+) {
+	roleID := entitlement.Resource.Id.Resource
+	userID := principal.Id.Resource
+
+	// Extract team ID from user's workspace trait
+	userTrait, err := resources.GetUserTrait(principal)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user trait for user %s: %w", userID, err)
+	}
+
+	var teamID string
+	profile := userTrait.GetProfile().AsMap()
+	if workspace, ok := profile["workspace"]; ok {
+		teamID = workspace.(string)
+	}
+
+	if teamID == "" {
+		return nil, fmt.Errorf("unable to determine team ID from user %s workspace trait", userID)
+	}
+
+	outputAnnotations := annotations.New()
+	ratelimitData, err := o.enterpriseClient.AssignEnterpriseRole(ctx, roleID, userID, teamID)
+	outputAnnotations.WithRateLimiting(ratelimitData)
+	if err != nil {
+		return outputAnnotations, fmt.Errorf("failed to assign enterprise role %s to user %s in team %s: %w", roleID, userID, teamID, err)
+	}
+
+	return outputAnnotations, nil
+}
+
+func (o *enterpriseRoleType) Revoke(
+	ctx context.Context,
+	grant *v2.Grant,
+) (
+	annotations.Annotations,
+	error,
+) {
+	roleID := grant.Entitlement.Resource.Id.Resource
+	userID := grant.Principal.Id.Resource
+
+	// Extract team ID from user's workspace trait
+	userTrait, err := resources.GetUserTrait(grant.Principal)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user trait for user %s: %w", userID, err)
+	}
+
+	var teamID string
+	profile := userTrait.GetProfile().AsMap()
+	if workspace, ok := profile["workspace"]; ok {
+		teamID = workspace.(string)
+	}
+	if teamID == "" {
+		return nil, fmt.Errorf("unable to determine team ID from user %s workspace trait", userID)
+	}
+
+	outputAnnotations := annotations.New()
+	ratelimitData, err := o.enterpriseClient.UnassignEnterpriseRole(ctx, roleID, userID, teamID)
+	outputAnnotations.WithRateLimiting(ratelimitData)
+	if err != nil {
+		return outputAnnotations, fmt.Errorf("failed to unassign enterprise role %s from user %s in team %s: %w", roleID, userID, teamID, err)
+	}
+
+	return outputAnnotations, nil
+}
