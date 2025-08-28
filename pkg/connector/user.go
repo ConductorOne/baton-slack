@@ -309,18 +309,15 @@ func (o *userResourceType) Delete(ctx context.Context, resourceId *v2.ResourceId
 	userID := resourceId.Resource
 	outputAnnotations := annotations.New()
 
-	// Get user info to determine workspace/team context
 	user, ratelimitData, err := o.enterpriseClient.GetUserInfo(ctx, userID)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
 		return outputAnnotations, fmt.Errorf("baton-slack: failed to get user info: %w", err)
 	}
 
-	// Remove user using workspace context
 	ratelimitData, err = o.enterpriseClient.RemoveUser(ctx, user.Profile.Team, userID)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		// Handle "user_already_deleted" error gracefully
 		if err.Error() == enterprise.SlackErrUserAlreadyDeleted {
 			return outputAnnotations, nil
 		}
