@@ -269,11 +269,11 @@ func (o *enterpriseRoleType) getTeamIDForUser(ctx context.Context, userID string
 		return "", ratelimitData, fmt.Errorf("failed to get user info for user %s: %w", userID, err)
 	}
 
-	if user.TeamID == "" {
-		return "", ratelimitData, fmt.Errorf("user %s has no team ID", userID)
+	if user.Profile.Team != "" {
+		return user.Profile.Team, ratelimitData, nil
 	}
 
-	return user.TeamID, ratelimitData, nil
+	return "", ratelimitData, fmt.Errorf("user %s has no team", userID)
 }
 
 func (o *enterpriseRoleType) Grant(
