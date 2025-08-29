@@ -262,7 +262,7 @@ func (o *enterpriseRoleType) Grants(
 	return rv, pageToken, outputAnnotations, nil
 }
 
-// getTeamIDForUser retrieves the team ID for a user by calling the Slack API directly
+// getTeamIDForUser retrieves the team ID for a user by calling the Slack API directly.
 func (o *enterpriseRoleType) getTeamIDForUser(ctx context.Context, userID string) (string, *v2.RateLimitDescription, error) {
 	user, ratelimitData, err := o.enterpriseClient.GetUserInfo(ctx, userID)
 	if err != nil {
