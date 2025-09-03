@@ -25,18 +25,25 @@ var (
 		field.WithDefaultValue(false),
 	)
 
+	// ConfigurationFields defines the external configuration required for the
+	// connector to run. Note: these fields can be marked as optional or
+	// required.
+	ConfigurationFields = []field.SchemaField{
+		AccessTokenField,
+		EnterpriseTokenField,
+		SSOEnabledField,
+		GovEnvironmentField,
+	}
+
+	// FieldRelationships defines relationships between the fields listed in
+	// ConfigurationFields that can be automatically validated.
 	// Every Gov Slack instance is an Enterprise Grid instance.
-	Constraints = []field.SchemaFieldRelationship{
+	FieldRelationships = []field.SchemaFieldRelationship{
 		field.FieldsDependentOn(
 			[]field.SchemaField{GovEnvironmentField},
 			[]field.SchemaField{EnterpriseTokenField},
 		),
 	}
 
-	Configuration = field.NewConfiguration([]field.SchemaField{
-		AccessTokenField,
-		EnterpriseTokenField,
-		SSOEnabledField,
-		GovEnvironmentField,
-	}, Constraints...)
+	Configuration = field.NewConfiguration(ConfigurationFields)
 )
