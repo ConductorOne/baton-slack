@@ -3,9 +3,12 @@ package dotc1z
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
 
 	"github.com/doug-martin/goqu/v9"
 	// NOTE: required to register the dialect for goqu.
@@ -36,6 +39,12 @@ type C1File struct {
 	dbUpdated      bool
 	tempDir        string
 	pragmas        []pragma
+
+	// Slow query tracking
+	slowQueryLogTimes     map[string]time.Time
+	slowQueryLogTimesMu   sync.Mutex
+	slowQueryThreshold    time.Duration
+	slowQueryLogFrequency time.Duration
 }
 
 var _ connectorstore.Writer = (*C1File)(nil)
@@ -67,9 +76,13 @@ func NewC1File(ctx context.Context, dbFilePath string, opts ...C1FOption) (*C1Fi
 	db := goqu.New("sqlite3", rawDB)
 
 	c1File := &C1File{
-		rawDb:      rawDB,
-		db:         db,
-		dbFilePath: dbFilePath,
+		rawDb:                 rawDB,
+		db:                    db,
+		dbFilePath:            dbFilePath,
+		pragmas:               []pragma{},
+		slowQueryLogTimes:     make(map[string]time.Time),
+		slowQueryThreshold:    5 * time.Second,
+		slowQueryLogFrequency: 1 * time.Minute,
 	}
 
 	for _, opt := range opts {
@@ -77,6 +90,11 @@ func NewC1File(ctx context.Context, dbFilePath string, opts ...C1FOption) (*C1Fi
 	}
 
 	err = c1File.validateDb(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c1File.init(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -129,12 +147,15 @@ func NewC1ZFile(ctx context.Context, outputFilePath string, opts ...C1ZOption) (
 
 	c1File.outputFilePath = outputFilePath
 
-	err = c1File.init(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	return c1File, nil
+}
+
+func cleanupDbDir(dbFilePath string, err error) error {
+	cleanupErr := os.RemoveAll(filepath.Dir(dbFilePath))
+	if cleanupErr != nil {
+		err = errors.Join(err, cleanupErr)
+	}
+	return err
 }
 
 // Close ensures that the sqlite database is flushed to disk, and if any changes were made we update the original database
@@ -145,7 +166,7 @@ func (c *C1File) Close() error {
 	if c.rawDb != nil {
 		err = c.rawDb.Close()
 		if err != nil {
-			return err
+			return cleanupDbDir(c.dbFilePath, err)
 		}
 	}
 	c.rawDb = nil
@@ -155,17 +176,11 @@ func (c *C1File) Close() error {
 	if c.dbUpdated {
 		err = saveC1z(c.dbFilePath, c.outputFilePath)
 		if err != nil {
-			return err
+			return cleanupDbDir(c.dbFilePath, err)
 		}
 	}
 
-	// Cleanup the database filepath. This should always be a file within a temp directory, so we remove the entire dir.
-	err = os.RemoveAll(filepath.Dir(c.dbFilePath))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return cleanupDbDir(c.dbFilePath, err)
 }
 
 // init ensures that the database has all of the required schema.
@@ -180,8 +195,11 @@ func (c *C1File) init(ctx context.Context) error {
 
 	for _, t := range allTableDescriptors {
 		query, args := t.Schema()
-
 		_, err = c.db.ExecContext(ctx, fmt.Sprintf(query, args...))
+		if err != nil {
+			return err
+		}
+		err = t.Migrations(ctx, c.db)
 		if err != nil {
 			return err
 		}
@@ -275,4 +293,35 @@ func (c *C1File) validateSyncDb(ctx context.Context) error {
 	}
 
 	return c.validateDb(ctx)
+}
+
+func (c *C1File) OutputFilepath() (string, error) {
+	if c.outputFilePath == "" {
+		return "", fmt.Errorf("c1file: output file path is empty")
+	}
+	return c.outputFilePath, nil
+}
+
+func (c *C1File) AttachFile(other *C1File, dbName string) (*C1FileAttached, error) {
+	_, err := c.db.Exec(`ATTACH DATABASE ? AS ?`, other.dbFilePath, dbName)
+	if err != nil {
+		return nil, err
+	}
+
+	return &C1FileAttached{
+		safe: true,
+		file: c,
+	}, nil
+}
+
+func (c *C1FileAttached) DetachFile(dbName string) (*C1FileAttached, error) {
+	_, err := c.file.db.Exec(`DETACH DATABASE ?`, dbName)
+	if err != nil {
+		return nil, err
+	}
+
+	return &C1FileAttached{
+		safe: false,
+		file: c.file,
+	}, nil
 }
