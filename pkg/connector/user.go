@@ -345,7 +345,7 @@ func getInviteUserParams(accountInfo *v2.AccountInfo) (*enterprise.InviteUserPar
 
 	chanIDs, ok := pMap["channel_ids"].(string)
 	if !ok || chanIDs == "" {
-		return nil, fmt.Errorf("channel_ids is required")
+		return nil, fmt.Errorf("channal_ids is required")
 	}
 
 	teamID, ok := pMap["team_id"].(string)
