@@ -28,7 +28,7 @@ jobs:
         run: ./connector config > config_schema.json
 
       - name: Run and save capabilities output
-        run: ./connector capabilities --partner-user-id "test-id" --partner-user-secret "test-secret" > baton_capabilities.json
+        run: ./connector capabilities --token "${{ secrets.BATON_TOKEN }}" > baton_capabilities.json
 
       - name: Commit changes
         uses: EndBug/add-and-commit@v9
