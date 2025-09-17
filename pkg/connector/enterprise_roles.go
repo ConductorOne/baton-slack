@@ -261,3 +261,74 @@ func (o *enterpriseRoleType) Grants(
 
 	return rv, pageToken, outputAnnotations, nil
 }
+
+// getTeamIDForUser retrieves the team ID for a user by calling the Slack API directly.
+func (o *enterpriseRoleType) getTeamIDForUser(ctx context.Context, userID string) (string, *v2.RateLimitDescription, error) {
+	user, ratelimitData, err := o.enterpriseClient.GetUserInfo(ctx, userID)
+	if err != nil {
+		return "", ratelimitData, fmt.Errorf("failed to get user info for user %s: %w", userID, err)
+	}
+
+	if user.Profile.Team != "" {
+		return user.Profile.Team, ratelimitData, nil
+	}
+
+	return "", ratelimitData, fmt.Errorf("user %s has no team", userID)
+}
+
+func (o *enterpriseRoleType) Grant(
+	ctx context.Context,
+	principal *v2.Resource,
+	entitlement *v2.Entitlement,
+) (
+	annotations.Annotations,
+	error,
+) {
+	roleID := entitlement.Resource.Id.Resource
+	userID := principal.Id.Resource
+
+	outputAnnotations := annotations.New()
+
+	// Get team ID by calling the API directly
+	teamID, ratelimitData, err := o.getTeamIDForUser(ctx, userID)
+	outputAnnotations.WithRateLimiting(ratelimitData)
+	if err != nil {
+		return outputAnnotations, err
+	}
+
+	ratelimitData, err = o.enterpriseClient.AssignEnterpriseRole(ctx, roleID, userID, teamID)
+	outputAnnotations.WithRateLimiting(ratelimitData)
+	if err != nil {
+		return outputAnnotations, fmt.Errorf("failed to assign enterprise role %s to user %s in team %s: %w", roleID, userID, teamID, err)
+	}
+
+	return outputAnnotations, nil
+}
+
+func (o *enterpriseRoleType) Revoke(
+	ctx context.Context,
+	grant *v2.Grant,
+) (
+	annotations.Annotations,
+	error,
+) {
+	roleID := grant.Entitlement.Resource.Id.Resource
+	userID := grant.Principal.Id.Resource
+
+	outputAnnotations := annotations.New()
+
+	// Get team ID by calling the API directly
+	teamID, ratelimitData, err := o.getTeamIDForUser(ctx, userID)
+	outputAnnotations.WithRateLimiting(ratelimitData)
+	if err != nil {
+		return outputAnnotations, err
+	}
+
+	ratelimitData, err = o.enterpriseClient.UnassignEnterpriseRole(ctx, roleID, userID, teamID)
+	outputAnnotations.WithRateLimiting(ratelimitData)
+	if err != nil {
+		return outputAnnotations, fmt.Errorf("failed to unassign enterprise role %s from user %s in team %s: %w", roleID, userID, teamID, err)
+	}
+
+	return outputAnnotations, nil
+}

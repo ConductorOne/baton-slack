@@ -726,3 +726,89 @@ func (o *Client) InviteUserToWorkspace(ctx context.Context, p *InviteUserParams)
 	)
 	return ratelimitData, response.handleError(err, "invite user")
 }
+
+func (c *Client) AssignEnterpriseRole(
+	ctx context.Context,
+	roleID string,
+	userID string,
+	teamID string,
+) (
+	*v2.RateLimitDescription,
+	error,
+) {
+	if c.enterpriseID == "" {
+		return nil, fmt.Errorf("enterprise ID is required for role assignment")
+	}
+
+	var response struct {
+		BaseResponse
+		RejectedUsers    []string `json:"rejected_users"`
+		RejectedEntities []string `json:"rejected_entities"`
+	}
+
+	entityIDs := []string{teamID}
+	params := map[string]interface{}{
+		"role_id":    roleID,
+		"user_ids":   []string{userID},
+		"entity_ids": entityIDs,
+	}
+
+	ratelimitData, err := c.postJSON(
+		ctx,
+		UrlPathAssignEnterpriseRole,
+		&response,
+		params,
+		false,
+	)
+
+	if err := response.handleError(err, "assigning enterprise role"); err != nil {
+		if len(response.RejectedUsers) > 0 || len(response.RejectedEntities) > 0 {
+			return ratelimitData, fmt.Errorf("%w - rejected_users: %v, rejected_entities: %v", err, response.RejectedUsers, response.RejectedEntities)
+		}
+		return ratelimitData, err
+	}
+	return ratelimitData, nil
+}
+
+func (c *Client) UnassignEnterpriseRole(
+	ctx context.Context,
+	roleID string,
+	userID string,
+	teamID string,
+) (
+	*v2.RateLimitDescription,
+	error,
+) {
+	if c.enterpriseID == "" {
+		return nil, fmt.Errorf("enterprise ID is required for role removal")
+	}
+
+	var response struct {
+		BaseResponse
+		RejectedUsers    []string `json:"rejected_users"`
+		RejectedEntities []string `json:"rejected_entities"`
+	}
+
+	entityIDs := []string{teamID}
+	params := map[string]interface{}{
+		"role_id":    roleID,
+		"user_ids":   []string{userID},
+		"entity_ids": entityIDs,
+	}
+
+	ratelimitData, err := c.post(
+		ctx,
+		UrlPathUnassignEnterpriseRole,
+		&response,
+		params,
+		false,
+	)
+
+	if err := response.handleError(err, "unassigning enterprise role"); err != nil {
+		if len(response.RejectedUsers) > 0 || len(response.RejectedEntities) > 0 {
+			return ratelimitData, fmt.Errorf("%w - rejected_users: %v, rejected_entities: %v", err, response.RejectedUsers, response.RejectedEntities)
+		}
+		return ratelimitData, err
+	}
+	return ratelimitData, nil
+}

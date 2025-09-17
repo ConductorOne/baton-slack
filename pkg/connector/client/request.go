@@ -25,6 +25,11 @@ func toValues(queryParameters map[string]interface{}) string {
 			params.Add(key, strconv.Itoa(value))
 		case bool:
 			params.Add(key, strconv.FormatBool(value))
+		case []string:
+			// Handle string arrays for Slack API
+			for _, str := range value {
+				params.Add(key, str)
+			}
 		default:
 			continue
 		}
@@ -75,6 +80,31 @@ func (c *Client) post(
 		target,
 		WithBearerToken(token),
 		uhttp.WithFormBody(toValues(payload)),
+	)
+}
+
+func (c *Client) postJSON(
+	ctx context.Context,
+	path string,
+	target interface{},
+	payload interface{},
+	useBotToken bool,
+) (
+	*v2.RateLimitDescription,
+	error,
+) {
+	token := c.token
+	if useBotToken {
+		token = c.botToken
+	}
+
+	return c.doRequest(
+		ctx,
+		http.MethodPost,
+		c.getUrl(path, nil, false),
+		target,
+		WithBearerToken(token),
+		uhttp.WithJSONBody(payload),
 	)
 }
 

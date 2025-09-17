@@ -29,6 +29,12 @@ const (
 	UrlPathUserRemove = "/api/admin.users.remove"
 	UrlPathUserAdd    = "/api/admin.users.assign"
 	UrlPathUserInvite = "/api/admin.users.invite"
+
+	// Enterprise role assignment endpoints
+	// docs: https://api.slack.com/methods/admin.roles.addAssignments
+	// docs: https://api.slack.com/methods/admin.roles.removeAssignments
+	UrlPathAssignEnterpriseRole   = "/api/admin.roles.addAssignments"
+	UrlPathUnassignEnterpriseRole = "/api/admin.roles.removeAssignments"
 )
 
 func getWorkspaceUrlPathByRole(roleID string) (string, error) {
