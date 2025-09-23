@@ -1,4 +1,5 @@
-name: ci on: pull_request
+name: ci
+on: pull_request
 jobs:
   go-lint:
     runs-on: ubuntu-latest
