@@ -41,10 +41,6 @@ jobs:
     env:
       BATON_LOG_LEVEL: debug
 
-      CONNECTOR_ENTITLEMENT: "workspaceRole:T08101AQL31:member:assigned"
-      CONNECTOR_PRINCIPAL: "U083SJ36LCD"
-      CONNECTOR_PRINCIPAL_TYPE: "user"
-
       BATON_TOKEN: "${{ secrets.BATON_TOKEN }}"
       BATON_ENTERPRISE_TOKEN: "${{ secrets.BATON_ENTERPRISE_TOKEN }}"
 
@@ -61,9 +57,9 @@ jobs:
         uses: ConductorOne/github-workflows/actions/sync-test@v2
         with:
           connector: ./baton-slack
-          baton-entitlement: "${{ env.CONNECTOR_ENTITLEMENT }}"
-          baton-principal: "${{ env.CONNECTOR_PRINCIPAL }}"
-          baton-principal-type: "${{ env.CONNECTOR_PRINCIPAL_TYPE }}"
+          baton-entitlement: "workspaceRole:T08101AQL31:member:assigned"
+          baton-principal: "U083SJ36LCD"
+          baton-principal-type: "user"
 
   test-admin:
     needs: [test-member]
@@ -71,11 +67,6 @@ jobs:
     env:
       # Logging level for Baton
       BATON_LOG_LEVEL: debug
-
-      # Connector-specific details
-      CONNECTOR_ENTITLEMENT: "workspaceRole:T08101AQL31:admin:assigned"
-      CONNECTOR_PRINCIPAL: "U083SJ36LCD"
-      CONNECTOR_PRINCIPAL_TYPE: "user"
 
       # Secrets for Baton authentication
       BATON_TOKEN: "${{ secrets.BATON_TOKEN }}"
@@ -94,9 +85,9 @@ jobs:
         uses: ConductorOne/github-workflows/actions/sync-test@v2
         with:
           connector: ./baton-slack
-          baton-entitlement: "${{ env.CONNECTOR_ENTITLEMENT }}"
-          baton-principal: "${{ env.CONNECTOR_PRINCIPAL }}"
-          baton-principal-type: "${{ env.CONNECTOR_PRINCIPAL_TYPE }}"
+          baton-entitlement: "workspaceRole:T08101AQL31:admin:assigned"
+          baton-principal: "U083SJ36LCD"
+          baton-principal-type: "user"
 
   test-owner:
     needs: [test-member, test-admin]
@@ -104,10 +95,6 @@ jobs:
     env:
       BATON_LOG_LEVEL: debug
 
-      CONNECTOR_ENTITLEMENT: "workspaceRole:T08101AQL31:owner:assigned"
-      CONNECTOR_PRINCIPAL: "U083SJ36LCD"
-      CONNECTOR_PRINCIPAL_TYPE: "user"
-
       BATON_TOKEN: "${{ secrets.BATON_TOKEN }}"
       BATON_ENTERPRISE_TOKEN: "${{ secrets.BATON_ENTERPRISE_TOKEN }}"
 
@@ -124,19 +111,15 @@ jobs:
         uses: ConductorOne/github-workflows/actions/sync-test@v2
         with:
           connector: ./baton-slack
-          baton-entitlement: "${{ env.CONNECTOR_ENTITLEMENT }}"
-          baton-principal: "${{ env.CONNECTOR_PRINCIPAL }}"
-          baton-principal-type: "${{ env.CONNECTOR_PRINCIPAL_TYPE }}"
+          baton-entitlement: "workspaceRole:T08101AQL31:owner:assigned"
+          baton-principal: "U083SJ36LCD"
+          baton-principal-type: "user"
 
   test-enterprise-roles:
     runs-on: ubuntu-latest
     env:
       BATON_LOG_LEVEL: debug
 
-      CONNECTOR_ENTITLEMENT: "enterpriseRole:Rl0K:assigned"
-      CONNECTOR_PRINCIPAL: "U083SJ36LCD"
-      CONNECTOR_PRINCIPAL_TYPE: "user"
-
       BATON_TOKEN: "${{ secrets.BATON_TOKEN }}"
       BATON_ENTERPRISE_TOKEN: "${{ secrets.BATON_ENTERPRISE_TOKEN }}"
 
@@ -153,6 +136,6 @@ jobs:
         uses: ConductorOne/github-workflows/actions/sync-test@v2
         with:
           connector: ./baton-slack
-          baton-entitlement: "${{ env.CONNECTOR_ENTITLEMENT }}"
-          baton-principal: "${{ env.CONNECTOR_PRINCIPAL }}"
-          baton-principal-type: "${{ env.CONNECTOR_PRINCIPAL_TYPE }}"
+          baton-entitlement: "enterpriseRole:Rl0K:assigned"
+          baton-principal: "U083SJ36LCD"
+          baton-principal-type: "user"
