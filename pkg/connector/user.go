@@ -11,6 +11,7 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
 )
 
@@ -301,7 +302,10 @@ func (o *userResourceType) CreateAccount(
 	}, nil, outputAnnotations, nil
 }
 
+// removes user from all workspaces the user is part of.
+// NOTE: Slack doesn't support deleting users via API. We remove them from workspaces.
 func (o *userResourceType) Delete(ctx context.Context, resourceId *v2.ResourceId) (annotations.Annotations, error) {
+	l := ctxzap.Extract(ctx)
 	if o.enterpriseClient == nil {
 		return nil, fmt.Errorf("baton-slack: enterprise client required for user deletion")
 	}
@@ -315,13 +319,21 @@ func (o *userResourceType) Delete(ctx context.Context, resourceId *v2.ResourceId
 		return outputAnnotations, fmt.Errorf("baton-slack: failed to get user info: %w", err)
 	}
 
-	ratelimitData, err = o.enterpriseClient.RemoveUser(ctx, user.Profile.Team, userID)
-	outputAnnotations.WithRateLimiting(ratelimitData)
-	if err != nil {
-		if err.Error() == enterprise.SlackErrUserAlreadyDeleted {
-			return outputAnnotations, nil
+	if len(user.Enterprise.Teams) == 0 {
+		l.Info("user not part of any workspace, nothing to delete")
+		return outputAnnotations, nil
+	}
+
+	for _, teamID := range user.Enterprise.Teams {
+		// teamID is the workspace ID in slack
+		ratelimitData, err = o.enterpriseClient.RemoveUser(ctx, teamID, userID)
+		outputAnnotations.WithRateLimiting(ratelimitData)
+		if err != nil {
+			if err.Error() == enterprise.SlackErrUserAlreadyDeleted {
+				return outputAnnotations, nil
+			}
+			return outputAnnotations, fmt.Errorf("baton-slack: failed to delete user %s: %w", userID, err)
 		}
-		return outputAnnotations, fmt.Errorf("baton-slack: failed to delete user %s: %w", userID, err)
 	}
 
 	return outputAnnotations, nil
