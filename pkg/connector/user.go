@@ -301,30 +301,9 @@ func (o *userResourceType) CreateAccount(
 	}, nil, outputAnnotations, nil
 }
 
+// Delete user can't be done via the Slack API.
 func (o *userResourceType) Delete(ctx context.Context, resourceId *v2.ResourceId) (annotations.Annotations, error) {
-	if o.enterpriseClient == nil {
-		return nil, fmt.Errorf("baton-slack: enterprise client required for user deletion")
-	}
-
-	userID := resourceId.Resource
-	outputAnnotations := annotations.New()
-
-	user, ratelimitData, err := o.enterpriseClient.GetUserInfo(ctx, userID)
-	outputAnnotations.WithRateLimiting(ratelimitData)
-	if err != nil {
-		return outputAnnotations, fmt.Errorf("baton-slack: failed to get user info: %w", err)
-	}
-
-	ratelimitData, err = o.enterpriseClient.RemoveUser(ctx, user.Profile.Team, userID)
-	outputAnnotations.WithRateLimiting(ratelimitData)
-	if err != nil {
-		if err.Error() == enterprise.SlackErrUserAlreadyDeleted {
-			return outputAnnotations, nil
-		}
-		return outputAnnotations, fmt.Errorf("baton-slack: failed to delete user %s: %w", userID, err)
-	}
-
-	return outputAnnotations, nil
+	return nil, fmt.Errorf("baton-slack: delete user not supported")
 }
 
 func (o *userResourceType) CreateAccountCapabilityDetails(ctx context.Context) (*v2.CredentialDetailsAccountProvisioning, annotations.Annotations, error) {
