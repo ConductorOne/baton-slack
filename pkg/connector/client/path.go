@@ -19,6 +19,7 @@ const (
 	UrlPathGetUsersAdmin       = "/api/admin.users.list"
 	UrlPathIDPGroup            = "/scim/%s/Groups/%s"
 	UrlPathIDPGroups           = "/scim/%s/Groups"
+	UrlPathIDPUser             = "/scim/%s/Users/%s"
 	UrlPathAuthTeamsList       = "/api/auth.teams.list"
 
 	// NOTE: these are only for enterprise grid workspaces
