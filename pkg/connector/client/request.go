@@ -200,3 +200,66 @@ func (c *Client) doRequest(
 
 	return &ratelimitData, nil
 }
+
+func (c *Client) deleteScim(
+	ctx context.Context,
+	path string,
+) (
+	*v2.RateLimitDescription,
+	error,
+) {
+	logger := ctxzap.Extract(ctx)
+	logger.Debug(
+		"making request",
+		zap.String("method", http.MethodDelete),
+		zap.String("url", c.getUrl(path, nil, true).String()),
+	)
+
+	request, err := c.wrapper.NewRequest(
+		ctx,
+		http.MethodDelete,
+		c.getUrl(path, nil, true),
+		WithBearerToken(c.token),
+		uhttp.WithAcceptJSONHeader(),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var ratelimitData v2.RateLimitDescription
+	response, err := c.wrapper.Do(
+		request,
+		uhttp.WithRatelimitData(&ratelimitData),
+	)
+	if err != nil {
+		logBody(ctx, response)
+		return &ratelimitData, err
+	}
+	defer response.Body.Close()
+
+	// DELETE requests with 204 No Content have no body - this is success
+	if response.StatusCode == http.StatusNoContent {
+		return &ratelimitData, nil
+	}
+
+	// For other status codes, try to parse the body
+	bodyBytes, err := io.ReadAll(response.Body)
+	if err != nil {
+		logBody(ctx, response)
+		return &ratelimitData, err
+	}
+
+	// If there's a body, we might have an error response
+	if len(bodyBytes) > 0 {
+		var errorResponse map[string]interface{}
+		if err := json.Unmarshal(bodyBytes, &errorResponse); err != nil {
+			return &ratelimitData, fmt.Errorf("failed to parse error response: %w", err)
+		}
+		// Return the error detail from SCIM error response
+		if detail, ok := errorResponse["detail"].(string); ok {
+			return &ratelimitData, fmt.Errorf("SCIM API error: %s", detail)
+		}
+	}
+
+	return &ratelimitData, nil
+}
