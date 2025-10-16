@@ -648,7 +648,7 @@ func (c *Client) patchGroup(
 	}
 
 	var response *GroupResource
-	ratelimitData, err := c.patchScim(
+	ratelimitData, err := c.patchScimBytes(
 		ctx,
 		fmt.Sprintf(UrlPathIDPGroup, c.scimVersion, groupID),
 		&response,
@@ -727,11 +727,11 @@ func (o *Client) InviteUserToWorkspace(ctx context.Context, p *InviteUserParams)
 	return ratelimitData, response.handleError(err, "invite user")
 }
 
-// DeactivateUser deactivates a user via SCIM API using DELETE.
+// DisableUser deactivates a user via SCIM API using DELETE.
 //
 // This uses the SCIM API DELETE endpoint to deactivate a user.
 // Docs: https://api.slack.com/scim
-func (c *Client) DeactivateUser(
+func (c *Client) DisableUser(
 	ctx context.Context,
 	userID string,
 ) (
@@ -743,48 +743,25 @@ func (c *Client) DeactivateUser(
 		fmt.Sprintf(UrlPathIDPUser, c.scimVersion, userID),
 	)
 	if err != nil {
-		return ratelimitData, fmt.Errorf("error deactivating user: %w", err)
+		return ratelimitData, fmt.Errorf("error disabling user: %w", err)
 	}
 
 	return ratelimitData, nil
 }
 
-// ActivateUser activates a user via SCIM API by setting active to true.
+// EnableUser activates a user via SCIM API by setting active to true.
 //
-// This uses the SCIM API endpoint to update the user's active status.
 // Docs: https://api.slack.com/scim
-func (c *Client) ActivateUser(
+func (c *Client) EnableUser(
 	ctx context.Context,
 	userID string,
 ) (
 	*v2.RateLimitDescription,
 	error,
 ) {
-	type PatchOperation struct {
-		Op    string      `json:"op"`
-		Path  string      `json:"path"`
-		Value interface{} `json:"value"`
-	}
-
-	type SCIMPatchRequest struct {
-		Schemas    []string         `json:"schemas"`
-		Operations []PatchOperation `json:"Operations"`
-	}
-
-	requestBody := SCIMPatchRequest{
-		Schemas: []string{"urn:ietf:params:scim:api:messages:2.0:PatchOp"},
-		Operations: []PatchOperation{
-			{
-				Op:    "replace",
-				Path:  "active",
-				Value: true,
-			},
-		},
-	}
-
-	payload, err := json.Marshal(requestBody)
-	if err != nil {
-		return nil, err
+	requestBody := map[string]any{
+		"schemas": []string{"urn:ietf:params:scim:schemas:core:2.0:User"},
+		"active":  true,
 	}
 
 	var response *UserResource
@@ -792,10 +769,10 @@ func (c *Client) ActivateUser(
 		ctx,
 		fmt.Sprintf(UrlPathIDPUser, c.scimVersion, userID),
 		&response,
-		payload,
+		requestBody,
 	)
 	if err != nil {
-		return ratelimitData, fmt.Errorf("error activating user: %w", err)
+		return ratelimitData, fmt.Errorf("error enabling user: %w", err)
 	}
 
 	return ratelimitData, nil
