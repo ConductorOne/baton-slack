@@ -760,8 +760,14 @@ func (c *Client) EnableUser(
 	error,
 ) {
 	requestBody := map[string]any{
-		"schemas": []string{"urn:ietf:params:scim:schemas:core:2.0:User"},
-		"active":  true,
+		"schemas": []string{"urn:ietf:params:scim:api:messages:2.0:PatchOp"},
+		"Operations": []map[string]any{
+			{
+				"path":  "active",
+				"op":    "replace",
+				"value": true,
+			},
+		},
 	}
 
 	var response *UserResource
