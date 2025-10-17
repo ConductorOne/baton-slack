@@ -648,7 +648,7 @@ func (c *Client) patchGroup(
 	}
 
 	var response *GroupResource
-	ratelimitData, err := c.patchScim(
+	ratelimitData, err := c.patchScimBytes(
 		ctx,
 		fmt.Sprintf(UrlPathIDPGroup, c.scimVersion, groupID),
 		&response,
@@ -725,6 +725,59 @@ func (o *Client) InviteUserToWorkspace(ctx context.Context, p *InviteUserParams)
 		false, /* bot token */
 	)
 	return ratelimitData, response.handleError(err, "invite user")
+}
+
+// DisableUser deactivates a user via SCIM API using DELETE.
+// https://docs.slack.dev/reference/scim-api/
+func (c *Client) DisableUser(
+	ctx context.Context,
+	userID string,
+) (
+	*v2.RateLimitDescription,
+	error,
+) {
+	ratelimitData, err := c.deleteScim(
+		ctx,
+		fmt.Sprintf(UrlPathIDPUser, c.scimVersion, userID),
+	)
+	if err != nil {
+		return ratelimitData, fmt.Errorf("error disabling user: %w", err)
+	}
+
+	return ratelimitData, nil
+}
+
+// EnableUser activates a user via SCIM API by setting active to true.
+func (c *Client) EnableUser(
+	ctx context.Context,
+	userID string,
+) (
+	*v2.RateLimitDescription,
+	error,
+) {
+	requestBody := map[string]any{
+		"schemas": []string{"urn:ietf:params:scim:api:messages:2.0:PatchOp"},
+		"Operations": []map[string]any{
+			{
+				"path":  "active",
+				"op":    "replace",
+				"value": true,
+			},
+		},
+	}
+
+	var response *UserResource
+	ratelimitData, err := c.patchScim(
+		ctx,
+		fmt.Sprintf(UrlPathIDPUser, c.scimVersion, userID),
+		&response,
+		requestBody,
+	)
+	if err != nil {
+		return ratelimitData, fmt.Errorf("error enabling user: %w", err)
+	}
+
+	return ratelimitData, nil
 }
 
 func (c *Client) AssignEnterpriseRole(

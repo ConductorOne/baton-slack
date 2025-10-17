@@ -31,7 +31,11 @@ Additional scopes for User Token are:
   - admin.users:read
 
 For provisioning you will need this scope.
-  - admin.users:write 
+  - admin.users:write
+
+5. **Permissions for User Activation/Deactivation Actions**: To use the enable_user and disable_user actions, you need:
+  - An Enterprise Grid token with admin permissions in order to access the SCIM API
+  - See [Slack SCIM API Permissions](https://docs.slack.dev/admins/scim-api/#permissions) for more details 
 
 Other difference is in the way the application is installed, on enterprise grid 
 app should be installed on the Organization level and on all the Workspaces from 

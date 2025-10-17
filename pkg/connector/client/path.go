@@ -17,8 +17,6 @@ const (
 	UrlPathGetUserInfo         = "/api/users.info"
 	UrlPathGetUsers            = "/api/users.list"
 	UrlPathGetUsersAdmin       = "/api/admin.users.list"
-	UrlPathIDPGroup            = "/scim/%s/Groups/%s"
-	UrlPathIDPGroups           = "/scim/%s/Groups"
 	UrlPathAuthTeamsList       = "/api/auth.teams.list"
 
 	// NOTE: these are only for enterprise grid workspaces
@@ -35,6 +33,16 @@ const (
 	// docs: https://api.slack.com/methods/admin.roles.removeAssignments
 	UrlPathAssignEnterpriseRole   = "/api/admin.roles.addAssignments"
 	UrlPathUnassignEnterpriseRole = "/api/admin.roles.removeAssignments"
+)
+
+// all scim endpoints are only accessible with an admin scope token
+//
+//	https://api.slack.com/scim
+//	https://docs.slack.dev/admins/scim-api/#permissions
+const (
+	UrlPathIDPGroup  = "/scim/%s/Groups/%s"
+	UrlPathIDPGroups = "/scim/%s/Groups"
+	UrlPathIDPUser   = "/scim/%s/Users/%s"
 )
 
 func getWorkspaceUrlPathByRole(roleID string) (string, error) {
