@@ -728,9 +728,7 @@ func (o *Client) InviteUserToWorkspace(ctx context.Context, p *InviteUserParams)
 }
 
 // DisableUser deactivates a user via SCIM API using DELETE.
-//
-// This uses the SCIM API DELETE endpoint to deactivate a user.
-// Docs: https://api.slack.com/scim
+// https://docs.slack.dev/reference/scim-api/
 func (c *Client) DisableUser(
 	ctx context.Context,
 	userID string,
