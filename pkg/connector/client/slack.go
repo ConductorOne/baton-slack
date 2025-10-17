@@ -750,8 +750,6 @@ func (c *Client) DisableUser(
 }
 
 // EnableUser activates a user via SCIM API by setting active to true.
-//
-// Docs: https://api.slack.com/scim
 func (c *Client) EnableUser(
 	ctx context.Context,
 	userID string,
