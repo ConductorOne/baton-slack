@@ -19,7 +19,6 @@ func (s *Slack) RegisterActionManager(ctx context.Context) (connectorbuilder.Cus
 
 	actionManager := actions.NewActionManager(ctx)
 
-	// Register disable_user action
 	disableUserSchema := &v2.BatonActionSchema{
 		Name:        "disable_user",
 		DisplayName: "Disable User",
@@ -48,7 +47,6 @@ func (s *Slack) RegisterActionManager(ctx context.Context) (connectorbuilder.Cus
 
 	l.Info("registered disable_user action")
 
-	// Register enable_user action
 	enableUserSchema := &v2.BatonActionSchema{
 		Name:        "enable_user",
 		DisplayName: "Enable User",
@@ -80,10 +78,6 @@ func (s *Slack) RegisterActionManager(ctx context.Context) (connectorbuilder.Cus
 }
 
 // handleDisableUser deactivates a Slack user by setting active to false via SCIM API.
-//
-// Allowed for: Enterprise Grid admins with appropriate SCIM permissions
-//
-// Slack SCIM API docs: https://api.slack.com/scim
 func (s *Slack) handleDisableUser(
 	ctx context.Context,
 	args *structpb.Struct,
@@ -139,10 +133,6 @@ func (s *Slack) handleDisableUser(
 }
 
 // handleEnableUser activates a Slack user by setting active to true via SCIM API.
-//
-// Allowed for: Enterprise Grid admins with appropriate SCIM permissions
-//
-// Slack SCIM API docs: https://api.slack.com/scim
 func (s *Slack) handleEnableUser(
 	ctx context.Context,
 	args *structpb.Struct,

@@ -257,25 +257,22 @@ func (c *Client) deleteScim(
 	}
 	defer response.Body.Close()
 
-	// DELETE requests with 204 No Content have no body - this is success
 	if response.StatusCode == http.StatusNoContent {
 		return &ratelimitData, nil
 	}
 
-	// For other status codes, try to parse the body
 	bodyBytes, err := io.ReadAll(response.Body)
 	if err != nil {
 		logBody(ctx, response)
 		return &ratelimitData, err
 	}
 
-	// If there's a body, we might have an error response
+	// return error details if available
 	if len(bodyBytes) > 0 {
 		var errorResponse map[string]interface{}
 		if err := json.Unmarshal(bodyBytes, &errorResponse); err != nil {
 			return &ratelimitData, fmt.Errorf("failed to parse error response: %w", err)
 		}
-		// Return the error detail from SCIM error response
 		if detail, ok := errorResponse["detail"].(string); ok {
 			return &ratelimitData, fmt.Errorf("SCIM API error: %s", detail)
 		}
