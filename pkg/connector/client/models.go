@@ -187,16 +187,3 @@ type ScimOperate struct {
 type UserID struct {
 	Value string `json:"value"`
 }
-
-// UserPatchOp is used for SCIM PATCH operations on users (e.g., activating/deactivating).
-type UserPatchOp struct {
-	Schemas    []string           `json:"schemas"`
-	Operations []UserScimOperate `json:"Operations"`
-}
-
-// UserScimOperate represents a SCIM operation for user attributes.
-type UserScimOperate struct {
-	Op    string      `json:"op"`
-	Path  string      `json:"path"`
-	Value interface{} `json:"value"`
-}
