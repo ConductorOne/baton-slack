@@ -14,13 +14,14 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
-func (s *Slack) RegisterActionManager(ctx context.Context) (connectorbuilder.CustomActionManager, error) {
-	l := ctxzap.Extract(ctx)
+var (
+	ActionDisableUser = "disable_user"
+	ActionEnableUser  = "enable_user"
+)
 
-	actionManager := actions.NewActionManager(ctx)
-
-	disableUserSchema := &v2.BatonActionSchema{
-		Name:        "disable_user",
+var (
+	disableUserSchema = &v2.BatonActionSchema{
+		Name:        ActionDisableUser,
 		DisplayName: "Disable User",
 		Description: "Deactivate a Slack user account by setting active to false via SCIM API",
 		Arguments: []*config_sdk.Field{
@@ -34,21 +35,17 @@ func (s *Slack) RegisterActionManager(ctx context.Context) (connectorbuilder.Cus
 				},
 			},
 		},
-		ReturnTypes: []*config_sdk.Field{},
+		ReturnTypes: []*config_sdk.Field{
+			{
+				Name:        "success",
+				DisplayName: "Success",
+				Description: "Indicates if the operation was successful",
+				Field:       &config_sdk.Field_BoolField{},
+			},
+		},
 	}
-
-	err := actionManager.RegisterAction(ctx, "disable_user", disableUserSchema, func(ctx context.Context, args *structpb.Struct) (*structpb.Struct, annotations.Annotations, error) {
-		return s.handleDisableUser(ctx, args)
-	})
-	if err != nil {
-		l.Error("failed to register disable_user action", zap.Error(err))
-		return nil, err
-	}
-
-	l.Info("registered disable_user action")
-
-	enableUserSchema := &v2.BatonActionSchema{
-		Name:        "enable_user",
+	enableUserSchema = &v2.BatonActionSchema{
+		Name:        ActionEnableUser,
 		DisplayName: "Enable User",
 		Description: "Activate a Slack user account by setting active to true via SCIM API",
 		Arguments: []*config_sdk.Field{
@@ -62,12 +59,30 @@ func (s *Slack) RegisterActionManager(ctx context.Context) (connectorbuilder.Cus
 				},
 			},
 		},
-		ReturnTypes: []*config_sdk.Field{},
+		ReturnTypes: []*config_sdk.Field{
+			{
+				Name:        "success",
+				DisplayName: "Success",
+				Description: "Indicates if the operation was successful",
+				Field:       &config_sdk.Field_BoolField{},
+			},
+		},
 	}
+)
 
-	err = actionManager.RegisterAction(ctx, "enable_user", enableUserSchema, func(ctx context.Context, args *structpb.Struct) (*structpb.Struct, annotations.Annotations, error) {
-		return s.handleEnableUser(ctx, args)
-	})
+func (s *Slack) RegisterActionManager(ctx context.Context) (connectorbuilder.CustomActionManager, error) {
+	l := ctxzap.Extract(ctx)
+
+	actionManager := actions.NewActionManager(ctx)
+
+	err := actionManager.RegisterAction(ctx, ActionDisableUser, disableUserSchema, s.handleDisableUser)
+	if err != nil {
+		l.Error("failed to register disable_user action", zap.Error(err))
+		return nil, err
+	}
+	l.Info("registered disable_user action")
+
+	err = actionManager.RegisterAction(ctx, ActionEnableUser, enableUserSchema, s.handleEnableUser)
 	if err != nil {
 		l.Error("failed to register enable_user action", zap.Error(err))
 		return nil, err
