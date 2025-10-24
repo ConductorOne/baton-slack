@@ -42,6 +42,22 @@ var (
 				Description: "Indicates if the operation was successful",
 				Field:       &config_sdk.Field_BoolField{},
 			},
+			{
+				Name:        "message",
+				DisplayName: "Message",
+				Description: "A descriptive message about the operation result",
+				Field: &config_sdk.Field_StringField{
+					StringField: &config_sdk.StringField{},
+				},
+			},
+			{
+				Name:        "user_id",
+				DisplayName: "User ID",
+				Description: "The Slack user ID that was processed",
+				Field: &config_sdk.Field_StringField{
+					StringField: &config_sdk.StringField{},
+				},
+			},
 		},
 	}
 	enableUserSchema = &v2.BatonActionSchema{
@@ -65,6 +81,22 @@ var (
 				DisplayName: "Success",
 				Description: "Indicates if the operation was successful",
 				Field:       &config_sdk.Field_BoolField{},
+			},
+			{
+				Name:        "message",
+				DisplayName: "Message",
+				Description: "A descriptive message about the operation result",
+				Field: &config_sdk.Field_StringField{
+					StringField: &config_sdk.StringField{},
+				},
+			},
+			{
+				Name:        "user_id",
+				DisplayName: "User ID",
+				Description: "The Slack user ID that was processed",
+				Field: &config_sdk.Field_StringField{
+					StringField: &config_sdk.StringField{},
+				},
 			},
 		},
 	}
