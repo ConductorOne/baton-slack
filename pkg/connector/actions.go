@@ -59,6 +59,10 @@ var (
 				},
 			},
 		},
+		ActionType: []v2.ActionType{
+			v2.ActionType_ACTION_TYPE_ACCOUNT,
+			v2.ActionType_ACTION_TYPE_ACCOUNT_DISABLE,
+		},
 	}
 	enableUserSchema = &v2.BatonActionSchema{
 		Name:        ActionEnableUser,
@@ -98,6 +102,10 @@ var (
 					StringField: &config_sdk.StringField{},
 				},
 			},
+		},
+		ActionType: []v2.ActionType{
+			v2.ActionType_ACTION_TYPE_ACCOUNT,
+			v2.ActionType_ACTION_TYPE_ACCOUNT_ENABLE,
 		},
 	}
 )
