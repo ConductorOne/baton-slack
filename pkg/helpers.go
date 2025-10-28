@@ -11,7 +11,9 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/slack-go/slack"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -23,7 +25,7 @@ type EnterpriseRolesPagination struct {
 func ParseID(id string) (string, error) {
 	parts := strings.Split(id, ":")
 	if len(parts) < 2 {
-		return "", fmt.Errorf("baton-slack: invalid ID: %s", id)
+		return "", uhttp.WrapErrors(codes.InvalidArgument, "slack-connector: invalid ID", fmt.Errorf("slack-connector: invalid ID: %s", id))
 	}
 	return parts[1], nil
 }
@@ -31,7 +33,7 @@ func ParseID(id string) (string, error) {
 func ParseRole(id string) (string, error) {
 	parts := strings.Split(id, ":")
 	if len(parts) < 3 {
-		return "", fmt.Errorf("baton-slack: invalid ID: %s", id)
+		return "", uhttp.WrapErrors(codes.InvalidArgument, "slack-connector: invalid ID", fmt.Errorf("slack-connector: invalid ID: %s", id))
 	}
 	return parts[2], nil
 }
@@ -68,7 +70,7 @@ func (e *EnterpriseRolesPagination) Marshal() (string, error) {
 	}
 	bytes, err := json.Marshal(e)
 	if err != nil {
-		return "", err
+		return "", uhttp.WrapErrors(codes.Internal, "slack-connector: failed to marshal EnterpriseRolesPagination", err)
 	}
 
 	return string(bytes), nil
@@ -82,7 +84,7 @@ func (e *EnterpriseRolesPagination) Unmarshal(input string) error {
 
 	err := json.Unmarshal([]byte(input), e)
 	if err != nil {
-		return err
+		return uhttp.WrapErrors(codes.Internal, "slack-connector: failed to unmarshal EnterpriseRolesPagination", err)
 	}
 
 	return nil
@@ -92,7 +94,7 @@ func ParseRolesPageToken(i string) (*EnterpriseRolesPagination, error) {
 	b := &EnterpriseRolesPagination{}
 	err := b.Unmarshal(i)
 	if err != nil {
-		return nil, err
+		return nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to unmarshal EnterpriseRolesPagination", err)
 	}
 
 	if b.FoundMap == nil {
@@ -106,7 +108,7 @@ func ParsePageToken(i string, resourceID *v2.ResourceId) (*pagination.Bag, error
 	b := &pagination.Bag{}
 	err := b.Unmarshal(i)
 	if err != nil {
-		return nil, err
+		return nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to unmarshal pagination bag", err)
 	}
 
 	if b.Current() == nil {
@@ -135,5 +137,5 @@ func AnnotationsForError(err error) (annotations.Annotations, error) {
 		)
 		return annos, nil
 	}
-	return annos, err
+	return annos, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create annotations for error", err)
 }

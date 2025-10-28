@@ -10,11 +10,13 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 )
 
 const memberEntitlement = "member"
@@ -84,7 +86,7 @@ func (o *workspaceResourceType) List(
 ) {
 	bag, err := pkg.ParsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to parse page token for workspace list", err)
 	}
 
 	var (
@@ -97,7 +99,7 @@ func (o *workspaceResourceType) List(
 		workspaces, nextCursor, ratelimitData, err = o.enterpriseClient.GetAuthTeamsList(ctx, bag.PageToken())
 		outputAnnotations.WithRateLimiting(ratelimitData)
 		if err != nil {
-			return nil, "", outputAnnotations, err
+			return nil, "", outputAnnotations, fmt.Errorf("slack-connector: failed to get auth teams list for workspace listing: %w", err)
 		}
 	} else {
 		params := slack.ListTeamsParameters{Cursor: bag.PageToken()}
@@ -110,7 +112,7 @@ func (o *workspaceResourceType) List(
 
 	pageToken, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create next page token for workspace list", err)
 	}
 
 	// Seed the cache.
@@ -125,7 +127,7 @@ func (o *workspaceResourceType) List(
 		workspaceResource,
 	)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to build workspace resource list", err)
 	}
 
 	return output, pageToken, nil, nil
@@ -177,7 +179,7 @@ func (o *workspaceResourceType) Grants(
 ) {
 	bag, err := pkg.ParsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to parse page token for workspace grants", err)
 	}
 
 	outputAnnotations := annotations.New()
@@ -188,12 +190,12 @@ func (o *workspaceResourceType) Grants(
 	)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, "", outputAnnotations, err
+		return nil, "", outputAnnotations, fmt.Errorf("slack-connector: failed to get workspace users for grants: %w", err)
 	}
 
 	pageToken, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create next page token for workspace grants", err)
 	}
 
 	var rv []*v2.Grant
@@ -203,13 +205,13 @@ func (o *workspaceResourceType) Grants(
 		}
 		userID, err := resources.NewResourceID(resourceTypeUser, user.ID)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create user resource ID for workspace grant", err)
 		}
 
 		if user.IsPrimaryOwner {
 			rr, err := roleResource(ctx, PrimaryOwnerRoleID, resource.Id)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create primary owner role resource", err)
 			}
 			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 		}
@@ -217,7 +219,7 @@ func (o *workspaceResourceType) Grants(
 		if user.IsOwner {
 			rr, err := roleResource(ctx, OwnerRoleID, resource.Id)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create owner role resource", err)
 			}
 			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 		}
@@ -225,7 +227,7 @@ func (o *workspaceResourceType) Grants(
 		if user.IsAdmin {
 			rr, err := roleResource(ctx, AdminRoleID, resource.Id)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create admin role resource", err)
 			}
 			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 		}
@@ -234,13 +236,13 @@ func (o *workspaceResourceType) Grants(
 			if user.IsUltraRestricted {
 				rr, err := roleResource(ctx, SingleChannelGuestRoleID, resource.Id)
 				if err != nil {
-					return nil, "", nil, err
+					return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create single channel guest role resource", err)
 				}
 				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 			} else {
 				rr, err := roleResource(ctx, MultiChannelGuestRoleID, resource.Id)
 				if err != nil {
-					return nil, "", nil, err
+					return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create multi channel guest role resource", err)
 				}
 				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 			}
@@ -249,7 +251,7 @@ func (o *workspaceResourceType) Grants(
 		if user.IsInvitedUser {
 			rr, err := roleResource(ctx, InvitedMemberRoleID, resource.Id)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create invited member role resource", err)
 			}
 			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 		}
@@ -257,7 +259,7 @@ func (o *workspaceResourceType) Grants(
 		if !user.IsRestricted && !user.IsUltraRestricted && !user.IsInvitedUser && !user.IsBot && !user.Deleted {
 			rr, err := roleResource(ctx, MemberRoleID, resource.Id)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create member role resource", err)
 			}
 			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 		}
@@ -265,7 +267,7 @@ func (o *workspaceResourceType) Grants(
 		if user.IsBot {
 			rr, err := roleResource(ctx, BotRoleID, resource.Id)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create bot role resource", err)
 			}
 			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 		}
@@ -274,21 +276,21 @@ func (o *workspaceResourceType) Grants(
 			if user.Enterprise.IsPrimaryOwner {
 				rr, err := enterpriseRoleResource(ctx, OrganizationPrimaryOwnerID, resource.Id)
 				if err != nil {
-					return nil, "", nil, err
+					return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create organization primary owner role resource", err)
 				}
 				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 			}
 			if user.Enterprise.IsOwner {
 				rr, err := enterpriseRoleResource(ctx, OrganizationOwnerID, resource.Id)
 				if err != nil {
-					return nil, "", nil, err
+					return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create organization owner role resource", err)
 				}
 				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 			}
 			if user.Enterprise.IsAdmin {
 				rr, err := enterpriseRoleResource(ctx, OrganizationAdminID, resource.Id)
 				if err != nil {
-					return nil, "", nil, err
+					return nil, "", nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create organization admin role resource", err)
 				}
 				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 			}
@@ -308,18 +310,18 @@ func (o *workspaceResourceType) Grant(
 	entitlement *v2.Entitlement,
 ) (annotations.Annotations, error) {
 	if o.enterpriseID == "" {
-		return nil, fmt.Errorf("baton-slack: enterprise ID and enterprise token are both required")
+		return nil, uhttp.WrapErrors(codes.FailedPrecondition, "slack-connector: enterprise ID and enterprise token are both required")
 	}
 
 	logger := ctxzap.Extract(ctx)
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
 		logger.Warn(
-			"baton-slack: only users can be assigned to a workspace",
+			"slack-connector: only users can be assigned to a workspace",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, fmt.Errorf("baton-slack: only users can be assigned to a workspace")
+		return nil, uhttp.WrapErrors(codes.PermissionDenied, "slack-connector: only users can be assigned to a workspace")
 	}
 
 	outputAnnotations := annotations.New()
@@ -339,7 +341,7 @@ func (o *workspaceResourceType) Grant(
 			return outputAnnotations, nil
 		}
 		// Handle other errors.
-		return outputAnnotations, fmt.Errorf("baton-slack: failed to add user to workspace: %w", err)
+		return outputAnnotations, fmt.Errorf("slack-connector: failed to add user to workspace during grant operation: %w", err)
 	}
 
 	return outputAnnotations, nil
@@ -353,7 +355,7 @@ func (o *workspaceResourceType) Revoke(
 	error,
 ) {
 	if o.enterpriseID == "" {
-		return nil, fmt.Errorf("baton-slack: enterprise ID and enterprise token are both required to revoke grants")
+		return nil, uhttp.WrapErrors(codes.FailedPrecondition, "slack-connector: enterprise ID and enterprise token are both required to revoke grants")
 	}
 
 	logger := ctxzap.Extract(ctx)
@@ -361,11 +363,11 @@ func (o *workspaceResourceType) Revoke(
 	principal := grant.Principal
 	if principal.Id.ResourceType != resourceTypeUser.Id {
 		logger.Warn(
-			"baton-slack: only users can be revoked from a workspace",
+			"slack-connector: only users can be revoked from a workspace",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, fmt.Errorf("baton-slack: only users can be revoked from a workspace")
+		return nil, uhttp.WrapErrors(codes.PermissionDenied, "slack-connector: only users can be revoked from a workspace")
 	}
 
 	outputAnnotations := annotations.New()
@@ -385,7 +387,7 @@ func (o *workspaceResourceType) Revoke(
 			return outputAnnotations, nil
 		}
 		// Handle other errors.
-		return outputAnnotations, fmt.Errorf("baton-slack: failed to remove user from workspace: %w", err)
+		return outputAnnotations, fmt.Errorf("slack-connector: failed to remove user from workspace during revoke operation: %w", err)
 	}
 
 	return outputAnnotations, nil

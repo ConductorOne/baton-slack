@@ -3,17 +3,51 @@ package enterprise
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 
+	"google.golang.org/grpc/codes"
+
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
 )
+
+// httpToGRPCCode maps HTTP status codes to gRPC codes for better error classification.
+func httpToGRPCCode(statusCode int) codes.Code {
+	switch statusCode {
+	case http.StatusBadRequest:
+		return codes.InvalidArgument
+	case http.StatusUnauthorized:
+		return codes.Unauthenticated
+	case http.StatusForbidden:
+		return codes.PermissionDenied
+	case http.StatusNotFound:
+		return codes.NotFound
+	case http.StatusConflict:
+		return codes.AlreadyExists
+	case http.StatusRequestTimeout:
+		return codes.DeadlineExceeded
+	case http.StatusTooManyRequests:
+		return codes.ResourceExhausted
+	case http.StatusNotImplemented:
+		return codes.Unimplemented
+	case http.StatusInternalServerError:
+		return codes.Internal
+	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+		return codes.Unavailable
+	default:
+		if statusCode >= 500 && statusCode <= 599 {
+			return codes.Unavailable
+		}
+		return codes.Unknown
+	}
+}
 
 func toValues(queryParameters map[string]interface{}) string {
 	params := url.Values{}
@@ -193,7 +227,7 @@ func (c *Client) doRequest(
 		options...,
 	)
 	if err != nil {
-		return nil, err
+		return nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create HTTP request", err)
 	}
 
 	var ratelimitData v2.RateLimitDescription
@@ -210,12 +244,14 @@ func (c *Client) doRequest(
 	bodyBytes, err := io.ReadAll(response.Body)
 	if err != nil {
 		logBody(ctx, response)
-		return &ratelimitData, err
+		grpcCode := httpToGRPCCode(response.StatusCode)
+		return &ratelimitData, uhttp.WrapErrors(grpcCode, "slack-connector: failed to read response body", err)
 	}
 
 	if err := json.Unmarshal(bodyBytes, &target); err != nil {
 		logBody(ctx, response)
-		return nil, err
+		grpcCode := httpToGRPCCode(response.StatusCode)
+		return nil, uhttp.WrapErrors(grpcCode, "slack-connector: failed to unmarshal response", err)
 	}
 
 	return &ratelimitData, nil
@@ -243,7 +279,7 @@ func (c *Client) deleteScim(
 		uhttp.WithAcceptJSONHeader(),
 	)
 	if err != nil {
-		return nil, err
+		return nil, uhttp.WrapErrors(codes.Internal, "slack-connector: failed to create SCIM delete request", err)
 	}
 
 	var ratelimitData v2.RateLimitDescription
@@ -264,17 +300,20 @@ func (c *Client) deleteScim(
 	bodyBytes, err := io.ReadAll(response.Body)
 	if err != nil {
 		logBody(ctx, response)
-		return &ratelimitData, err
+		grpcCode := httpToGRPCCode(response.StatusCode)
+		return &ratelimitData, uhttp.WrapErrors(grpcCode, "slack-connector: failed to read SCIM error response body", err)
 	}
 
 	// return error details if available
 	if len(bodyBytes) > 0 {
 		var errorResponse map[string]interface{}
 		if err := json.Unmarshal(bodyBytes, &errorResponse); err != nil {
-			return &ratelimitData, fmt.Errorf("failed to parse error response: %w", err)
+			grpcCode := httpToGRPCCode(response.StatusCode)
+			return &ratelimitData, uhttp.WrapErrors(grpcCode, "slack-connector: failed to parse SCIM error response", err)
 		}
 		if detail, ok := errorResponse["detail"].(string); ok {
-			return &ratelimitData, fmt.Errorf("SCIM API error: %s", detail)
+			grpcCode := httpToGRPCCode(response.StatusCode)
+			return &ratelimitData, uhttp.WrapErrors(grpcCode, fmt.Sprintf("slack-connector: SCIM API error: %s", detail), errors.New(detail))
 		}
 	}
 

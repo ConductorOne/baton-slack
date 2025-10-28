@@ -11,11 +11,13 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -184,11 +186,11 @@ func (o *workspaceRoleType) Grant(
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
 		logger.Warn(
-			"baton-slack: only users can be assigned a role",
+			"slack-connector: only users can be assigned a role",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, fmt.Errorf("baton-slack: only users can be assigned a role")
+		return nil, uhttp.WrapErrors(codes.PermissionDenied, "slack-connector: only users can be granted workspace role assignments")
 	}
 
 	// teamID is in the entitlement ID at second position
@@ -213,7 +215,7 @@ func (o *workspaceRoleType) Grant(
 	outputAnnotations := annotations.New()
 	outputAnnotations.WithRateLimiting(rateLimitData)
 	if err != nil {
-		return outputAnnotations, fmt.Errorf("baton-slack: failed to assign user role: %w", err)
+		return outputAnnotations, fmt.Errorf("slack-connector: failed to assign workspace role during grant operation: %w", err)
 	}
 
 	return outputAnnotations, nil
@@ -227,7 +229,7 @@ func (o *workspaceRoleType) Revoke(
 	error,
 ) {
 	if o.enterpriseID == "" {
-		return nil, fmt.Errorf("baton-slack: enterprise ID and enterprise token are both required to revoke roles")
+		return nil, uhttp.WrapErrors(codes.FailedPrecondition, "slack-connector: enterprise ID and token are both required for workspace role revocation")
 	}
 
 	logger := ctxzap.Extract(ctx)
@@ -236,11 +238,11 @@ func (o *workspaceRoleType) Revoke(
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
 		logger.Warn(
-			"baton-slack: only users can have role revoked",
+			"slack-connector: only users can have role revoked",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, fmt.Errorf("baton-slack: only users can have role revoked")
+		return nil, uhttp.WrapErrors(codes.PermissionDenied, "slack-connector: only users can have workspace role assignments revoked")
 	}
 
 	// teamID is in the grant ID at second position
@@ -276,7 +278,7 @@ func (o *workspaceRoleType) Revoke(
 	outputAnnotations.WithRateLimiting(rateLimitData)
 
 	if err != nil {
-		return outputAnnotations, fmt.Errorf("baton-slack: failed to revoke user role: %w", err)
+		return outputAnnotations, fmt.Errorf("slack-connector: failed to revoke workspace role during revoke operation: %w", err)
 	}
 
 	return outputAnnotations, nil
