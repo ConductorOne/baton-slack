@@ -106,7 +106,7 @@ type UserResource struct {
 	Addresses                                         []Address                                              `json:"addresses"`
 	PhoneNumbers                                      []PhoneNumber                                          `json:"phoneNumbers"`
 	UserType                                          string                                                 `json:"userType"`
-	Roles                                             []Email                                                `json:"roles"`
+	Roles                                             []Role                                                 `json:"roles"`
 	PreferredLanguage                                 string                                                 `json:"preferredLanguage"`
 	Locale                                            string                                                 `json:"locale"`
 	UrnIETFParamsScimSchemasExtensionEnterprise20User UrnIETFParamsScimSchemasExtensionEnterprise20UserClass `json:"urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"`
@@ -121,6 +121,10 @@ type Address struct {
 }
 
 type Email struct {
+	Value   string `json:"value"`
+	Primary bool   `json:"primary"`
+}
+type Role struct {
 	Value   string `json:"value"`
 	Primary bool   `json:"primary"`
 }

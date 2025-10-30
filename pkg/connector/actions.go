@@ -112,9 +112,15 @@ var (
 
 func (s *Slack) RegisterActionManager(ctx context.Context) (connectorbuilder.CustomActionManager, error) {
 	l := ctxzap.Extract(ctx)
-
 	actionManager := actions.NewActionManager(ctx)
 
+	// Only register enable/disable actions if enterprise client is available (SCIM API access)
+	if s.enterpriseClient == nil || !s.ssoEnabled {
+		l.Info("skipping Slack SCIM actions registration; enterprise client not available or SSO not enabled")
+		return actionManager, nil
+	}
+
+	l.Info("registering Slack SCIM actions")
 	err := actionManager.RegisterAction(ctx, ActionDisableUser, disableUserSchema, s.handleDisableUser)
 	if err != nil {
 		l.Error("failed to register disable_user action", zap.Error(err))
