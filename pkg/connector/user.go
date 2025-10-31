@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"sync"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
@@ -22,21 +23,16 @@ type userResourceType struct {
 	enterpriseID     string
 	enterpriseClient *enterprise.Client
 	ssoEnabled       bool
+	adminUsersCache  map[string]enterprise.UserAdmin
+	adminCacheMutex  sync.RWMutex
 }
 
 func (o *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return o.resourceType
 }
 
-// scimUserResource creates a resource from a SCIM UserResource.
-func scimUserResource(user enterprise.UserResource) (*v2.Resource, error) {
-	profile := make(map[string]interface{})
-	profile["first_name"] = user.Name.GivenName
-	profile["last_name"] = user.Name.FamilyName
-	profile["user_id"] = user.ID
-	profile["user_name"] = user.UserName
-	profile["display_name"] = user.DisplayName
-
+// scimUserResource creates a user resource using the SCIM user data.
+func (o *userResourceType) scimUserResource(ctx context.Context, user enterprise.UserResource) (*v2.Resource, error) {
 	// Get primary email
 	var primaryEmail string
 	for _, email := range user.Emails {
@@ -48,7 +44,19 @@ func scimUserResource(user enterprise.UserResource) (*v2.Resource, error) {
 	if primaryEmail == "" && len(user.Emails) > 0 {
 		primaryEmail = user.Emails[0].Value
 	}
+
+	displayName := user.DisplayName
+	if displayName == "" {
+		displayName = user.UserName
+	}
+
+	profile := make(map[string]interface{})
+	profile["first_name"] = user.Name.GivenName
+	profile["last_name"] = user.Name.FamilyName
+	profile["display_name"] = user.DisplayName
 	profile["login"] = primaryEmail
+	profile["user_id"] = user.ID
+	profile["user_name"] = user.UserName
 
 	var userStatus v2.UserTrait_Status_Status
 	if user.Active {
@@ -70,9 +78,27 @@ func scimUserResource(user enterprise.UserResource) (*v2.Resource, error) {
 		)
 	}
 
-	displayName := user.DisplayName
-	if displayName == "" {
-		displayName = user.UserName
+	// Enrich with admin data if available in cache (SSO, MFA, bot status).
+	// done for backwards compatibility.
+	if adminUser, ok := o.getAdminUser(ctx, user.ID); ok {
+		profile["sso_user"] = adminUser.HasSso
+
+		ssoStatus := &v2.UserTrait_SSOStatus{SsoEnabled: adminUser.HasSso}
+		userTraitOptions = append(userTraitOptions, resource.WithSSOStatus(ssoStatus))
+
+		if adminUser.Has2Fa {
+			userTraitOptions = append(
+				userTraitOptions,
+				resource.WithMFAStatus(&v2.UserTrait_MFAStatus{MfaEnabled: true}),
+			)
+		}
+
+		if adminUser.IsBot {
+			userTraitOptions = append(
+				userTraitOptions,
+				resource.WithAccountType(v2.UserTrait_ACCOUNT_TYPE_SERVICE),
+			)
+		}
 	}
 
 	return resource.NewUserResource(
@@ -83,7 +109,7 @@ func scimUserResource(user enterprise.UserResource) (*v2.Resource, error) {
 	)
 }
 
-// Create a new connector resource for a Slack user.
+// Create a new user from the standard Slack API user data.
 func userResource(
 	_ context.Context,
 	user *slack.User,
@@ -152,7 +178,7 @@ func (o *userResourceType) List(ctx context.Context, parentResourceID *v2.Resour
 	if o.enterpriseClient != nil && o.ssoEnabled {
 		return o.listScimAPI(ctx, parentResourceID, pt)
 	}
-	// otherwise, use the standard Slack API to list users in the given workspace
+	// standard Slack API to list users in the given workspace
 	return o.listUsers(ctx, parentResourceID, pt)
 }
 
@@ -183,7 +209,7 @@ func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2
 	}
 
 	var annos annotations.Annotations
-	count := 100 // Standard page size
+	count := 100
 	response, ratelimitData, err := o.enterpriseClient.ListIDPUsers(ctx, startIndex, count)
 	annos.WithRateLimiting(ratelimitData)
 	if err != nil {
@@ -192,7 +218,7 @@ func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2
 
 	rv := make([]*v2.Resource, 0, len(response.Resources))
 	for _, user := range response.Resources {
-		userResource, err := scimUserResource(user)
+		userResource, err := o.scimUserResource(ctx, user)
 		if err != nil {
 			return nil, "", annos, fmt.Errorf("error creating user resource: %w", err)
 		}
