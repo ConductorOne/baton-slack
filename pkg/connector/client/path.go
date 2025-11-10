@@ -43,6 +43,7 @@ const (
 	UrlPathIDPGroup  = "/scim/%s/Groups/%s"
 	UrlPathIDPGroups = "/scim/%s/Groups"
 	UrlPathIDPUser   = "/scim/%s/Users/%s"
+	UrlPathIDPUsers  = "/scim/%s/Users"
 )
 
 func getWorkspaceUrlPathByRole(roleID string) (string, error) {

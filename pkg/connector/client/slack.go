@@ -554,6 +554,34 @@ func (c *Client) GetIDPGroup(
 	return &response, ratelimitData, nil
 }
 
+// ListIDPUsers returns all IDP users from the SCIM API.
+func (c *Client) ListIDPUsers(
+	ctx context.Context,
+	startIndex int,
+	count int,
+) (
+	*SCIMResponse[UserResource],
+	*v2.RateLimitDescription,
+	error,
+) {
+	var response SCIMResponse[UserResource]
+	urlPathIDPUsers := fmt.Sprintf(UrlPathIDPUsers, c.scimVersion)
+	ratelimitData, err := c.getScim(
+		ctx,
+		urlPathIDPUsers,
+		&response,
+		map[string]interface{}{
+			"startIndex": startIndex,
+			"count":      count,
+		},
+	)
+	if err != nil {
+		return nil, ratelimitData, fmt.Errorf("error fetching IDP users: %w", err)
+	}
+
+	return &response, ratelimitData, nil
+}
+
 // AddUserToGroup patches a group by adding a user to it.
 func (c *Client) AddUserToGroup(
 	ctx context.Context,
