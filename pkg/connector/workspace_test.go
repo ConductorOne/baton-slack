@@ -84,7 +84,7 @@ func TestWorkspaceGrantAndRevoke(t *testing.T) {
 
 		// Verify the error.
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "baton-slack: only users can be assigned to a workspace")
+		assert.Contains(t, err.Error(), "only users can be assigned to a workspace")
 	})
 
 	t.Run("Grant operation for workspace with already granted principal", func(t *testing.T) {
@@ -181,7 +181,7 @@ func TestWorkspaceGrantAndRevoke(t *testing.T) {
 
 		// Verify the error.
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "baton-slack: only users can be revoked from a workspace")
+		assert.Contains(t, err.Error(), "only users can be revoked from a workspace")
 	})
 
 	t.Run("Revoke operation for workspace with already revoked principal", func(t *testing.T) {

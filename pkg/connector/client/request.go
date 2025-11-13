@@ -193,7 +193,7 @@ func (c *Client) doRequest(
 		options...,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
 
 	var ratelimitData v2.RateLimitDescription
@@ -210,12 +210,12 @@ func (c *Client) doRequest(
 	bodyBytes, err := io.ReadAll(response.Body)
 	if err != nil {
 		logBody(ctx, response)
-		return &ratelimitData, err
+		return &ratelimitData, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	if err := json.Unmarshal(bodyBytes, &target); err != nil {
 		logBody(ctx, response)
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
 	return &ratelimitData, nil
@@ -243,7 +243,7 @@ func (c *Client) deleteScim(
 		uhttp.WithAcceptJSONHeader(),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create SCIM delete request: %w", err)
 	}
 
 	var ratelimitData v2.RateLimitDescription
@@ -264,14 +264,14 @@ func (c *Client) deleteScim(
 	bodyBytes, err := io.ReadAll(response.Body)
 	if err != nil {
 		logBody(ctx, response)
-		return &ratelimitData, err
+		return &ratelimitData, fmt.Errorf("failed to read SCIM error response body: %w", err)
 	}
 
 	// return error details if available
 	if len(bodyBytes) > 0 {
 		var errorResponse map[string]interface{}
 		if err := json.Unmarshal(bodyBytes, &errorResponse); err != nil {
-			return &ratelimitData, fmt.Errorf("failed to parse error response: %w", err)
+			return &ratelimitData, fmt.Errorf("failed to parse SCIM error response: %w", err)
 		}
 		if detail, ok := errorResponse["detail"].(string); ok {
 			return &ratelimitData, fmt.Errorf("SCIM API error: %s", detail)
