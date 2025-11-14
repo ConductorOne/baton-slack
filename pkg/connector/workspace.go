@@ -106,7 +106,6 @@ func (o *workspaceResourceType) List(
 		return nil, nil, err
 	}
 
-	// Seed session store cache in bulk
 	err = o.enterpriseClient.SetWorkspaceNames(ctx, attrs.Session, workspaces)
 	if err != nil {
 		return nil, nil, err
@@ -134,24 +133,24 @@ func (o *workspaceResourceType) Entitlements(
 	attrs resources.SyncOpAttrs,
 ) ([]*v2.Entitlement, *resources.SyncOpResults, error) {
 	return []*v2.Entitlement{
-			entitlement.NewAssignmentEntitlement(
-				resource,
-				memberEntitlement,
-				entitlement.WithGrantableTo(resourceTypeUser),
-				entitlement.WithDescription(
-					fmt.Sprintf(
-						"Member of the %s workspace",
-						resource.DisplayName,
-					),
-				),
-				entitlement.WithDisplayName(
-					fmt.Sprintf(
-						"%s workspace member",
-						resource.DisplayName,
-					),
+		entitlement.NewAssignmentEntitlement(
+			resource,
+			memberEntitlement,
+			entitlement.WithGrantableTo(resourceTypeUser),
+			entitlement.WithDescription(
+				fmt.Sprintf(
+					"Member of the %s workspace",
+					resource.DisplayName,
 				),
 			),
-		}, &resources.SyncOpResults{}, nil
+			entitlement.WithDisplayName(
+				fmt.Sprintf(
+					"%s workspace member",
+					resource.DisplayName,
+				),
+			),
+		),
+	}, &resources.SyncOpResults{}, nil
 }
 
 func (o *workspaceResourceType) Grants(

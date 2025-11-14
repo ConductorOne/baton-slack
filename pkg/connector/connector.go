@@ -98,7 +98,6 @@ func (s *slackLogger) Output(callDepth int, msg string) error {
 	return nil
 }
 
-// NewSlack returns the Slack connector.
 func NewSlack(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool, govEnv bool) (*Slack, error) {
 	l := ctxzap.Extract(ctx)
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, l))
@@ -150,14 +149,13 @@ func NewSlack(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool
 	}, nil
 }
 
-// New returns the Slack connector for V2 interface.
-func New(ctx context.Context, config *cfg.Config, opts *cli.ConnectorOpts) (connectorbuilder.ConnectorBuilderV2, []connectorbuilder.Opt, error) {
+func New(ctx context.Context, config *cfg.Slack, opts *cli.ConnectorOpts) (connectorbuilder.ConnectorBuilderV2, []connectorbuilder.Opt, error) {
 	cb, err := NewSlack(
 		ctx,
 		config.Token,
 		config.EnterpriseToken,
-		config.SSOEnabled,
-		config.GovEnvironment,
+		config.SsoEnabled,
+		config.GovEnv,
 	)
 	if err != nil {
 		return nil, nil, err

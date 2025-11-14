@@ -118,7 +118,6 @@ func (c *Client) GetWorkspaceName(ctx context.Context, ss sessions.SessionStore,
 		return "", fmt.Errorf("workspace ID is empty")
 	}
 
-	// Check session store first
 	workspaceName, found, err := session.GetJSON[string](ctx, ss, workspaceID, workspaceNameNamespace)
 	if err != nil {
 		return "", err
@@ -186,7 +185,6 @@ func (c *Client) GetWorkspaceName(ctx context.Context, ss sessions.SessionStore,
 	return workspaceName, nil
 }
 
-// SetWorkspaceNames bulk operation for setting multiple workspace names in session store.
 func (c *Client) SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaces []slack.Team) error {
 	workspaceMap := make(map[string]string)
 	for _, workspace := range workspaces {
