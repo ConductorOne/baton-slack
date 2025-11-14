@@ -7,12 +7,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"sync"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
+	"github.com/conductorone/baton-sdk/pkg/session"
+	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/slack-go/slack"
 )
@@ -27,17 +28,17 @@ const (
 	ScimVersionV1                 = "v1"
 )
 
+var workspaceNameNamespace = sessions.WithPrefix("workspace_name")
+
 type Client struct {
-	baseScimUrl              *url.URL
-	baseUrl                  *url.URL
-	token                    string
-	enterpriseID             string
-	botToken                 string
-	ssoEnabled               bool
-	scimVersion              string
-	wrapper                  *uhttp.BaseHttpClient
-	workspacesNameCache      map[string]string
-	workspacesNameCacheMutex sync.RWMutex
+	baseScimUrl  *url.URL
+	baseUrl      *url.URL
+	token        string
+	enterpriseID string
+	botToken     string
+	ssoEnabled   bool
+	scimVersion  string
+	wrapper      *uhttp.BaseHttpClient
 }
 
 func NewClient(
@@ -68,16 +69,14 @@ func NewClient(
 	}
 
 	return &Client{
-		baseUrl:                  baseUrl0,
-		baseScimUrl:              baseScimUrl0,
-		token:                    token,
-		enterpriseID:             enterpriseID,
-		botToken:                 botToken,
-		ssoEnabled:               ssoEnabled,
-		scimVersion:              finalScimVersion,
-		wrapper:                  uhttp.NewBaseHttpClient(httpClient),
-		workspacesNameCache:      make(map[string]string),
-		workspacesNameCacheMutex: sync.RWMutex{},
+		baseUrl:      baseUrl0,
+		baseScimUrl:  baseScimUrl0,
+		token:        token,
+		enterpriseID: enterpriseID,
+		botToken:     botToken,
+		ssoEnabled:   ssoEnabled,
+		scimVersion:  finalScimVersion,
+		wrapper:      uhttp.NewBaseHttpClient(httpClient),
 	}, nil
 }
 
@@ -110,23 +109,22 @@ func (a BaseResponse) handleError(err error, action string) error {
 	return nil
 }
 
-func (c *Client) SetWorkspaceName(workspaceID, workspaceName string) {
-	c.workspacesNameCacheMutex.Lock()
-	defer c.workspacesNameCacheMutex.Unlock()
-	c.workspacesNameCache[workspaceID] = workspaceName
+func (c *Client) SetWorkspaceName(ctx context.Context, ss sessions.SessionStore, workspaceID, workspaceName string) error {
+	return session.SetJSON(ctx, ss, workspaceID, workspaceName, workspaceNameNamespace)
 }
 
-func (c *Client) GetWorkspaceName(ctx context.Context, client *slack.Client, workspaceID string) (string, error) {
+func (c *Client) GetWorkspaceName(ctx context.Context, ss sessions.SessionStore, client *slack.Client, workspaceID string) (string, error) {
 	if workspaceID == "" {
 		return "", fmt.Errorf("workspace ID is empty")
 	}
-	c.workspacesNameCacheMutex.RLock()
-	workspaceName, ok := c.workspacesNameCache[workspaceID]
-	if ok {
-		c.workspacesNameCacheMutex.RUnlock()
+
+	workspaceName, found, err := session.GetJSON[string](ctx, ss, workspaceID, workspaceNameNamespace)
+	if err != nil {
+		return "", err
+	}
+	if found {
 		return workspaceName, nil
 	}
-	c.workspacesNameCacheMutex.RUnlock()
 
 	workspaceName = ""
 	if c.enterpriseID == "" {
@@ -140,7 +138,10 @@ func (c *Client) GetWorkspaceName(ctx context.Context, client *slack.Client, wor
 				return "", fmt.Errorf("error getting auth teams list: %w", err)
 			}
 			for _, workspace := range workspaces {
-				c.SetWorkspaceName(workspace.ID, workspace.Name)
+				err = c.SetWorkspaceName(ctx, ss, workspace.ID, workspace.Name)
+				if err != nil {
+					return "", err
+				}
 				if workspace.ID == workspaceID {
 					workspaceName = workspace.Name
 					nextCursor = ""
@@ -161,7 +162,10 @@ func (c *Client) GetWorkspaceName(ctx context.Context, client *slack.Client, wor
 				return "", fmt.Errorf("error getting auth teams list: %w", err)
 			}
 			for _, workspace := range workspaces {
-				c.SetWorkspaceName(workspace.ID, workspace.Name)
+				err = c.SetWorkspaceName(ctx, ss, workspace.ID, workspace.Name)
+				if err != nil {
+					return "", err
+				}
 				if workspace.ID == workspaceID {
 					workspaceName = workspace.Name
 					nextCursor = ""
@@ -179,6 +183,14 @@ func (c *Client) GetWorkspaceName(ctx context.Context, client *slack.Client, wor
 	}
 
 	return workspaceName, nil
+}
+
+func (c *Client) SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaces []slack.Team) error {
+	workspaceMap := make(map[string]string)
+	for _, workspace := range workspaces {
+		workspaceMap[workspace.ID] = workspace.Name
+	}
+	return session.SetManyJSON(ctx, ss, workspaceMap, workspaceNameNamespace)
 }
 
 // GetUserInfo returns the user info for the given user ID.

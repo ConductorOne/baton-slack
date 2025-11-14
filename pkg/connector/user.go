@@ -7,7 +7,6 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
@@ -152,41 +151,38 @@ func baseUserResource(
 func (o *userResourceType) Entitlements(
 	_ context.Context,
 	_ *v2.Resource,
-	_ *pagination.Token,
+	_ resource.SyncOpAttrs,
 ) (
 	[]*v2.Entitlement,
-	string,
-	annotations.Annotations,
+	*resource.SyncOpResults,
 	error,
 ) {
-	return nil, "", nil, nil
+	return nil, &resource.SyncOpResults{}, nil
 }
 
 func (o *userResourceType) Grants(
 	_ context.Context,
 	_ *v2.Resource,
-	_ *pagination.Token,
+	_ resource.SyncOpAttrs,
 ) (
 	[]*v2.Grant,
-	string,
-	annotations.Annotations,
+	*resource.SyncOpResults,
 	error,
 ) {
-	return nil, "", nil, nil
+	return nil, &resource.SyncOpResults{}, nil
 }
 
 func (o *userResourceType) List(
 	ctx context.Context,
 	parentResourceID *v2.ResourceId,
-	pt *pagination.Token,
+	attrs resource.SyncOpAttrs,
 ) (
 	[]*v2.Resource,
-	string,
-	annotations.Annotations,
+	*resource.SyncOpResults,
 	error,
 ) {
 	if parentResourceID == nil {
-		return nil, "", nil, nil
+		return nil, &resource.SyncOpResults{}, nil
 	}
 
 	var (
@@ -197,9 +193,9 @@ func (o *userResourceType) List(
 	)
 	outputAnnotations := annotations.New()
 	if o.enterpriseID != "" {
-		bag, err := pkg.ParsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+		bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("failed to parse page token: %w", err)
+			return nil, nil, fmt.Errorf("failed to parse page token: %w", err)
 		}
 
 		// We need to fetch all users because users without workspace won't be
@@ -207,11 +203,11 @@ func (o *userResourceType) List(
 		allUsers, nextCursor, ratelimitData, err = o.enterpriseClient.GetUsersAdmin(ctx, bag.PageToken())
 		outputAnnotations.WithRateLimiting(ratelimitData)
 		if err != nil {
-			return nil, "", outputAnnotations, err
+			return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, err
 		}
 		pageToken, err = bag.NextToken(nextCursor)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -219,7 +215,7 @@ func (o *userResourceType) List(
 	users, err := o.client.GetUsersContext(ctx, options)
 	if err != nil {
 		annos, err := pkg.AnnotationsForError(err)
-		return nil, "", annos, err
+		return nil, &resource.SyncOpResults{Annotations: annos}, err
 	}
 
 	// Create a base resource if user has no workspace.
@@ -230,7 +226,7 @@ func (o *userResourceType) List(
 		baseUserResource,
 	)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	// Users without workspace won't be part of users array.
@@ -250,9 +246,9 @@ func (o *userResourceType) List(
 		},
 	)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
-	return append(rv0, rv1...), pageToken, outputAnnotations, nil
+	return append(rv0, rv1...), &resource.SyncOpResults{NextPageToken: pageToken, Annotations: outputAnnotations}, nil
 }
 
 func (o *userResourceType) CreateAccount(
