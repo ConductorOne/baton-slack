@@ -16,6 +16,6 @@ var (
 
 func main() {
 	ctx := context.Background()
-	config.RunConnector(ctx, "baton-slack", version, cfg.Configuration, connector.New,
+	config.RunConnector(ctx, connectorName, version, cfg.Configuration, connector.New,
 		connectorrunner.WithSessionStoreEnabled())
 }
