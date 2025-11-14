@@ -4,6 +4,53 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/field"
 )
 
+// Config represents the configuration for the Slack connector.
+type Config struct {
+	Token          string `mapstructure:"token"`
+	EnterpriseToken string `mapstructure:"enterprise-token"`
+	SSOEnabled     bool   `mapstructure:"sso-enabled"`
+	GovEnvironment bool   `mapstructure:"gov-env"`
+}
+
+// GetString returns the string value for the given field name.
+func (c *Config) GetString(fieldName string) string {
+	switch fieldName {
+	case "token":
+		return c.Token
+	case "enterprise-token":
+		return c.EnterpriseToken
+	default:
+		return ""
+	}
+}
+
+// GetBool returns the boolean value for the given field name.
+func (c *Config) GetBool(fieldName string) bool {
+	switch fieldName {
+	case "sso-enabled":
+		return c.SSOEnabled
+	case "gov-env":
+		return c.GovEnvironment
+	default:
+		return false
+	}
+}
+
+// GetInt returns the integer value for the given field name.
+func (c *Config) GetInt(fieldName string) int {
+	return 0
+}
+
+// GetStringSlice returns the string slice value for the given field name.
+func (c *Config) GetStringSlice(fieldName string) []string {
+	return nil
+}
+
+// GetStringMap returns the string map value for the given field name.
+func (c *Config) GetStringMap(fieldName string) map[string]any {
+	return nil
+}
+
 var (
 	AccessTokenField = field.StringField(
 		"token",
@@ -49,5 +96,11 @@ var (
 		),
 	}
 
-	Configuration = field.NewConfiguration(ConfigurationFields, field.WithConstraints(FieldRelationships...))
+	Configuration = field.NewConfiguration(
+		ConfigurationFields,
+		field.WithConstraints(FieldRelationships...),
+		field.WithConnectorDisplayName("Slack"),
+		field.WithHelpUrl("/docs/baton/slack"),
+		field.WithIconUrl("/static/app-icons/slack.svg"),
+	)
 )

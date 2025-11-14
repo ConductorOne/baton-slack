@@ -6,10 +6,10 @@ import (
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
+	
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 )
@@ -111,22 +111,21 @@ func enterpriseRoleResource(
 func (o *enterpriseRoleType) List(
 	ctx context.Context,
 	parentResourceID *v2.ResourceId,
-	pt *pagination.Token,
+	attrs resources.SyncOpAttrs,
 ) (
 	[]*v2.Resource,
-	string,
-	annotations.Annotations,
+	*resources.SyncOpResults,
 	error,
 ) {
 	var ret []*v2.Resource
 	// There is no need to sync roles if we don't have an enterprise plan.
 	if o.enterpriseID == "" {
-		return nil, "", nil, nil
+		return nil, &resources.SyncOpResults{}, nil
 	}
 
-	bag, err := pkg.ParseRolesPageToken(pt.Token)
+	bag, err := pkg.ParseRolesPageToken(attrs.PageToken.Token)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	// We only want to do this once.
@@ -134,7 +133,7 @@ func (o *enterpriseRoleType) List(
 		for orgRoleID := range organizationRoles {
 			r, err := enterpriseRoleResource(ctx, orgRoleID, parentResourceID)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, nil, err
 			}
 
 			ret = append(ret, r)
@@ -145,7 +144,7 @@ func (o *enterpriseRoleType) List(
 	roleAssignments, nextPage, ratelimitData, err := o.enterpriseClient.GetRoleAssignments(ctx, "", bag.Cursor)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, "", outputAnnotations, err
+		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, err
 	}
 
 	bag.Cursor = nextPage
@@ -161,7 +160,7 @@ func (o *enterpriseRoleType) List(
 
 		r, err := enterpriseRoleResource(ctx, roleAssignment.RoleID, parentResourceID)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		ret = append(ret, r)
@@ -171,20 +170,19 @@ func (o *enterpriseRoleType) List(
 
 	nextPageToken, err := bag.Marshal()
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
-	return ret, nextPageToken, outputAnnotations, nil
+	return ret, &resources.SyncOpResults{NextPageToken: nextPageToken, Annotations: outputAnnotations}, nil
 }
 
 func (o *enterpriseRoleType) Entitlements(
 	_ context.Context,
 	resource *v2.Resource,
-	_ *pagination.Token,
+	_ resources.SyncOpAttrs,
 ) (
 	[]*v2.Entitlement,
-	string,
-	annotations.Annotations,
+	*resources.SyncOpResults,
 	error,
 ) {
 	return []*v2.Entitlement{
@@ -206,32 +204,30 @@ func (o *enterpriseRoleType) Entitlements(
 				),
 			),
 		},
-		"",
-		nil,
+		&resources.SyncOpResults{},
 		nil
 }
 
 func (o *enterpriseRoleType) Grants(
 	ctx context.Context,
 	resource *v2.Resource,
-	pt *pagination.Token,
+	attrs resources.SyncOpAttrs,
 ) (
 	[]*v2.Grant,
-	string,
-	annotations.Annotations,
+	*resources.SyncOpResults,
 	error,
 ) {
 	var rv []*v2.Grant
 
-	bag, err := pkg.ParsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeEnterpriseRole.Id})
+	bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeEnterpriseRole.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	// If current role is one of organization roles, don't return any grants
 	// since we grant those on the user itself.
 	if _, ok := organizationRoles[resource.Id.Resource]; ok {
-		return nil, "", nil, nil
+		return nil, &resources.SyncOpResults{}, nil
 	}
 
 	outputAnnotations := annotations.New()
@@ -242,24 +238,24 @@ func (o *enterpriseRoleType) Grants(
 	)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, "", outputAnnotations, err
+		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, err
 	}
 
 	pageToken, err := bag.NextToken(nextPage)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	for _, assignment := range roleAssignments {
 		userID, err := resources.NewResourceID(resourceTypeUser, assignment.UserID)
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("failed to create resourceID for user: %w", err)
+			return nil, nil, fmt.Errorf("failed to create resourceID for user: %w", err)
 		}
 
 		rv = append(rv, grant.NewGrant(resource, RoleAssignmentEntitlement, userID))
 	}
 
-	return rv, pageToken, outputAnnotations, nil
+	return rv, &resources.SyncOpResults{NextPageToken: pageToken, Annotations: outputAnnotations}, nil
 }
 
 // getTeamIDForUser retrieves the team ID for a user by calling the Slack API directly.

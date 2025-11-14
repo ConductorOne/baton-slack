@@ -6,7 +6,6 @@ import (
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
@@ -74,17 +73,12 @@ func workspaceResource(
 
 func (o *workspaceResourceType) List(
 	ctx context.Context,
-	_ *v2.ResourceId,
-	pt *pagination.Token,
-) (
-	[]*v2.Resource,
-	string,
-	annotations.Annotations,
-	error,
-) {
-	bag, err := pkg.ParsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id})
+	parentID *v2.ResourceId,
+	attrs resources.SyncOpAttrs,
+) ([]*v2.Resource, *resources.SyncOpResults, error) {
+	bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	var (
@@ -92,30 +86,30 @@ func (o *workspaceResourceType) List(
 		nextCursor    string
 		ratelimitData *v2.RateLimitDescription
 	)
+	outputAnnotations := annotations.New()
 	if o.enterpriseID != "" {
-		outputAnnotations := annotations.New()
 		workspaces, nextCursor, ratelimitData, err = o.enterpriseClient.GetAuthTeamsList(ctx, bag.PageToken())
 		outputAnnotations.WithRateLimiting(ratelimitData)
 		if err != nil {
-			return nil, "", outputAnnotations, err
+			return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, err
 		}
 	} else {
 		params := slack.ListTeamsParameters{Cursor: bag.PageToken()}
 		workspaces, nextCursor, err = o.client.ListTeamsContext(ctx, params)
 		if err != nil {
-			annos, err := pkg.AnnotationsForError(err)
-			return nil, "", annos, err
+			return nil, nil, err
 		}
 	}
 
 	pageToken, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
-	// Seed the cache.
-	for _, workspace := range workspaces {
-		o.enterpriseClient.SetWorkspaceName(workspace.ID, workspace.Name)
+	// Seed session store cache in bulk
+	err = o.enterpriseClient.SetWorkspaceNames(ctx, attrs.Session, workspaces)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	output, err := pkg.MakeResourceList(
@@ -125,22 +119,20 @@ func (o *workspaceResourceType) List(
 		workspaceResource,
 	)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
-	return output, pageToken, nil, nil
+	return output, &resources.SyncOpResults{
+		NextPageToken: pageToken,
+		Annotations:   outputAnnotations,
+	}, nil
 }
 
 func (o *workspaceResourceType) Entitlements(
 	_ context.Context,
 	resource *v2.Resource,
-	_ *pagination.Token,
-) (
-	[]*v2.Entitlement,
-	string,
-	annotations.Annotations,
-	error,
-) {
+	attrs resources.SyncOpAttrs,
+) ([]*v2.Entitlement, *resources.SyncOpResults, error) {
 	return []*v2.Entitlement{
 			entitlement.NewAssignmentEntitlement(
 				resource,
@@ -159,25 +151,17 @@ func (o *workspaceResourceType) Entitlements(
 					),
 				),
 			),
-		},
-		"",
-		nil,
-		nil
+		}, &resources.SyncOpResults{}, nil
 }
 
 func (o *workspaceResourceType) Grants(
 	ctx context.Context,
 	resource *v2.Resource,
-	pt *pagination.Token,
-) (
-	[]*v2.Grant,
-	string,
-	annotations.Annotations,
-	error,
-) {
-	bag, err := pkg.ParsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+	attrs resources.SyncOpAttrs,
+) ([]*v2.Grant, *resources.SyncOpResults, error) {
+	bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	outputAnnotations := annotations.New()
@@ -188,12 +172,12 @@ func (o *workspaceResourceType) Grants(
 	)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, "", outputAnnotations, err
+		return nil, nil, err
 	}
 
 	pageToken, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	var rv []*v2.Grant
@@ -203,13 +187,13 @@ func (o *workspaceResourceType) Grants(
 		}
 		userID, err := resources.NewResourceID(resourceTypeUser, user.ID)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
 		if user.IsPrimaryOwner {
 			rr, err := roleResource(ctx, PrimaryOwnerRoleID, resource.Id)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, nil, err
 			}
 			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 		}
@@ -217,7 +201,7 @@ func (o *workspaceResourceType) Grants(
 		if user.IsOwner {
 			rr, err := roleResource(ctx, OwnerRoleID, resource.Id)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, nil, err
 			}
 			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 		}
@@ -225,7 +209,7 @@ func (o *workspaceResourceType) Grants(
 		if user.IsAdmin {
 			rr, err := roleResource(ctx, AdminRoleID, resource.Id)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, nil, err
 			}
 			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 		}
@@ -234,13 +218,13 @@ func (o *workspaceResourceType) Grants(
 			if user.IsUltraRestricted {
 				rr, err := roleResource(ctx, SingleChannelGuestRoleID, resource.Id)
 				if err != nil {
-					return nil, "", nil, err
+					return nil, nil, err
 				}
 				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 			} else {
 				rr, err := roleResource(ctx, MultiChannelGuestRoleID, resource.Id)
 				if err != nil {
-					return nil, "", nil, err
+					return nil, nil, err
 				}
 				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 			}
@@ -249,7 +233,7 @@ func (o *workspaceResourceType) Grants(
 		if user.IsInvitedUser {
 			rr, err := roleResource(ctx, InvitedMemberRoleID, resource.Id)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, nil, err
 			}
 			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 		}
@@ -257,7 +241,7 @@ func (o *workspaceResourceType) Grants(
 		if !user.IsRestricted && !user.IsUltraRestricted && !user.IsInvitedUser && !user.IsBot && !user.Deleted {
 			rr, err := roleResource(ctx, MemberRoleID, resource.Id)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, nil, err
 			}
 			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 		}
@@ -265,7 +249,7 @@ func (o *workspaceResourceType) Grants(
 		if user.IsBot {
 			rr, err := roleResource(ctx, BotRoleID, resource.Id)
 			if err != nil {
-				return nil, "", nil, err
+				return nil, nil, err
 			}
 			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 		}
@@ -274,21 +258,21 @@ func (o *workspaceResourceType) Grants(
 			if user.Enterprise.IsPrimaryOwner {
 				rr, err := enterpriseRoleResource(ctx, OrganizationPrimaryOwnerID, resource.Id)
 				if err != nil {
-					return nil, "", nil, err
+					return nil, nil, err
 				}
 				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 			}
 			if user.Enterprise.IsOwner {
 				rr, err := enterpriseRoleResource(ctx, OrganizationOwnerID, resource.Id)
 				if err != nil {
-					return nil, "", nil, err
+					return nil, nil, err
 				}
 				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 			}
 			if user.Enterprise.IsAdmin {
 				rr, err := enterpriseRoleResource(ctx, OrganizationAdminID, resource.Id)
 				if err != nil {
-					return nil, "", nil, err
+					return nil, nil, err
 				}
 				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 			}
@@ -299,7 +283,9 @@ func (o *workspaceResourceType) Grants(
 		rv = append(rv, grant.NewGrant(resource, memberEntitlement, userID))
 	}
 
-	return rv, pageToken, outputAnnotations, nil
+	return rv, &resources.SyncOpResults{
+		NextPageToken: pageToken,
+	}, nil
 }
 
 func (o *workspaceResourceType) Grant(
