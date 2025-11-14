@@ -13,7 +13,6 @@ import (
 
 	v1 "github.com/conductorone/baton-sdk/pb/c1/connectorapi/baton/v1"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/session"
 	sdkSync "github.com/conductorone/baton-sdk/pkg/sync"
 	"github.com/conductorone/baton-sdk/pkg/tasks"
 	"github.com/conductorone/baton-sdk/pkg/types"
@@ -34,7 +33,6 @@ type fullSyncTaskHandler struct {
 	externalResourceC1ZPath             string
 	externalResourceEntitlementIdFilter string
 	targetedSyncResourceIDs             []string
-	syncResourceTypeIDs                 []string
 }
 
 func (c *fullSyncTaskHandler) sync(ctx context.Context, c1zPath string) error {
@@ -77,17 +75,8 @@ func (c *fullSyncTaskHandler) sync(ctx context.Context, c1zPath string) error {
 	if len(c.targetedSyncResourceIDs) > 0 {
 		syncOpts = append(syncOpts, sdkSync.WithTargetedSyncResourceIDs(c.targetedSyncResourceIDs))
 	}
-	cc := c.helpers.ConnectorClient()
 
-	if len(c.syncResourceTypeIDs) > 0 {
-		syncOpts = append(syncOpts, sdkSync.WithSyncResourceTypes(c.syncResourceTypeIDs))
-	}
-
-	if setSessionStore, ok := cc.(session.SetSessionStore); ok {
-		syncOpts = append(syncOpts, sdkSync.WithSessionStore(setSessionStore))
-	}
-
-	syncer, err := sdkSync.NewSyncer(ctx, cc, syncOpts...)
+	syncer, err := sdkSync.NewSyncer(ctx, c.helpers.ConnectorClient(), syncOpts...)
 	if err != nil {
 		l.Error("failed to create syncer", zap.Error(err))
 		return err
@@ -193,7 +182,6 @@ func newFullSyncTaskHandler(
 	externalResourceC1ZPath string,
 	externalResourceEntitlementIdFilter string,
 	targetedSyncResourceIDs []string,
-	syncResourceTypeIDs []string,
 ) tasks.TaskHandler {
 	return &fullSyncTaskHandler{
 		task:                                task,
@@ -202,7 +190,6 @@ func newFullSyncTaskHandler(
 		externalResourceC1ZPath:             externalResourceC1ZPath,
 		externalResourceEntitlementIdFilter: externalResourceEntitlementIdFilter,
 		targetedSyncResourceIDs:             targetedSyncResourceIDs,
-		syncResourceTypeIDs:                 syncResourceTypeIDs,
 	}
 }
 

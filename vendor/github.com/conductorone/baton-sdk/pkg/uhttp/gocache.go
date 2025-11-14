@@ -13,15 +13,14 @@ import (
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
-	"github.com/maypok86/otter/v2"
-	"github.com/maypok86/otter/v2/stats"
+	"github.com/maypok86/otter"
 	"go.uber.org/zap"
 )
 
 const (
-	cacheTTLMaximum    time.Duration = 31536000 * time.Second // 31536000 seconds = one year
-	cacheTTLDefault    time.Duration = 3600 * time.Second     // 3600 seconds = one hour
-	defaultCacheSizeMb uint64        = 5                      // MB
+	cacheTTLMaximum  uint64 = 31536000 // 31536000 seconds = one year
+	cacheTTLDefault  uint64 = 3600     // 3600 seconds = one hour
+	defaultCacheSize uint   = 5        // MB
 )
 
 type CacheBackend string
@@ -33,15 +32,15 @@ const (
 )
 
 type CacheConfig struct {
-	LogDebug  bool
-	TTL       time.Duration // If 0, cache is disabled
-	MaxSizeMb uint64        // MB
-	Backend   CacheBackend  // If noop, cache is disabled
+	LogDebug bool
+	TTL      uint64       // If 0, cache is disabled
+	MaxSize  uint         // MB
+	Backend  CacheBackend // If noop, cache is disabled
 }
 
 type CacheStats struct {
-	Hits   uint64
-	Misses uint64
+	Hits   int64
+	Misses int64
 }
 
 type ContextKey struct{}
@@ -51,7 +50,7 @@ type GoCache struct {
 }
 
 type NoopCache struct {
-	counter uint64
+	counter int64
 }
 
 func NewNoopCache(ctx context.Context) *NoopCache {
@@ -80,15 +79,15 @@ func (n *NoopCache) Stats(ctx context.Context) CacheStats {
 }
 
 func (cc *CacheConfig) ToString() string {
-	return fmt.Sprintf("Backend: %v, TTL: %d, MaxSize: %dMB, LogDebug: %t", cc.Backend, cc.TTL, cc.MaxSizeMb, cc.LogDebug)
+	return fmt.Sprintf("Backend: %v, TTL: %d, MaxSize: %dMB, LogDebug: %t", cc.Backend, cc.TTL, cc.MaxSize, cc.LogDebug)
 }
 
 func DefaultCacheConfig() CacheConfig {
 	return CacheConfig{
-		TTL:       cacheTTLDefault,
-		MaxSizeMb: defaultCacheSizeMb,
-		LogDebug:  false,
-		Backend:   CacheBackendMemory,
+		TTL:      cacheTTLDefault,
+		MaxSize:  defaultCacheSize,
+		LogDebug: false,
+		Backend:  CacheBackendMemory,
 	}
 }
 
@@ -97,12 +96,12 @@ func NewCacheConfigFromEnv() *CacheConfig {
 
 	cacheMaxSize, err := strconv.ParseInt(os.Getenv("BATON_HTTP_CACHE_MAX_SIZE"), 10, 64)
 	if err == nil && cacheMaxSize >= 0 {
-		config.MaxSizeMb = uint64(cacheMaxSize)
+		config.MaxSize = uint(cacheMaxSize)
 	}
 
-	cacheTTL, err := strconv.ParseInt(os.Getenv("BATON_HTTP_CACHE_TTL"), 10, 64)
+	cacheTTL, err := strconv.ParseUint(os.Getenv("BATON_HTTP_CACHE_TTL"), 10, 64)
 	if err == nil {
-		config.TTL = min(cacheTTLMaximum, max(0, time.Duration(cacheTTL)*time.Second))
+		config.TTL = min(cacheTTLMaximum, max(0, cacheTTL))
 	}
 
 	cacheBackend := os.Getenv("BATON_HTTP_CACHE_BACKEND")
@@ -148,7 +147,7 @@ func NewHttpCache(ctx context.Context, config *CacheConfig) (icache, error) {
 	l.Info("http cache config", zap.String("config", config.ToString()))
 
 	if config.TTL == 0 {
-		l.Debug("NewHttpCache: Cache TTL is 0, disabling cache.", zap.Duration("cache_ttl", config.TTL))
+		l.Debug("CacheTTL is 0, disabling cache.", zap.Uint64("CacheTTL", config.TTL))
 		return NewNoopCache(ctx), nil
 	}
 
@@ -180,30 +179,26 @@ func NewHttpCache(ctx context.Context, config *CacheConfig) (icache, error) {
 func NewGoCache(ctx context.Context, cfg CacheConfig) (*GoCache, error) {
 	l := ctxzap.Extract(ctx)
 	gc := GoCache{}
-	maxSize := cfg.MaxSizeMb * 1024 * 1024
+	maxSize := cfg.MaxSize * 1024 * 1024
 	if maxSize > math.MaxInt {
 		return nil, fmt.Errorf("error converting max size to bytes")
 	}
-	cache, err := otter.New(&otter.Options[string, []byte]{
-		MaximumWeight: maxSize,
-		StatsRecorder: stats.NewCounter(),
-		Weigher: func(key string, value []byte) uint32 {
-			weight64 := uint64(len(key)) + uint64(len(value))
-			if weight64 > uint64(math.MaxUint32) {
-				return math.MaxUint32
-			}
-			return uint32(weight64)
-		},
-		ExpiryCalculator: otter.ExpiryWriting[string, []byte](cfg.TTL),
-	})
+	//nolint:gosec // disable G115: we check the max size
+	cache, err := otter.MustBuilder[string, []byte](int(maxSize)).
+		CollectStats().
+		Cost(func(key string, value []byte) uint32 {
+			return uint32(len(key) + len(value))
+		}).
+		WithTTL(time.Duration(cfg.TTL) * time.Second).
+		Build()
 
 	if err != nil {
 		l.Error("cache initialization error", zap.Error(err))
 		return nil, err
 	}
 
-	l.Debug("otter cache initialized", zap.Uint64("capacity", cache.GetMaximum()))
-	gc.rootLibrary = cache
+	l.Debug("otter cache initialized", zap.Int("capacity", cache.Capacity()))
+	gc.rootLibrary = &cache
 
 	return &gc, nil
 }
@@ -214,8 +209,8 @@ func (g *GoCache) Stats(ctx context.Context) CacheStats {
 	}
 	stats := g.rootLibrary.Stats()
 	return CacheStats{
-		Hits:   stats.Hits,
-		Misses: stats.Misses,
+		Hits:   stats.Hits(),
+		Misses: stats.Misses(),
 	}
 }
 
@@ -229,8 +224,8 @@ func (g *GoCache) Get(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 
-	entry, found := g.rootLibrary.GetIfPresent(key)
-	if !found {
+	entry, ok := g.rootLibrary.Get(key)
+	if !ok {
 		return nil, nil
 	}
 
@@ -264,7 +259,7 @@ func (g *GoCache) Set(req *http.Request, value *http.Response) error {
 
 	// Otter's cost function rejects large responses if there's not enough room
 	// TODO: return some error or warning that we couldn't set?
-	_, _ = g.rootLibrary.Set(key, newValue)
+	_ = g.rootLibrary.Set(key, newValue)
 
 	return nil
 }
@@ -274,7 +269,7 @@ func (g *GoCache) Delete(key string) error {
 		return nil
 	}
 
-	g.rootLibrary.Invalidate(key)
+	g.rootLibrary.Delete(key)
 
 	return nil
 }
@@ -286,7 +281,7 @@ func (g *GoCache) Clear(ctx context.Context) error {
 		return nil
 	}
 
-	g.rootLibrary.InvalidateAll()
+	g.rootLibrary.Clear()
 
 	l.Debug("reset cache")
 	return nil
@@ -296,6 +291,6 @@ func (g *GoCache) Has(key string) bool {
 	if g.rootLibrary == nil {
 		return false
 	}
-	_, found := g.rootLibrary.GetIfPresent(key)
+	_, found := g.rootLibrary.Get(key)
 	return found
 }

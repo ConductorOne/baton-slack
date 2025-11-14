@@ -29,10 +29,6 @@ type CustomActionManager interface {
 // It provides a mechanism to register a CustomActionManager with the connector.
 type RegisterActionManager interface {
 	ConnectorBuilder
-	RegisterActionManagerLimited
-}
-
-type RegisterActionManagerLimited interface {
 	RegisterActionManager(ctx context.Context) (CustomActionManager, error)
 }
 
@@ -53,10 +49,10 @@ func (b *builder) ListActionSchemas(ctx context.Context, request *v2.ListActionS
 		return nil, fmt.Errorf("error: listing action schemas failed: %w", err)
 	}
 
-	rv := v2.ListActionSchemasResponse_builder{
+	rv := &v2.ListActionSchemasResponse{
 		Schemas:     actionSchemas,
 		Annotations: annos,
-	}.Build()
+	}
 
 	b.m.RecordTaskSuccess(ctx, tt, b.nowFunc().Sub(start))
 	return rv, nil
@@ -79,10 +75,10 @@ func (b *builder) GetActionSchema(ctx context.Context, request *v2.GetActionSche
 		return nil, fmt.Errorf("error: getting action schema failed: %w", err)
 	}
 
-	rv := v2.GetActionSchemaResponse_builder{
+	rv := &v2.GetActionSchemaResponse{
 		Schema:      actionSchema,
 		Annotations: annos,
-	}.Build()
+	}
 
 	b.m.RecordTaskSuccess(ctx, tt, b.nowFunc().Sub(start))
 	return rv, nil
@@ -105,13 +101,13 @@ func (b *builder) InvokeAction(ctx context.Context, request *v2.InvokeActionRequ
 		return nil, fmt.Errorf("error: invoking action failed: %w", err)
 	}
 
-	rv := v2.InvokeActionResponse_builder{
+	rv := &v2.InvokeActionResponse{
 		Id:          id,
 		Name:        request.GetName(),
 		Status:      status,
 		Annotations: annos,
 		Response:    resp,
-	}.Build()
+	}
 
 	b.m.RecordTaskSuccess(ctx, tt, b.nowFunc().Sub(start))
 	return rv, nil
@@ -134,27 +130,27 @@ func (b *builder) GetActionStatus(ctx context.Context, request *v2.GetActionStat
 		return nil, fmt.Errorf("error: getting action status failed: %w", err)
 	}
 
-	resp := v2.GetActionStatusResponse_builder{
+	resp := &v2.GetActionStatusResponse{
 		Id:          request.GetId(),
 		Name:        name,
 		Status:      status,
 		Annotations: annos,
 		Response:    rv,
-	}.Build()
+	}
 
 	b.m.RecordTaskSuccess(ctx, tt, b.nowFunc().Sub(start))
 	return resp, nil
 }
 
-func (b *builder) addActionManager(ctx context.Context, in interface{}) error {
-	if actionManager, ok := in.(CustomActionManager); ok {
+func (b *builder) addActionManager(ctx context.Context, c ConnectorBuilder) error {
+	if actionManager, ok := c.(CustomActionManager); ok {
 		if b.actionManager != nil {
 			return fmt.Errorf("error: cannot set multiple action managers")
 		}
 		b.actionManager = actionManager
 	}
 
-	if registerActionManager, ok := in.(RegisterActionManagerLimited); ok {
+	if registerActionManager, ok := c.(RegisterActionManager); ok {
 		if b.actionManager != nil {
 			return fmt.Errorf("error: cannot register multiple action managers")
 		}

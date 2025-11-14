@@ -30,10 +30,6 @@ type CreateAccountResponse interface {
 // represents users or accounts that can be provisioned.
 type AccountManager interface {
 	ResourceSyncer
-	AccountManagerLimited
-}
-
-type AccountManagerLimited interface {
 	CreateAccount(ctx context.Context,
 		accountInfo *v2.AccountInfo,
 		credentialOptions *v2.LocalCredentialOptions) (CreateAccountResponse, []*v2.PlaintextData, annotations.Annotations, error)
@@ -41,7 +37,6 @@ type AccountManagerLimited interface {
 }
 
 type OldAccountManager interface {
-	ResourceSyncer
 	CreateAccount(ctx context.Context,
 		accountInfo *v2.AccountInfo,
 		credentialOptions *v2.CredentialOptions) (CreateAccountResponse, []*v2.PlaintextData, annotations.Annotations, error)
@@ -91,16 +86,16 @@ func (b *builder) CreateAccount(ctx context.Context, request *v2.CreateAccountRe
 		encryptedDatas = append(encryptedDatas, encryptedData...)
 	}
 
-	rv := v2.CreateAccountResponse_builder{
+	rv := &v2.CreateAccountResponse{
 		EncryptedData: encryptedDatas,
 		Annotations:   annos,
-	}.Build()
+	}
 
 	switch r := result.(type) {
 	case *v2.CreateAccountResponse_SuccessResult:
-		rv.SetSuccess(proto.ValueOrDefault(r))
+		rv.Result = &v2.CreateAccountResponse_Success{Success: r}
 	case *v2.CreateAccountResponse_ActionRequiredResult:
-		rv.SetActionRequired(proto.ValueOrDefault(r))
+		rv.Result = &v2.CreateAccountResponse_ActionRequired{ActionRequired: r}
 	default:
 		b.m.RecordTaskFailure(ctx, tt, b.nowFunc().Sub(start))
 		return nil, status.Error(codes.Unimplemented, fmt.Sprintf("unknown result type: %T", result))
@@ -110,14 +105,12 @@ func (b *builder) CreateAccount(ctx context.Context, request *v2.CreateAccountRe
 	return rv, nil
 }
 
-func (b *builder) addAccountManager(_ context.Context, typeId string, in interface{}) error {
-	if _, ok := in.(OldAccountManager); ok {
+func (b *builder) addAccountManager(_ context.Context, typeId string, rb ResourceSyncer) error {
+	if _, ok := rb.(OldAccountManager); ok {
 		return fmt.Errorf("error: old account manager interface implemented for %s", typeId)
 	}
 
-	if accountManager, ok := in.(AccountManagerLimited); ok {
-		// NOTE(kans): currently unused - but these should probably be (resource) typed
-		b.accountManagers[typeId] = accountManager
+	if accountManager, ok := rb.(AccountManager); ok {
 		if b.accountManager != nil {
 			return fmt.Errorf("error: duplicate resource type found for account manager %s", typeId)
 		}
