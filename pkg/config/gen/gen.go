@@ -1,8 +1,8 @@
 package main
 
 import (
-	cfg "github.com/conductorone/baton-slack/pkg/config"
 	"github.com/conductorone/baton-sdk/pkg/config"
+	cfg "github.com/conductorone/baton-slack/pkg/config"
 )
 
 func main() {

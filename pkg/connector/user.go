@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"sync"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
@@ -23,8 +21,6 @@ type userResourceType struct {
 	enterpriseID     string
 	enterpriseClient *enterprise.Client
 	ssoEnabled       bool
-	adminUsersCache  map[string]enterprise.UserAdmin
-	adminCacheMutex  sync.RWMutex
 }
 
 func (o *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -78,28 +74,6 @@ func (o *userResourceType) scimUserResource(ctx context.Context, user enterprise
 		)
 	}
 
-	// Enrich with admin data if available in cache (SSO, MFA, bot status).
-	// done for backwards compatibility.
-	if adminUser, ok := o.getAdminUser(ctx, user.ID); ok {
-		profile["sso_user"] = adminUser.HasSso
-
-		ssoStatus := &v2.UserTrait_SSOStatus{SsoEnabled: adminUser.HasSso}
-		userTraitOptions = append(userTraitOptions, resource.WithSSOStatus(ssoStatus))
-
-		if adminUser.Has2Fa {
-			userTraitOptions = append(
-				userTraitOptions,
-				resource.WithMFAStatus(&v2.UserTrait_MFAStatus{MfaEnabled: true}),
-			)
-		}
-
-		if adminUser.IsBot {
-			userTraitOptions = append(
-				userTraitOptions,
-				resource.WithAccountType(v2.UserTrait_ACCOUNT_TYPE_SERVICE),
-			)
-		}
-	}
 
 	return resource.NewUserResource(
 		displayName,
@@ -172,39 +146,63 @@ func userResource(
 	)
 }
 
-func (o *userResourceType) List(ctx context.Context, parentResourceID *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (o *userResourceType) List(
+	ctx context.Context,
+	parentResourceID *v2.ResourceId,
+	attrs resource.SyncOpAttrs,
+) (
+	[]*v2.Resource,
+	*resource.SyncOpResults,
+	error,
+) {
 	// if we have an enterprise client, use the SCIM API to list users (lists all users in the enterprise)
 	// including those without a workspace
 	if o.enterpriseClient != nil && o.ssoEnabled {
-		return o.listScimAPI(ctx, parentResourceID, pt)
+		return o.listScimAPI(ctx, parentResourceID, attrs)
 	}
 	// standard Slack API to list users in the given workspace
-	return o.listUsers(ctx, parentResourceID, pt)
+	return o.listUsers(ctx, parentResourceID, attrs)
 }
 
-func (o *userResourceType) Entitlements(_ context.Context, _ *v2.Resource, _ *pagination.Token) ([]*v2.Entitlement, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+func (o *userResourceType) Entitlements(
+	_ context.Context,
+	_ *v2.Resource,
+	_ resource.SyncOpAttrs,
+) (
+	[]*v2.Entitlement,
+	*resource.SyncOpResults,
+	error,
+) {
+	return nil, &resource.SyncOpResults{}, nil
 }
 
-func (o *userResourceType) Grants(_ context.Context, _ *v2.Resource, _ *pagination.Token) ([]*v2.Grant, string, annotations.Annotations, error) {
-	return nil, "", nil, nil
+func (o *userResourceType) Grants(
+	_ context.Context,
+	_ *v2.Resource,
+	_ resource.SyncOpAttrs,
+) (
+	[]*v2.Grant,
+	*resource.SyncOpResults,
+	error,
+) {
+	return nil, &resource.SyncOpResults{}, nil
 }
 
 // listScimAPI lists users using the SCIM API.
 // requires enterprise client and SSO to be enabled.
-func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2.ResourceId, attrs resource.SyncOpAttrs) ([]*v2.Resource, *resource.SyncOpResults, error) {
 	if o.enterpriseClient == nil {
-		return nil, "", nil, fmt.Errorf("baton-slack: SCIM API requires enterprise client")
+		return nil, nil, fmt.Errorf("baton-slack: SCIM API requires enterprise client")
 	}
 	l := ctxzap.Extract(ctx)
 	l.Info("Listing Slack users using SCIM API")
 
 	var err error
 	startIndex := 1
-	if pt != nil && pt.Token != "" {
-		startIndex, err = strconv.Atoi(pt.Token)
+	if attrs.PageToken.Token != "" {
+		startIndex, err = strconv.Atoi(attrs.PageToken.Token)
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("invalid page token: %w", err)
+			return nil, nil, fmt.Errorf("invalid page token: %w", err)
 		}
 	}
 
@@ -213,14 +211,14 @@ func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2
 	response, ratelimitData, err := o.enterpriseClient.ListIDPUsers(ctx, startIndex, count)
 	annos.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, "", annos, fmt.Errorf("error fetching SCIM users: %w", err)
+		return nil, &resource.SyncOpResults{Annotations: annos}, fmt.Errorf("error fetching SCIM users: %w", err)
 	}
 
 	rv := make([]*v2.Resource, 0, len(response.Resources))
 	for _, user := range response.Resources {
 		userResource, err := o.scimUserResource(ctx, user)
 		if err != nil {
-			return nil, "", annos, fmt.Errorf("error creating user resource: %w", err)
+			return nil, &resource.SyncOpResults{Annotations: annos}, fmt.Errorf("error creating user resource: %w", err)
 		}
 		rv = append(rv, userResource)
 	}
@@ -229,36 +227,83 @@ func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2
 	if response.TotalResults > startIndex+count-1 {
 		nextPageToken = fmt.Sprint(startIndex + count)
 	}
-	return rv, nextPageToken, annos, nil
+	return rv, &resource.SyncOpResults{NextPageToken: nextPageToken, Annotations: annos}, nil
 }
 
 // listUsers lists users using the standard Slack API.
 // does not require enterprise client.
-func (o *userResourceType) listUsers(ctx context.Context, parentResourceID *v2.ResourceId, pt *pagination.Token) ([]*v2.Resource, string, annotations.Annotations, error) {
+func (o *userResourceType) listUsers(ctx context.Context, parentResourceID *v2.ResourceId, attrs resource.SyncOpAttrs) ([]*v2.Resource, *resource.SyncOpResults, error) {
 	if parentResourceID == nil {
-		return nil, "", nil, nil
+		return nil, &resource.SyncOpResults{}, nil
 	}
 
 	l := ctxzap.Extract(ctx)
 	l.Info("Listing Slack users using standard API")
+
+	var (
+		allUsers      []enterprise.UserAdmin
+		pageToken     string
+		nextCursor    string
+		ratelimitData *v2.RateLimitDescription
+	)
+	outputAnnotations := annotations.New()
+	if o.enterpriseID != "" {
+		bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to parse page token: %w", err)
+		}
+
+		// We need to fetch all users because users without workspace won't be
+		// fetched by GetUsersContext.
+		allUsers, nextCursor, ratelimitData, err = o.enterpriseClient.GetUsersAdmin(ctx, bag.PageToken())
+		outputAnnotations.WithRateLimiting(ratelimitData)
+		if err != nil {
+			return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, err
+		}
+		pageToken, err = bag.NextToken(nextCursor)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
 	options := slack.GetUsersOptionTeamID(parentResourceID.Resource)
 	users, err := o.client.GetUsersContext(ctx, options)
 	if err != nil {
 		annos, err := pkg.AnnotationsForError(err)
-		return nil, "", annos, err
+		return nil, &resource.SyncOpResults{Annotations: annos}, err
 	}
 
-	rv := make([]*v2.Resource, 0, len(users))
+	// Create a base resource if user has no workspace.
+	rv0, err := pkg.MakeResourceList(
+		ctx,
+		allUsers,
+		nil,
+		baseUserResource,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	// Users without workspace won't be part of users array.
-	for _, user := range users {
-		resource, err := userResource(ctx, &user, parentResourceID)
-		if err != nil {
-			return nil, "", nil, fmt.Errorf("baton-slack: cannot create user resource: %w", err)
-		}
-		rv = append(rv, resource)
+	rv1, err := pkg.MakeResourceList(
+		ctx,
+		users,
+		parentResourceID,
+		func(
+			ctx context.Context,
+			object slack.User,
+			parentResourceID *v2.ResourceId,
+		) (
+			*v2.Resource,
+			error,
+		) {
+			return userResource(ctx, &object, parentResourceID)
+		},
+	)
+	if err != nil {
+		return nil, nil, err
 	}
-
-	return rv, "", nil, nil
+	return append(rv0, rv1...), &resource.SyncOpResults{NextPageToken: pageToken, Annotations: outputAnnotations}, nil
 }
 
 func (o *userResourceType) CreateAccount(
@@ -340,17 +385,74 @@ func getInviteUserParams(accountInfo *v2.AccountInfo) (*enterprise.InviteUserPar
 	}, nil
 }
 
+
+// baseUserResource creates a base user resource without workspace info.
+func baseUserResource(
+	_ context.Context,
+	user enterprise.UserAdmin,
+	_ *v2.ResourceId,
+) (*v2.Resource, error) {
+	profile := make(map[string]interface{})
+	profile["user_id"] = user.ID
+	profile["sso_user"] = user.HasSso
+
+	userStatus := v2.UserTrait_Status_STATUS_ENABLED
+	if !user.IsActive {
+		userStatus = v2.UserTrait_Status_STATUS_DISABLED
+	}
+
+	userTraitOptions := []resource.UserTraitOption{
+		resource.WithUserProfile(profile),
+		resource.WithStatus(userStatus),
+	}
+
+	if user.HasSso {
+		ssoStatus := &v2.UserTrait_SSOStatus{SsoEnabled: user.HasSso}
+		userTraitOptions = append(userTraitOptions, resource.WithSSOStatus(ssoStatus))
+	}
+
+	if user.Has2Fa {
+		userTraitOptions = append(
+			userTraitOptions,
+			resource.WithMFAStatus(&v2.UserTrait_MFAStatus{MfaEnabled: true}),
+		)
+	}
+
+	if user.IsBot {
+		userTraitOptions = append(
+			userTraitOptions,
+			resource.WithAccountType(v2.UserTrait_ACCOUNT_TYPE_SERVICE),
+		)
+	}
+
+	displayName := user.ID
+	if user.Email != "" {
+		userTraitOptions = append(
+			userTraitOptions,
+			resource.WithEmail(user.Email, true),
+		)
+		displayName = user.Email
+	}
+
+	return resource.NewUserResource(
+		displayName,
+		resourceTypeUser,
+		user.ID,
+		userTraitOptions,
+	)
+}
+
 func userBuilder(
 	client *slack.Client,
 	enterpriseID string,
 	enterpriseClient *enterprise.Client,
-	ssoEnabled bool,
 ) *userResourceType {
 	return &userResourceType{
 		resourceType:     resourceTypeUser,
 		client:           client,
 		enterpriseID:     enterpriseID,
 		enterpriseClient: enterpriseClient,
-		ssoEnabled:       ssoEnabled,
+		ssoEnabled:       true, // Enable SSO features for SCIM API access
 	}
 }
+
