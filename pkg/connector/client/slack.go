@@ -10,10 +10,10 @@ import (
 	"sync"
 
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
+	"github.com/conductorone/baton-slack/pkg"
 	"github.com/slack-go/slack"
 )
 
@@ -82,30 +82,50 @@ func NewClient(
 }
 
 // handleError - Slack can return a 200 with an error in the JSON body.
-// Generally, it is bad practice to use interpolation in error message
-// construction. It makes it difficult to find the failing code when debugging.
+// This function wraps errors with appropriate gRPC codes for better classification
+// and handling in C1 and alerting systems.
+// It uses the centralized MapSlackErrorToGRPCCode function from pkg/helpers.go.
 func (a BaseResponse) handleError(err error, action string) error {
 	if err != nil {
-		return fmt.Errorf("baton-slack: error %s: %w", action, err)
+		return fmt.Errorf("error %s: %w", action, err)
 	}
 
 	if a.Error != "" {
-		switch a.Error {
-		case SlackErrUserAlreadyTeamMember:
-			// Return an error with the exact string for the Grant function to check.
-			return errors.New(SlackErrUserAlreadyTeamMember)
-		case SlackErrUserAlreadyDeleted:
-			// Return an error with the specific string for the Revoke function to check.
-			return errors.New(SlackErrUserAlreadyDeleted)
-		default:
-			return fmt.Errorf(
-				"baton-slack: error %s: error %v needed %v provided %v",
-				action,
-				a.Error,
-				a.Needed,
-				a.Provided,
-			)
+		// Use the centralized error mapping from pkg package
+		grpcCode := pkg.MapSlackErrorToGRPCCode(a.Error)
+
+		// Build detailed error message
+		errMsg := a.Error
+		if a.Needed != "" || a.Provided != "" {
+			errMsg = fmt.Sprintf("%s (needed: %v, provided: %v)", a.Error, a.Needed, a.Provided)
 		}
+
+		// Create appropriate context message based on the code
+		var contextMsg string
+		switch grpcCode {
+		case codes.Unauthenticated:
+			contextMsg = "authentication failed"
+		case codes.PermissionDenied:
+			contextMsg = "insufficient permissions"
+		case codes.NotFound:
+			contextMsg = "resource not found"
+		case codes.InvalidArgument:
+			contextMsg = "invalid argument"
+		case codes.ResourceExhausted:
+			contextMsg = "rate limited"
+		case codes.Unavailable:
+			contextMsg = "service unavailable"
+		case codes.AlreadyExists:
+			contextMsg = "resource already exists"
+		default:
+			contextMsg = "error"
+		}
+
+		return uhttp.WrapErrors(
+			grpcCode,
+			fmt.Sprintf("%s during %s", contextMsg, action),
+			errors.New(errMsg),
+		)
 	}
 	return nil
 }
@@ -118,7 +138,7 @@ func (c *Client) SetWorkspaceName(workspaceID, workspaceName string) {
 
 func (c *Client) GetWorkspaceName(ctx context.Context, client *slack.Client, workspaceID string) (string, error) {
 	if workspaceID == "" {
-		return "", fmt.Errorf("workspace ID is empty")
+		return "", uhttp.WrapErrors(codes.InvalidArgument, "workspace ID is empty", errors.New("empty workspace ID"))
 	}
 	c.workspacesNameCacheMutex.RLock()
 	workspaceName, ok := c.workspacesNameCache[workspaceID]
@@ -137,7 +157,7 @@ func (c *Client) GetWorkspaceName(ctx context.Context, client *slack.Client, wor
 			params := slack.ListTeamsParameters{Cursor: nextCursor}
 			workspaces, nextCursor, err = client.ListTeamsContext(ctx, params)
 			if err != nil {
-				return "", fmt.Errorf("error getting auth teams list: %w", err)
+				return "", uhttp.WrapErrors(codes.Unavailable, "failed to list teams for workspace name lookup", err)
 			}
 			for _, workspace := range workspaces {
 				c.SetWorkspaceName(workspace.ID, workspace.Name)
@@ -158,7 +178,7 @@ func (c *Client) GetWorkspaceName(ctx context.Context, client *slack.Client, wor
 			var workspaces []slack.Team
 			workspaces, nextCursor, _, err = c.GetAuthTeamsList(ctx, nextCursor)
 			if err != nil {
-				return "", fmt.Errorf("error getting auth teams list: %w", err)
+				return "", fmt.Errorf("failed to get auth teams list for workspace name lookup: %w", err)
 			}
 			for _, workspace := range workspaces {
 				c.SetWorkspaceName(workspace.ID, workspace.Name)
@@ -175,7 +195,7 @@ func (c *Client) GetWorkspaceName(ctx context.Context, client *slack.Client, wor
 	}
 
 	if workspaceName == "" {
-		return "", status.Errorf(codes.NotFound, "workspace not found: %s", workspaceID)
+		return "", uhttp.WrapErrors(codes.NotFound, fmt.Sprintf("workspace not found: %s", workspaceID), errors.New("workspace not found"))
 	}
 
 	return workspaceName, nil
@@ -525,7 +545,7 @@ func (c *Client) ListIDPGroups(
 		},
 	)
 	if err != nil {
-		return nil, ratelimitData, fmt.Errorf("error fetching IDP groups: %w", err)
+		return nil, ratelimitData, fmt.Errorf("failed to fetch IDP groups: %w", err)
 	}
 
 	return &response, ratelimitData, nil
@@ -548,7 +568,7 @@ func (c *Client) GetIDPGroup(
 		nil,
 	)
 	if err != nil {
-		return nil, ratelimitData, fmt.Errorf("error fetching IDP group: %w", err)
+		return nil, ratelimitData, fmt.Errorf("failed to fetch IDP group: %w", err)
 	}
 
 	return &response, ratelimitData, nil
@@ -578,7 +598,7 @@ func (c *Client) AddUserToGroup(
 
 	ratelimitData, err := c.patchGroup(ctx, groupID, requestBody)
 	if err != nil {
-		return ratelimitData, fmt.Errorf("error adding user to IDP group: %w", err)
+		return ratelimitData, fmt.Errorf("failed to add user to IDP group: %w", err)
 	}
 
 	return ratelimitData, nil
@@ -597,7 +617,7 @@ func (c *Client) RemoveUserFromGroup(
 	// First, we need to fetch group to get existing members.
 	group, ratelimitData, err := c.GetIDPGroup(ctx, groupID)
 	if err != nil {
-		return false, ratelimitData, fmt.Errorf("error fetching IDP group: %w", err)
+		return false, ratelimitData, fmt.Errorf("failed to fetch IDP group for removal: %w", err)
 	}
 
 	found := false
@@ -628,7 +648,7 @@ func (c *Client) RemoveUserFromGroup(
 
 	ratelimitData, err = c.patchGroup(ctx, groupID, requestBody)
 	if err != nil {
-		return false, ratelimitData, fmt.Errorf("error removing user from IDP group: %w", err)
+		return false, ratelimitData, fmt.Errorf("failed to remove user from IDP group: %w", err)
 	}
 
 	return true, ratelimitData, nil
@@ -644,7 +664,7 @@ func (c *Client) patchGroup(
 ) {
 	payload, err := json.Marshal(requestBody)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal patch request: %w", err)
 	}
 
 	var response *GroupResource
@@ -655,7 +675,7 @@ func (c *Client) patchGroup(
 		payload,
 	)
 	if err != nil {
-		return ratelimitData, fmt.Errorf("error patching IDP group: %w", err)
+		return ratelimitData, fmt.Errorf("failed to patch IDP group: %w", err)
 	}
 
 	return ratelimitData, nil
@@ -741,7 +761,7 @@ func (c *Client) DisableUser(
 		fmt.Sprintf(UrlPathIDPUser, c.scimVersion, userID),
 	)
 	if err != nil {
-		return ratelimitData, fmt.Errorf("error disabling user: %w", err)
+		return ratelimitData, fmt.Errorf("failed to disable user: %w", err)
 	}
 
 	return ratelimitData, nil
@@ -774,7 +794,7 @@ func (c *Client) EnableUser(
 		requestBody,
 	)
 	if err != nil {
-		return ratelimitData, fmt.Errorf("error enabling user: %w", err)
+		return ratelimitData, fmt.Errorf("failed to enable user: %w", err)
 	}
 
 	return ratelimitData, nil
@@ -790,7 +810,7 @@ func (c *Client) AssignEnterpriseRole(
 	error,
 ) {
 	if c.enterpriseID == "" {
-		return nil, fmt.Errorf("enterprise ID is required for role assignment")
+		return nil, uhttp.WrapErrors(codes.InvalidArgument, "enterprise ID is required for role assignment", errors.New("missing enterprise ID"))
 	}
 
 	var response struct {
@@ -833,7 +853,7 @@ func (c *Client) UnassignEnterpriseRole(
 	error,
 ) {
 	if c.enterpriseID == "" {
-		return nil, fmt.Errorf("enterprise ID is required for role removal")
+		return nil, uhttp.WrapErrors(codes.InvalidArgument, "enterprise ID is required for role removal", errors.New("missing enterprise ID"))
 	}
 
 	var response struct {
