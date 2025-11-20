@@ -137,11 +137,13 @@ func (c *Client) GetWorkspaceName(ctx context.Context, ss sessions.SessionStore,
 			if err != nil {
 				return "", fmt.Errorf("error getting auth teams list: %w", err)
 			}
+
+			err = c.SetWorkspaceNames(ctx, ss, workspaces)
+			if err != nil {
+				return "", err
+			}
+
 			for _, workspace := range workspaces {
-				err = c.SetWorkspaceName(ctx, ss, workspace.ID, workspace.Name)
-				if err != nil {
-					return "", err
-				}
 				if workspace.ID == workspaceID {
 					workspaceName = workspace.Name
 					nextCursor = ""
@@ -161,11 +163,13 @@ func (c *Client) GetWorkspaceName(ctx context.Context, ss sessions.SessionStore,
 			if err != nil {
 				return "", fmt.Errorf("error getting auth teams list: %w", err)
 			}
+
+			err = c.SetWorkspaceNames(ctx, ss, workspaces)
+			if err != nil {
+				return "", err
+			}
+
 			for _, workspace := range workspaces {
-				err = c.SetWorkspaceName(ctx, ss, workspace.ID, workspace.Name)
-				if err != nil {
-					return "", err
-				}
 				if workspace.ID == workspaceID {
 					workspaceName = workspace.Name
 					nextCursor = ""
