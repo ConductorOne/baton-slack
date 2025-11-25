@@ -8,9 +8,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/session"
 	"github.com/conductorone/baton-sdk/pkg/types/sessions"
@@ -109,92 +106,36 @@ func (a BaseResponse) handleError(err error, action string) error {
 	return nil
 }
 
-func (c *Client) SetWorkspaceName(ctx context.Context, ss sessions.SessionStore, workspaceID, workspaceName string) error {
-	return session.SetJSON(ctx, ss, workspaceID, workspaceName, workspaceNameNamespace)
-}
-
-func (c *Client) GetWorkspaceName(ctx context.Context, ss sessions.SessionStore, client *slack.Client, workspaceID string) (string, error) {
-	if workspaceID == "" {
-		return "", fmt.Errorf("workspace ID is empty")
-	}
-
-	workspaceName, found, err := session.GetJSON[string](ctx, ss, workspaceID, workspaceNameNamespace)
-	if err != nil {
-		return "", err
-	}
-	if found {
-		return workspaceName, nil
-	}
-
-	workspaceName = ""
-	if c.enterpriseID == "" {
-		nextCursor := ""
-		for {
-			var err error
-			var workspaces []slack.Team
-			params := slack.ListTeamsParameters{Cursor: nextCursor}
-			workspaces, nextCursor, err = client.ListTeamsContext(ctx, params)
-			if err != nil {
-				return "", fmt.Errorf("error getting auth teams list: %w", err)
-			}
-
-			err = c.SetWorkspaceNames(ctx, ss, workspaces)
-			if err != nil {
-				return "", err
-			}
-
-			for _, workspace := range workspaces {
-				if workspace.ID == workspaceID {
-					workspaceName = workspace.Name
-					nextCursor = ""
-					break
-				}
-			}
-			if nextCursor == "" {
-				break
-			}
-		}
-	} else {
-		nextCursor := ""
-		for {
-			var err error
-			var workspaces []slack.Team
-			workspaces, nextCursor, _, err = c.GetAuthTeamsList(ctx, nextCursor)
-			if err != nil {
-				return "", fmt.Errorf("error getting auth teams list: %w", err)
-			}
-
-			err = c.SetWorkspaceNames(ctx, ss, workspaces)
-			if err != nil {
-				return "", err
-			}
-
-			for _, workspace := range workspaces {
-				if workspace.ID == workspaceID {
-					workspaceName = workspace.Name
-					nextCursor = ""
-					break
-				}
-			}
-			if nextCursor == "" {
-				break
-			}
-		}
-	}
-
-	if workspaceName == "" {
-		return "", status.Errorf(codes.NotFound, "workspace not found: %s", workspaceID)
-	}
-
-	return workspaceName, nil
-}
-
 func (c *Client) SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaces []slack.Team) error {
 	workspaceMap := make(map[string]string)
 	for _, workspace := range workspaces {
 		workspaceMap[workspace.ID] = workspace.Name
 	}
 	return session.SetManyJSON(ctx, ss, workspaceMap, workspaceNameNamespace)
+}
+
+func (c *Client) GetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaceIDs []string) (map[string]string, []string, error) {
+	found := make(map[string]string)
+	missing := make([]string, 0)
+
+	for _, workspaceID := range workspaceIDs {
+		if workspaceID == "" {
+			continue
+		}
+
+		workspaceName, exists, err := session.GetJSON[string](ctx, ss, workspaceID, workspaceNameNamespace)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if exists {
+			found[workspaceID] = workspaceName
+		} else {
+			missing = append(missing, workspaceID)
+		}
+	}
+
+	return found, missing, nil
 }
 
 // GetUserInfo returns the user info for the given user ID.

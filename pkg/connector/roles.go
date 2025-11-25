@@ -122,9 +122,13 @@ func (o *workspaceRoleType) Entitlements(
 	*resources.SyncOpResults,
 	error,
 ) {
-	workspaceName, err := o.enterpriseClient.GetWorkspaceName(ctx, attrs.Session, o.client, resource.ParentResourceId.Resource)
+	found, missing, err := o.enterpriseClient.GetWorkspaceNames(ctx, attrs.Session, []string{resource.ParentResourceId.Resource})
 	if err != nil {
 		return nil, nil, fmt.Errorf("error getting workspace name for workspace id %s: %w", resource.ParentResourceId.Resource, err)
+	}
+	workspaceName, exists := found[resource.ParentResourceId.Resource]
+	if !exists {
+		return nil, nil, fmt.Errorf("workspace not found in cache: %s (missing: %v)", resource.ParentResourceId.Resource, missing)
 	}
 	return []*v2.Entitlement{
 			entitlement.NewAssignmentEntitlement(
