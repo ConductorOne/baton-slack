@@ -2,6 +2,7 @@ package connector
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -9,11 +10,13 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 )
 
 const memberEntitlement = "member"
@@ -293,7 +296,7 @@ func (o *workspaceResourceType) Grant(
 	entitlement *v2.Entitlement,
 ) (annotations.Annotations, error) {
 	if o.enterpriseID == "" {
-		return nil, fmt.Errorf("baton-slack: enterprise ID and enterprise token are both required")
+		return nil, uhttp.WrapErrors(codes.InvalidArgument, "enterprise ID and enterprise token are both required", errors.New("missing enterprise configuration"))
 	}
 
 	logger := ctxzap.Extract(ctx)
@@ -304,7 +307,7 @@ func (o *workspaceResourceType) Grant(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, fmt.Errorf("baton-slack: only users can be assigned to a workspace")
+		return nil, uhttp.WrapErrors(codes.PermissionDenied, "only users can be assigned to a workspace", errors.New("invalid principal type"))
 	}
 
 	outputAnnotations := annotations.New()
@@ -338,7 +341,7 @@ func (o *workspaceResourceType) Revoke(
 	error,
 ) {
 	if o.enterpriseID == "" {
-		return nil, fmt.Errorf("baton-slack: enterprise ID and enterprise token are both required to revoke grants")
+		return nil, uhttp.WrapErrors(codes.InvalidArgument, "enterprise ID and enterprise token are both required to revoke grants", errors.New("missing enterprise configuration"))
 	}
 
 	logger := ctxzap.Extract(ctx)
@@ -350,7 +353,7 @@ func (o *workspaceResourceType) Revoke(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, fmt.Errorf("baton-slack: only users can be revoked from a workspace")
+		return nil, uhttp.WrapErrors(codes.PermissionDenied, "only users can be revoked from a workspace", errors.New("invalid principal type"))
 	}
 
 	outputAnnotations := annotations.New()

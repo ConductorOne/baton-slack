@@ -9,11 +9,13 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/cli"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
+	"github.com/conductorone/baton-slack/pkg"
 	cfg "github.com/conductorone/baton-slack/pkg/config"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 )
 
 type Slack struct {
@@ -73,17 +75,21 @@ func (c *Slack) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
 func (s *Slack) Validate(ctx context.Context) (annotations.Annotations, error) {
 	res, err := s.client.AuthTestContext(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("slack-connector: failed to authenticate. Error: %w", err)
+		return nil, pkg.WrapSlackClientError(err, "authenticating")
 	}
 
 	user, err := s.client.GetUserInfoContext(ctx, res.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("slack-connector: failed to retrieve authenticated user. Error: %w", err)
+		return nil, pkg.WrapSlackClientError(err, "retrieving authenticated user")
 	}
 
 	isValidUser := user.IsAdmin || user.IsOwner || user.IsPrimaryOwner || user.IsBot
 	if !isValidUser {
-		return nil, fmt.Errorf("slack-connector: authenticated user is not an admin, owner, primary owner or a bot")
+		return nil, uhttp.WrapErrors(
+			codes.PermissionDenied,
+			"authenticated user is not an admin, owner, primary owner or a bot",
+			fmt.Errorf("user lacks required permissions"),
+		)
 	}
 	return nil, nil
 }
@@ -118,14 +124,18 @@ func NewSlack(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool
 
 	res, err := client.AuthTestContext(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("slack-connector: failed to authenticate. Error: %w", err)
+		return nil, pkg.WrapSlackClientError(err, "authenticating during initialization")
 	}
 
 	var enterpriseId string
 	if res.EnterpriseID != "" {
 		enterpriseId = res.EnterpriseID
 		if enterpriseKey == "" {
-			return nil, fmt.Errorf("slack-connector: enterprise account detected, but no enterprise token specified")
+			return nil, uhttp.WrapErrors(
+				codes.InvalidArgument,
+				"enterprise account detected, but no enterprise token specified",
+				fmt.Errorf("missing enterprise token"),
+			)
 		}
 	}
 	enterpriseClient, err := enterprise.NewClient(
@@ -137,7 +147,7 @@ func NewSlack(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool
 		govEnv,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("slack-connector: failed to create enterprise client. Error: %w", err)
+		return nil, fmt.Errorf("failed to create enterprise client. Error: %w", err)
 	}
 	return &Slack{
 		client:           client,
@@ -167,7 +177,7 @@ func New(ctx context.Context, config *cfg.Slack, opts *cli.ConnectorOpts) (conne
 
 func (s *Slack) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncerV2 {
 	return []connectorbuilder.ResourceSyncerV2{
-		userBuilder(s.client, s.enterpriseID, s.enterpriseClient),
+		userBuilder(s.client, s.enterpriseID, s.enterpriseClient, s.ssoEnabled),
 		workspaceBuilder(s.client, s.enterpriseID, s.enterpriseClient),
 		userGroupBuilder(s.client, s.enterpriseID, s.enterpriseClient),
 		workspaceRoleBuilder(s.client, s.enterpriseID, s.enterpriseClient),

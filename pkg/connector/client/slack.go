@@ -8,14 +8,13 @@ import (
 	"net/http"
 	"net/url"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/session"
 	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
+	"github.com/conductorone/baton-slack/pkg"
 	"github.com/slack-go/slack"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -81,108 +80,52 @@ func NewClient(
 }
 
 // handleError - Slack can return a 200 with an error in the JSON body.
-// Generally, it is bad practice to use interpolation in error message
-// construction. It makes it difficult to find the failing code when debugging.
+// This function wraps errors with appropriate gRPC codes for better classification
+// and handling in C1 and alerting systems.
+// It uses the centralized MapSlackErrorToGRPCCode function from pkg/helpers.go.
 func (a BaseResponse) handleError(err error, action string) error {
 	if err != nil {
-		return fmt.Errorf("baton-slack: error %s: %w", action, err)
+		return fmt.Errorf("error %s: %w", action, err)
 	}
 
 	if a.Error != "" {
-		switch a.Error {
-		case SlackErrUserAlreadyTeamMember:
-			// Return an error with the exact string for the Grant function to check.
-			return errors.New(SlackErrUserAlreadyTeamMember)
-		case SlackErrUserAlreadyDeleted:
-			// Return an error with the specific string for the Revoke function to check.
-			return errors.New(SlackErrUserAlreadyDeleted)
-		default:
-			return fmt.Errorf(
-				"baton-slack: error %s: error %v needed %v provided %v",
-				action,
-				a.Error,
-				a.Needed,
-				a.Provided,
-			)
+		// Use the centralized error mapping from pkg package
+		grpcCode := pkg.MapSlackErrorToGRPCCode(a.Error)
+
+		// Build detailed error message
+		errMsg := a.Error
+		if a.Needed != "" || a.Provided != "" {
+			errMsg = fmt.Sprintf("%s (needed: %v, provided: %v)", a.Error, a.Needed, a.Provided)
 		}
+
+		// Create appropriate context message based on the code
+		var contextMsg string
+		switch grpcCode {
+		case codes.Unauthenticated:
+			contextMsg = "authentication failed"
+		case codes.PermissionDenied:
+			contextMsg = "insufficient permissions"
+		case codes.NotFound:
+			contextMsg = "resource not found"
+		case codes.InvalidArgument:
+			contextMsg = "invalid argument"
+		case codes.ResourceExhausted:
+			contextMsg = "rate limited"
+		case codes.Unavailable:
+			contextMsg = "service unavailable"
+		case codes.AlreadyExists:
+			contextMsg = "resource already exists"
+		default:
+			contextMsg = "error"
+		}
+
+		return uhttp.WrapErrors(
+			grpcCode,
+			fmt.Sprintf("%s during %s", contextMsg, action),
+			errors.New(errMsg),
+		)
 	}
 	return nil
-}
-
-func (c *Client) SetWorkspaceName(ctx context.Context, ss sessions.SessionStore, workspaceID, workspaceName string) error {
-	return session.SetJSON(ctx, ss, workspaceID, workspaceName, workspaceNameNamespace)
-}
-
-func (c *Client) GetWorkspaceName(ctx context.Context, ss sessions.SessionStore, client *slack.Client, workspaceID string) (string, error) {
-	if workspaceID == "" {
-		return "", fmt.Errorf("workspace ID is empty")
-	}
-
-	workspaceName, found, err := session.GetJSON[string](ctx, ss, workspaceID, workspaceNameNamespace)
-	if err != nil {
-		return "", err
-	}
-	if found {
-		return workspaceName, nil
-	}
-
-	workspaceName = ""
-	if c.enterpriseID == "" {
-		nextCursor := ""
-		for {
-			var err error
-			var workspaces []slack.Team
-			params := slack.ListTeamsParameters{Cursor: nextCursor}
-			workspaces, nextCursor, err = client.ListTeamsContext(ctx, params)
-			if err != nil {
-				return "", fmt.Errorf("error getting auth teams list: %w", err)
-			}
-			for _, workspace := range workspaces {
-				err = c.SetWorkspaceName(ctx, ss, workspace.ID, workspace.Name)
-				if err != nil {
-					return "", err
-				}
-				if workspace.ID == workspaceID {
-					workspaceName = workspace.Name
-					nextCursor = ""
-					break
-				}
-			}
-			if nextCursor == "" {
-				break
-			}
-		}
-	} else {
-		nextCursor := ""
-		for {
-			var err error
-			var workspaces []slack.Team
-			workspaces, nextCursor, _, err = c.GetAuthTeamsList(ctx, nextCursor)
-			if err != nil {
-				return "", fmt.Errorf("error getting auth teams list: %w", err)
-			}
-			for _, workspace := range workspaces {
-				err = c.SetWorkspaceName(ctx, ss, workspace.ID, workspace.Name)
-				if err != nil {
-					return "", err
-				}
-				if workspace.ID == workspaceID {
-					workspaceName = workspace.Name
-					nextCursor = ""
-					break
-				}
-			}
-			if nextCursor == "" {
-				break
-			}
-		}
-	}
-
-	if workspaceName == "" {
-		return "", status.Errorf(codes.NotFound, "workspace not found: %s", workspaceID)
-	}
-
-	return workspaceName, nil
 }
 
 func (c *Client) SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaces []slack.Team) error {
@@ -191,6 +134,34 @@ func (c *Client) SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore
 		workspaceMap[workspace.ID] = workspace.Name
 	}
 	return session.SetManyJSON(ctx, ss, workspaceMap, workspaceNameNamespace)
+}
+
+// GetWorkspaceNames retrieves workspace names for the given IDs from the session store.
+func (c *Client) GetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaceIDs []string) (map[string]string, []string, error) {
+	validIDs := make([]string, 0, len(workspaceIDs))
+	for _, id := range workspaceIDs {
+		if id != "" {
+			validIDs = append(validIDs, id)
+		}
+	}
+
+	if len(validIDs) == 0 {
+		return make(map[string]string), []string{}, nil
+	}
+
+	found, err := session.GetManyJSON[string](ctx, ss, validIDs, workspaceNameNamespace)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	missing := make([]string, 0)
+	for _, id := range validIDs {
+		if _, exists := found[id]; !exists {
+			missing = append(missing, id)
+		}
+	}
+
+	return found, missing, nil
 }
 
 // GetUserInfo returns the user info for the given user ID.

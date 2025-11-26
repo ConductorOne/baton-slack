@@ -2,6 +2,7 @@ package connector
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -10,11 +11,13 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 )
 
 // TODO(marcos): Is this actually a bug?
@@ -218,7 +221,7 @@ func (g *groupResourceType) Grant(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, fmt.Errorf("baton-slack: IDP group provisioning is not supported in Gov environment")
+		return nil, uhttp.WrapErrors(codes.PermissionDenied, "IDP group provisioning not supported in Gov environment for grant operation", errors.New("gov environment restriction"))
 	}
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
@@ -227,7 +230,7 @@ func (g *groupResourceType) Grant(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, fmt.Errorf("baton-slack: only users can be added to an IDP group")
+		return nil, uhttp.WrapErrors(codes.PermissionDenied, "only users can be granted IDP group membership", errors.New("invalid principal type"))
 	}
 
 	outputAnnotations := annotations.New()
@@ -238,7 +241,7 @@ func (g *groupResourceType) Grant(
 	)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return outputAnnotations, fmt.Errorf("baton-slack: failed to add user to an IDP group: %w", err)
+		return outputAnnotations, fmt.Errorf("failed to add user to IDP group during grant operation: %w", err)
 	}
 
 	return outputAnnotations, nil
@@ -262,7 +265,7 @@ func (g *groupResourceType) Revoke(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, fmt.Errorf("baton-slack: IDP group provisioning is not supported in Gov environment")
+		return nil, uhttp.WrapErrors(codes.PermissionDenied, "IDP group provisioning not supported in Gov environment for revoke operation", errors.New("gov environment restriction"))
 	}
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
@@ -271,7 +274,7 @@ func (g *groupResourceType) Revoke(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, fmt.Errorf("baton-slack: only users can be removed from an IDP group")
+		return nil, uhttp.WrapErrors(codes.PermissionDenied, "only users can have IDP group membership revoked", errors.New("invalid principal type"))
 	}
 
 	outputAnnotations := annotations.New()
@@ -283,7 +286,7 @@ func (g *groupResourceType) Revoke(
 	outputAnnotations.WithRateLimiting(ratelimitData)
 
 	if err != nil {
-		return outputAnnotations, fmt.Errorf("baton-slack: failed to remove user from IDP group: %w", err)
+		return outputAnnotations, fmt.Errorf("failed to remove user from IDP group during revoke operation: %w", err)
 	}
 
 	if !wasRevoked {
