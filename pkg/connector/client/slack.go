@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/session"
@@ -30,14 +31,16 @@ const (
 var workspaceNameNamespace = sessions.WithPrefix("workspace_name")
 
 type Client struct {
-	baseScimUrl  *url.URL
-	baseUrl      *url.URL
-	token        string
-	enterpriseID string
-	botToken     string
-	ssoEnabled   bool
-	scimVersion  string
-	wrapper      *uhttp.BaseHttpClient
+	baseScimUrl        *url.URL
+	baseUrl            *url.URL
+	token              string
+	enterpriseID       string
+	botToken           string
+	ssoEnabled         bool
+	scimVersion        string
+	wrapper            *uhttp.BaseHttpClient
+	workspaceNameCache map[string]string
+	mu                 sync.Mutex
 }
 
 func NewClient(
@@ -68,14 +71,15 @@ func NewClient(
 	}
 
 	return &Client{
-		baseUrl:      baseUrl0,
-		baseScimUrl:  baseScimUrl0,
-		token:        token,
-		enterpriseID: enterpriseID,
-		botToken:     botToken,
-		ssoEnabled:   ssoEnabled,
-		scimVersion:  finalScimVersion,
-		wrapper:      uhttp.NewBaseHttpClient(httpClient),
+		baseUrl:            baseUrl0,
+		baseScimUrl:        baseScimUrl0,
+		token:              token,
+		enterpriseID:       enterpriseID,
+		botToken:           botToken,
+		ssoEnabled:         ssoEnabled,
+		scimVersion:        finalScimVersion,
+		wrapper:            uhttp.NewBaseHttpClient(httpClient),
+		workspaceNameCache: make(map[string]string),
 	}, nil
 }
 
@@ -136,24 +140,54 @@ func (c *Client) SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore
 	return session.SetManyJSON(ctx, ss, workspaceMap, workspaceNameNamespace)
 }
 
+// GetWorkspaceNames retrieves workspace names for the given IDs.
+// Uses a client-level cache to avoid repeated session store calls (which may be network requests)
+// within a single connector instance. First call fetches from session store, subsequent calls
+// are served from memory.
 func (c *Client) GetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaceIDs []string) (map[string]string, []string, error) {
+	validIDs := make([]string, 0, len(workspaceIDs))
+	for _, id := range workspaceIDs {
+		if id != "" {
+			validIDs = append(validIDs, id)
+		}
+	}
+
+	if len(validIDs) == 0 {
+		return make(map[string]string), []string{}, nil
+	}
+
+	c.mu.Lock()
 	found := make(map[string]string)
-	missing := make([]string, 0)
-
-	for _, workspaceID := range workspaceIDs {
-		if workspaceID == "" {
-			continue
-		}
-
-		workspaceName, exists, err := session.GetJSON[string](ctx, ss, workspaceID, workspaceNameNamespace)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if exists {
-			found[workspaceID] = workspaceName
+	needsLookup := make([]string, 0)
+	for _, id := range validIDs {
+		if name, exists := c.workspaceNameCache[id]; exists {
+			found[id] = name
 		} else {
-			missing = append(missing, workspaceID)
+			needsLookup = append(needsLookup, id)
+		}
+	}
+	c.mu.Unlock()
+
+	if len(needsLookup) == 0 {
+		return found, []string{}, nil
+	}
+
+	sessionFound, err := session.GetManyJSON[string](ctx, ss, needsLookup, workspaceNameNamespace)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	c.mu.Lock()
+	for id, name := range sessionFound {
+		found[id] = name
+		c.workspaceNameCache[id] = name
+	}
+	c.mu.Unlock()
+
+	missing := make([]string, 0)
+	for _, id := range validIDs {
+		if _, exists := found[id]; !exists {
+			missing = append(missing, id)
 		}
 	}
 
