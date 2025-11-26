@@ -2,6 +2,7 @@ package connector
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -9,9 +10,11 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/slack-go/slack"
+	"google.golang.org/grpc/codes"
 )
 
 type userResourceType struct {
@@ -199,7 +202,7 @@ func (o *userResourceType) List(
 	if o.enterpriseID != "" {
 		bag, err := pkg.ParsePageToken(pt.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("failed to parse page token: %w", err)
+			return nil, "", nil, fmt.Errorf("pagination bag error in user list: %w", err)
 		}
 
 		// We need to fetch all users because users without workspace won't be
@@ -211,7 +214,7 @@ func (o *userResourceType) List(
 		}
 		pageToken, err = bag.NextToken(nextCursor)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, "", nil, fmt.Errorf("pagination bag NextToken error in user list: %w", err)
 		}
 	}
 
@@ -267,11 +270,11 @@ func (o *userResourceType) CreateAccount(
 ) {
 	params, err := getInviteUserParams(accountInfo)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("baton-slack: create account get InviteUserParams failed %w", err)
+		return nil, nil, nil, uhttp.WrapErrors(codes.InvalidArgument, "failed to get invite user params for account creation", err)
 	}
 
 	if o.enterpriseClient == nil {
-		return nil, nil, nil, fmt.Errorf("baton-slack: account provisioning only works for slack enterprise: %w", err)
+		return nil, nil, nil, uhttp.WrapErrors(codes.InvalidArgument, "account provisioning requires Slack enterprise client", errors.New("enterprise client not configured"))
 	}
 
 	ratelimitData, err := o.enterpriseClient.InviteUserToWorkspace(ctx, params)
@@ -281,7 +284,7 @@ func (o *userResourceType) CreateAccount(
 
 	user, err := o.client.GetUserByEmail(params.Email)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("baton-slack: get user by email failed: %w", err)
+		return nil, nil, nil, pkg.WrapSlackClientError(err, "getting newly invited user by email")
 	}
 
 	outputAnnotations := annotations.New()
@@ -289,12 +292,12 @@ func (o *userResourceType) CreateAccount(
 
 	parentResourceID, err := resource.NewResourceID(resourceTypeWorkspace, params.TeamID)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("baton-slack: create parent resource failed: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to create workspace resource ID for new user: %w", err)
 	}
 
 	r, err := userResource(ctx, user, parentResourceID)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("baton-slack: cannot create user resource: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to build user resource for newly created account: %w", err)
 	}
 
 	return &v2.CreateAccountResponse_SuccessResult{
