@@ -4,6 +4,7 @@
       "name": "enterprise-token",
       "displayName": "Enterprise Token",
       "description": "The Slack user oauth token used to connect to the Slack Enterprise Grid Admin API",
+      "isSecret": true,
       "stringField": {}
     },
     {
@@ -63,6 +64,14 @@
       "boolField": {}
     },
     {
+      "name": "session-store-maximum-size",
+      "description": "The maximum size of the local in-memory session store cache in bytes.",
+      "isOps": true,
+      "intField": {
+        "defaultValue": "15728640"
+      }
+    },
+    {
       "name": "sso-enabled",
       "displayName": "SSO Enabled",
       "description": "Flag indicating that the SSO has been configured for Enterprise Grid Organization. Enables usage of SCIM API",
@@ -73,6 +82,7 @@
       "displayName": "Access Token",
       "description": "The Slack bot user oauth token used to connect to the Slack API",
       "isRequired": true,
+      "isSecret": true,
       "stringField": {
         "rules": {
           "isRequired": true
@@ -90,5 +100,8 @@
         "enterprise-token"
       ]
     }
-  ]
+  ],
+  "displayName": "Slack",
+  "helpUrl": "/docs/baton/slack",
+  "iconUrl": "/static/app-icons/slack.svg"
 }
