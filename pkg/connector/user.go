@@ -76,7 +76,6 @@ func (o *userResourceType) scimUserResource(ctx context.Context, user enterprise
 		)
 	}
 
-
 	return resource.NewUserResource(
 		displayName,
 		resourceTypeUser,
