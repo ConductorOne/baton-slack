@@ -25,7 +25,7 @@ type EnterpriseRolesPagination struct {
 func ParseID(id string) (string, error) {
 	parts := strings.Split(id, ":")
 	if len(parts) < 2 {
-		return "", fmt.Errorf("baton-slack: invalid ID: %s", id)
+		return "", fmt.Errorf("invalid ID format: %s", id)
 	}
 	return parts[1], nil
 }
@@ -33,7 +33,7 @@ func ParseID(id string) (string, error) {
 func ParseRole(id string) (string, error) {
 	parts := strings.Split(id, ":")
 	if len(parts) < 3 {
-		return "", fmt.Errorf("baton-slack: invalid ID: %s", id)
+		return "", fmt.Errorf("invalid role ID format: %s", id)
 	}
 	return parts[2], nil
 }
@@ -70,7 +70,7 @@ func (e *EnterpriseRolesPagination) Marshal() (string, error) {
 	}
 	bytes, err := json.Marshal(e)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to marshal EnterpriseRolesPagination: %w", err)
 	}
 
 	return string(bytes), nil
@@ -84,7 +84,7 @@ func (e *EnterpriseRolesPagination) Unmarshal(input string) error {
 
 	err := json.Unmarshal([]byte(input), e)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to unmarshal EnterpriseRolesPagination: %w", err)
 	}
 
 	return nil
@@ -94,7 +94,7 @@ func ParseRolesPageToken(i string) (*EnterpriseRolesPagination, error) {
 	b := &EnterpriseRolesPagination{}
 	err := b.Unmarshal(i)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse roles page token: %w", err)
 	}
 
 	if b.FoundMap == nil {
@@ -108,7 +108,7 @@ func ParsePageToken(i string, resourceID *v2.ResourceId) (*pagination.Bag, error
 	b := &pagination.Bag{}
 	err := b.Unmarshal(i)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("pagination bag unmarshal error: %w", err)
 	}
 
 	if b.Current() == nil {
