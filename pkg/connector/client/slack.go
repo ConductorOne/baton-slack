@@ -12,7 +12,9 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/session"
 	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
+	"github.com/conductorone/baton-slack/pkg"
 	"github.com/slack-go/slack"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -78,30 +80,50 @@ func NewClient(
 }
 
 // handleError - Slack can return a 200 with an error in the JSON body.
-// Generally, it is bad practice to use interpolation in error message
-// construction. It makes it difficult to find the failing code when debugging.
+// This function wraps errors with appropriate gRPC codes for better classification
+// and handling in C1 and alerting systems.
+// It uses the centralized MapSlackErrorToGRPCCode function from pkg/helpers.go.
 func (a BaseResponse) handleError(err error, action string) error {
 	if err != nil {
-		return fmt.Errorf("baton-slack: error %s: %w", action, err)
+		return fmt.Errorf("error %s: %w", action, err)
 	}
 
 	if a.Error != "" {
-		switch a.Error {
-		case SlackErrUserAlreadyTeamMember:
-			// Return an error with the exact string for the Grant function to check.
-			return errors.New(SlackErrUserAlreadyTeamMember)
-		case SlackErrUserAlreadyDeleted:
-			// Return an error with the specific string for the Revoke function to check.
-			return errors.New(SlackErrUserAlreadyDeleted)
-		default:
-			return fmt.Errorf(
-				"baton-slack: error %s: error %v needed %v provided %v",
-				action,
-				a.Error,
-				a.Needed,
-				a.Provided,
-			)
+		// Use the centralized error mapping from pkg package
+		grpcCode := pkg.MapSlackErrorToGRPCCode(a.Error)
+
+		// Build detailed error message
+		errMsg := a.Error
+		if a.Needed != "" || a.Provided != "" {
+			errMsg = fmt.Sprintf("%s (needed: %v, provided: %v)", a.Error, a.Needed, a.Provided)
 		}
+
+		// Create appropriate context message based on the code
+		var contextMsg string
+		switch grpcCode {
+		case codes.Unauthenticated:
+			contextMsg = "authentication failed"
+		case codes.PermissionDenied:
+			contextMsg = "insufficient permissions"
+		case codes.NotFound:
+			contextMsg = "resource not found"
+		case codes.InvalidArgument:
+			contextMsg = "invalid argument"
+		case codes.ResourceExhausted:
+			contextMsg = "rate limited"
+		case codes.Unavailable:
+			contextMsg = "service unavailable"
+		case codes.AlreadyExists:
+			contextMsg = "resource already exists"
+		default:
+			contextMsg = "error"
+		}
+
+		return uhttp.WrapErrors(
+			grpcCode,
+			fmt.Sprintf("%s during %s", contextMsg, action),
+			errors.New(errMsg),
+		)
 	}
 	return nil
 }
