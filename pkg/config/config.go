@@ -1,5 +1,7 @@
 package config
 
+//go:generate go run ./gen
+
 import (
 	"github.com/conductorone/baton-sdk/pkg/field"
 )
@@ -10,11 +12,13 @@ var (
 		field.WithDisplayName("Access Token"),
 		field.WithDescription("The Slack bot user oauth token used to connect to the Slack API"),
 		field.WithRequired(true),
+		field.WithIsSecret(true),
 	)
 	EnterpriseTokenField = field.StringField(
 		"enterprise-token",
 		field.WithDisplayName("Enterprise Token"),
 		field.WithDescription("The Slack user oauth token used to connect to the Slack Enterprise Grid Admin API"),
+		field.WithIsSecret(true),
 	)
 	SSOEnabledField = field.BoolField(
 		"sso-enabled",
@@ -49,5 +53,11 @@ var (
 		),
 	}
 
-	Configuration = field.NewConfiguration(ConfigurationFields, field.WithConstraints(FieldRelationships...))
+	Configuration = field.NewConfiguration(
+		ConfigurationFields,
+		field.WithConnectorDisplayName("Slack"),
+		field.WithHelpUrl("/docs/baton/slack"),
+		field.WithIconUrl("/static/app-icons/slack.svg"),
+		field.WithConstraints(FieldRelationships...),
+	)
 )

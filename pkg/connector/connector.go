@@ -6,9 +6,11 @@ import (
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
+	"github.com/conductorone/baton-sdk/pkg/cli"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/conductorone/baton-slack/pkg"
+	cfg "github.com/conductorone/baton-slack/pkg/config"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
@@ -102,8 +104,7 @@ func (s *slackLogger) Output(callDepth int, msg string) error {
 	return nil
 }
 
-// New returns the Slack connector.
-func New(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool, govEnv bool) (*Slack, error) {
+func NewSlack(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool, govEnv bool) (*Slack, error) {
 	l := ctxzap.Extract(ctx)
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, l))
 	if err != nil {
@@ -158,8 +159,24 @@ func New(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool, gov
 	}, nil
 }
 
-func (s *Slack) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncer {
-	return []connectorbuilder.ResourceSyncer{
+func New(ctx context.Context, config *cfg.Slack, opts *cli.ConnectorOpts) (connectorbuilder.ConnectorBuilderV2, []connectorbuilder.Opt, error) {
+	cb, err := NewSlack(
+		ctx,
+		config.Token,
+		config.EnterpriseToken,
+		config.SsoEnabled,
+		config.GovEnv,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	builderOpts := []connectorbuilder.Opt{}
+	return cb, builderOpts, nil
+}
+
+func (s *Slack) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncerV2 {
+	return []connectorbuilder.ResourceSyncerV2{
 		userBuilder(s.client, s.enterpriseID, s.enterpriseClient),
 		workspaceBuilder(s.client, s.enterpriseID, s.enterpriseClient),
 		userGroupBuilder(s.client, s.enterpriseID, s.enterpriseClient),

@@ -6,10 +6,10 @@ import (
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
+
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/slack-go/slack"
@@ -65,15 +65,14 @@ func userGroupResource(
 func (o *userGroupResourceType) List(
 	ctx context.Context,
 	parentResourceID *v2.ResourceId,
-	_ *pagination.Token,
+	_ resource.SyncOpAttrs,
 ) (
 	[]*v2.Resource,
-	string,
-	annotations.Annotations,
+	*resource.SyncOpResults,
 	error,
 ) {
 	if parentResourceID == nil {
-		return nil, "", nil, nil
+		return nil, &resource.SyncOpResults{}, nil
 	}
 
 	var (
@@ -88,7 +87,7 @@ func (o *userGroupResourceType) List(
 		userGroups, ratelimitData, err = o.enterpriseClient.GetUserGroups(ctx, parentResourceID.Resource)
 		outputAnnotations.WithRateLimiting(ratelimitData)
 		if err != nil {
-			return nil, "", outputAnnotations, err
+			return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, err
 		}
 	} else {
 		opts := []slack.GetUserGroupsOption{
@@ -101,7 +100,7 @@ func (o *userGroupResourceType) List(
 		userGroups, err = o.client.GetUserGroupsContext(ctx, opts...)
 		if err != nil {
 			annos, err := pkg.AnnotationsForError(err)
-			return nil, "", annos, err
+			return nil, &resource.SyncOpResults{Annotations: annos}, err
 		}
 	}
 
@@ -112,66 +111,63 @@ func (o *userGroupResourceType) List(
 		userGroupResource,
 	)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
-	return output, "", outputAnnotations, nil
+	return output, &resource.SyncOpResults{Annotations: outputAnnotations}, nil
 }
 
 func (o *userGroupResourceType) Entitlements(
 	_ context.Context,
-	resource *v2.Resource,
-	_ *pagination.Token,
+	res *v2.Resource,
+	_ resource.SyncOpAttrs,
 ) (
 	[]*v2.Entitlement,
-	string,
-	annotations.Annotations,
+	*resource.SyncOpResults,
 	error,
 ) {
 	return []*v2.Entitlement{
 			entitlement.NewAssignmentEntitlement(
-				resource,
+				res,
 				memberEntitlement,
 				entitlement.WithGrantableTo(resourceTypeUser),
 				entitlement.WithDescription(
 					fmt.Sprintf(
 						"Member of %s User group",
-						resource.DisplayName,
+						res.DisplayName,
 					),
 				),
 				entitlement.WithDisplayName(
 					fmt.Sprintf(
 						"%s User group %s",
-						resource.DisplayName,
+						res.DisplayName,
 						memberEntitlement,
 					),
 				),
 			),
 		},
-		"",
-		nil,
+		&resource.SyncOpResults{},
 		nil
 }
 
 func (o *userGroupResourceType) Grants(
 	ctx context.Context,
-	resource *v2.Resource,
-	_ *pagination.Token,
+	res *v2.Resource,
+	_ resource.SyncOpAttrs,
 ) (
 	[]*v2.Grant,
-	string,
-	annotations.Annotations,
+	*resource.SyncOpResults,
 	error,
 ) {
 	outputAnnotations := annotations.New()
 	// TODO(marcos): This should use 2D pagination.
 	groupMembers, ratelimitData, err := o.enterpriseClient.GetUserGroupMembers(
 		ctx,
-		resource.Id.Resource,
-		resource.ParentResourceId.Resource,
+		res.Id.Resource,
+		res.ParentResourceId.Resource,
 	)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, "", outputAnnotations, err
+		return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, err
 	}
 
 	var rv []*v2.Grant
@@ -179,16 +175,16 @@ func (o *userGroupResourceType) Grants(
 		user, err := o.client.GetUserInfoContext(ctx, member)
 		if err != nil {
 			annos, err := pkg.AnnotationsForError(err)
-			return nil, "", annos, err
+			return nil, &resource.SyncOpResults{Annotations: annos}, err
 		}
-		ur, err := userResource(ctx, user, resource.Id)
+		ur, err := userResource(ctx, user, res.Id)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 
-		grant := grant.NewGrant(resource, memberEntitlement, ur.Id)
+		grant := grant.NewGrant(res, memberEntitlement, ur.Id)
 		rv = append(rv, grant)
 	}
 
-	return rv, "", nil, nil
+	return rv, &resource.SyncOpResults{}, nil
 }

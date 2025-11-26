@@ -8,11 +8,11 @@ import (
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
+
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
@@ -68,25 +68,24 @@ func groupResource(
 
 // parsePaginationToken - takes as pagination token and returns offset and limit
 // in that order. TODO(marcos): move this to a util.
-func parsePaginationToken(pToken *pagination.Token) (int, int, error) {
+func parsePaginationToken(tokenStr string, tokenSize int) (int, int, error) {
 	var (
 		limit  = enterprise.PageSizeDefault
 		offset = StartingOffset
 	)
 
-	if pToken != nil {
-		if pToken.Size > 0 {
-			limit = pToken.Size
-		}
-
-		if pToken.Token != "" {
-			parsedOffset, err := strconv.Atoi(pToken.Token)
-			if err != nil {
-				return 0, 0, err
-			}
-			offset = parsedOffset
-		}
+	if tokenSize > 0 {
+		limit = tokenSize
 	}
+
+	if tokenStr != "" {
+		parsedOffset, err := strconv.Atoi(tokenStr)
+		if err != nil {
+			return 0, 0, err
+		}
+		offset = parsedOffset
+	}
+
 	return offset, limit, nil
 }
 
@@ -101,27 +100,26 @@ func getNextToken(offset int, limit int, total int) string {
 func (g *groupResourceType) List(
 	ctx context.Context,
 	parentResourceId *v2.ResourceId,
-	pageToken *pagination.Token,
+	attrs resources.SyncOpAttrs,
 ) (
 	[]*v2.Resource,
-	string,
-	annotations.Annotations,
+	*resources.SyncOpResults,
 	error,
 ) {
 	if !g.ssoEnabled {
-		return nil, "", nil, nil
+		return nil, &resources.SyncOpResults{}, nil
 	}
 
-	offset, limit, err := parsePaginationToken(pageToken)
+	offset, limit, err := parsePaginationToken(attrs.PageToken.Token, attrs.PageToken.Size)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("pagination token parsing error: %w", err)
+		return nil, nil, err
 	}
 
 	outputAnnotations := annotations.New()
 	groupsResponse, ratelimitData, err := g.enterpriseClient.ListIDPGroups(ctx, offset, limit)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, "", outputAnnotations, err
+		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, err
 	}
 
 	groups, err := pkg.MakeResourceList(
@@ -131,22 +129,21 @@ func (g *groupResourceType) List(
 		groupResource,
 	)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
 
 	nextToken := getNextToken(offset, limit, groupsResponse.TotalResults)
 
-	return groups, nextToken, outputAnnotations, nil
+	return groups, &resources.SyncOpResults{NextPageToken: nextToken, Annotations: outputAnnotations}, nil
 }
 
 func (g *groupResourceType) Entitlements(
 	ctx context.Context,
 	resource *v2.Resource,
-	_ *pagination.Token,
+	_ resources.SyncOpAttrs,
 ) (
 	[]*v2.Entitlement,
-	string,
-	annotations.Annotations,
+	*resources.SyncOpResults,
 	error,
 ) {
 	return []*v2.Entitlement{
@@ -169,19 +166,17 @@ func (g *groupResourceType) Entitlements(
 				),
 			),
 		},
-		"",
-		nil,
+		&resources.SyncOpResults{},
 		nil
 }
 
 func (g *groupResourceType) Grants(
 	ctx context.Context,
 	resource *v2.Resource,
-	_ *pagination.Token,
+	_ resources.SyncOpAttrs,
 ) (
 	[]*v2.Grant,
-	string,
-	annotations.Annotations,
+	*resources.SyncOpResults,
 	error,
 ) {
 	outputAnnotations := annotations.New()
@@ -190,13 +185,13 @@ func (g *groupResourceType) Grants(
 	group, ratelimitData, err := g.enterpriseClient.GetIDPGroup(ctx, resource.Id.Resource)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, "", outputAnnotations, err
+		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, err
 	}
 
 	for _, member := range group.Members {
 		userID, err := resources.NewResourceID(resourceTypeUser, member.Value)
 		if err != nil {
-			return nil, "", nil, err
+			return nil, nil, err
 		}
 		grantOptions := []grant.GrantOption{}
 		if g.govEnv {
@@ -207,7 +202,7 @@ func (g *groupResourceType) Grants(
 		rv = append(rv, grant)
 	}
 
-	return rv, "", outputAnnotations, nil
+	return rv, &resources.SyncOpResults{Annotations: outputAnnotations}, nil
 }
 
 func (g *groupResourceType) Grant(
@@ -222,7 +217,7 @@ func (g *groupResourceType) Grant(
 
 	if g.govEnv {
 		logger.Debug(
-			"IDP group provisioning is not supported in Gov environment",
+			"baton-slack: IDP group provisioning is not supported in Gov environment",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
@@ -231,7 +226,7 @@ func (g *groupResourceType) Grant(
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
 		logger.Warn(
-			"only users can be added to an IDP group",
+			"baton-slack: only users can be added to an IDP group",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
@@ -266,7 +261,7 @@ func (g *groupResourceType) Revoke(
 
 	if g.govEnv {
 		logger.Debug(
-			"IDP group provisioning is not supported in Gov environment",
+			"baton-slack: IDP group provisioning is not supported in Gov environment",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
@@ -275,7 +270,7 @@ func (g *groupResourceType) Revoke(
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
 		logger.Warn(
-			"only users can be removed from an IDP group",
+			"baton-slack: only users can be removed from an IDP group",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)

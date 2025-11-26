@@ -9,10 +9,10 @@ import (
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/pagination"
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
+
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
@@ -94,15 +94,14 @@ func roleResource(
 func (o *workspaceRoleType) List(
 	ctx context.Context,
 	parentResourceID *v2.ResourceId,
-	_ *pagination.Token,
+	_ resources.SyncOpAttrs,
 ) (
 	[]*v2.Resource,
-	string,
-	annotations.Annotations,
+	*resources.SyncOpResults,
 	error,
 ) {
 	if parentResourceID == nil {
-		return nil, "", nil, nil
+		return nil, &resources.SyncOpResults{}, nil
 	}
 
 	output, err := pkg.MakeResourceList(
@@ -112,24 +111,27 @@ func (o *workspaceRoleType) List(
 		roleResource,
 	)
 	if err != nil {
-		return nil, "", nil, err
+		return nil, nil, err
 	}
-	return output, "", nil, nil
+	return output, &resources.SyncOpResults{}, nil
 }
 
 func (o *workspaceRoleType) Entitlements(
 	ctx context.Context,
 	resource *v2.Resource,
-	_ *pagination.Token,
+	attrs resources.SyncOpAttrs,
 ) (
 	[]*v2.Entitlement,
-	string,
-	annotations.Annotations,
+	*resources.SyncOpResults,
 	error,
 ) {
-	workspaceName, err := o.enterpriseClient.GetWorkspaceName(ctx, o.client, resource.ParentResourceId.Resource)
+	found, missing, err := o.enterpriseClient.GetWorkspaceNames(ctx, attrs.Session, []string{resource.ParentResourceId.Resource})
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("error getting workspace name for workspace id %s: %w", resource.ParentResourceId.Resource, err)
+		return nil, nil, fmt.Errorf("error getting workspace name for workspace id %s: %w", resource.ParentResourceId.Resource, err)
+	}
+	workspaceName, exists := found[resource.ParentResourceId.Resource]
+	if !exists {
+		return nil, nil, fmt.Errorf("workspace not found in cache: %s (missing: %v)", resource.ParentResourceId.Resource, missing)
 	}
 	return []*v2.Entitlement{
 			entitlement.NewAssignmentEntitlement(
@@ -152,8 +154,7 @@ func (o *workspaceRoleType) Entitlements(
 				),
 			),
 		},
-		"",
-		nil,
+		&resources.SyncOpResults{},
 		nil
 }
 
@@ -165,14 +166,13 @@ func (o *workspaceRoleType) Entitlements(
 func (o *workspaceRoleType) Grants(
 	_ context.Context,
 	_ *v2.Resource,
-	_ *pagination.Token,
+	_ resources.SyncOpAttrs,
 ) (
 	[]*v2.Grant,
-	string,
-	annotations.Annotations,
+	*resources.SyncOpResults,
 	error,
 ) {
-	return nil, "", nil, nil
+	return nil, &resources.SyncOpResults{}, nil
 }
 
 func (o *workspaceRoleType) Grant(
@@ -187,7 +187,7 @@ func (o *workspaceRoleType) Grant(
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
 		logger.Warn(
-			"only users can be assigned a role",
+			"baton-slack: only users can be assigned a role",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
@@ -239,7 +239,7 @@ func (o *workspaceRoleType) Revoke(
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
 		logger.Warn(
-			"only users can have role revoked",
+			"baton-slack: only users can have role revoked",
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)

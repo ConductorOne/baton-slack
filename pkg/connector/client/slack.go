@@ -7,14 +7,14 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"sync"
-
-	"google.golang.org/grpc/codes"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
+	"github.com/conductorone/baton-sdk/pkg/session"
+	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/conductorone/baton-slack/pkg"
 	"github.com/slack-go/slack"
+	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -27,17 +27,17 @@ const (
 	ScimVersionV1                 = "v1"
 )
 
+var workspaceNameNamespace = sessions.WithPrefix("workspace_name")
+
 type Client struct {
-	baseScimUrl              *url.URL
-	baseUrl                  *url.URL
-	token                    string
-	enterpriseID             string
-	botToken                 string
-	ssoEnabled               bool
-	scimVersion              string
-	wrapper                  *uhttp.BaseHttpClient
-	workspacesNameCache      map[string]string
-	workspacesNameCacheMutex sync.RWMutex
+	baseScimUrl  *url.URL
+	baseUrl      *url.URL
+	token        string
+	enterpriseID string
+	botToken     string
+	ssoEnabled   bool
+	scimVersion  string
+	wrapper      *uhttp.BaseHttpClient
 }
 
 func NewClient(
@@ -68,16 +68,14 @@ func NewClient(
 	}
 
 	return &Client{
-		baseUrl:                  baseUrl0,
-		baseScimUrl:              baseScimUrl0,
-		token:                    token,
-		enterpriseID:             enterpriseID,
-		botToken:                 botToken,
-		ssoEnabled:               ssoEnabled,
-		scimVersion:              finalScimVersion,
-		wrapper:                  uhttp.NewBaseHttpClient(httpClient),
-		workspacesNameCache:      make(map[string]string),
-		workspacesNameCacheMutex: sync.RWMutex{},
+		baseUrl:      baseUrl0,
+		baseScimUrl:  baseScimUrl0,
+		token:        token,
+		enterpriseID: enterpriseID,
+		botToken:     botToken,
+		ssoEnabled:   ssoEnabled,
+		scimVersion:  finalScimVersion,
+		wrapper:      uhttp.NewBaseHttpClient(httpClient),
 	}, nil
 }
 
@@ -130,75 +128,40 @@ func (a BaseResponse) handleError(err error, action string) error {
 	return nil
 }
 
-func (c *Client) SetWorkspaceName(workspaceID, workspaceName string) {
-	c.workspacesNameCacheMutex.Lock()
-	defer c.workspacesNameCacheMutex.Unlock()
-	c.workspacesNameCache[workspaceID] = workspaceName
+func (c *Client) SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaces []slack.Team) error {
+	workspaceMap := make(map[string]string)
+	for _, workspace := range workspaces {
+		workspaceMap[workspace.ID] = workspace.Name
+	}
+	return session.SetManyJSON(ctx, ss, workspaceMap, workspaceNameNamespace)
 }
 
-func (c *Client) GetWorkspaceName(ctx context.Context, client *slack.Client, workspaceID string) (string, error) {
-	if workspaceID == "" {
-		return "", uhttp.WrapErrors(codes.InvalidArgument, "workspace ID is empty", errors.New("empty workspace ID"))
-	}
-	c.workspacesNameCacheMutex.RLock()
-	workspaceName, ok := c.workspacesNameCache[workspaceID]
-	if ok {
-		c.workspacesNameCacheMutex.RUnlock()
-		return workspaceName, nil
-	}
-	c.workspacesNameCacheMutex.RUnlock()
-
-	workspaceName = ""
-	if c.enterpriseID == "" {
-		nextCursor := ""
-		for {
-			var err error
-			var workspaces []slack.Team
-			params := slack.ListTeamsParameters{Cursor: nextCursor}
-			workspaces, nextCursor, err = client.ListTeamsContext(ctx, params)
-			if err != nil {
-				return "", uhttp.WrapErrors(codes.Unavailable, "failed to list teams for workspace name lookup", err)
-			}
-			for _, workspace := range workspaces {
-				c.SetWorkspaceName(workspace.ID, workspace.Name)
-				if workspace.ID == workspaceID {
-					workspaceName = workspace.Name
-					nextCursor = ""
-					break
-				}
-			}
-			if nextCursor == "" {
-				break
-			}
-		}
-	} else {
-		nextCursor := ""
-		for {
-			var err error
-			var workspaces []slack.Team
-			workspaces, nextCursor, _, err = c.GetAuthTeamsList(ctx, nextCursor)
-			if err != nil {
-				return "", fmt.Errorf("failed to get auth teams list for workspace name lookup: %w", err)
-			}
-			for _, workspace := range workspaces {
-				c.SetWorkspaceName(workspace.ID, workspace.Name)
-				if workspace.ID == workspaceID {
-					workspaceName = workspace.Name
-					nextCursor = ""
-					break
-				}
-			}
-			if nextCursor == "" {
-				break
-			}
+// GetWorkspaceNames retrieves workspace names for the given IDs from the session store.
+func (c *Client) GetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaceIDs []string) (map[string]string, []string, error) {
+	validIDs := make([]string, 0, len(workspaceIDs))
+	for _, id := range workspaceIDs {
+		if id != "" {
+			validIDs = append(validIDs, id)
 		}
 	}
 
-	if workspaceName == "" {
-		return "", uhttp.WrapErrors(codes.NotFound, fmt.Sprintf("workspace not found: %s", workspaceID), errors.New("workspace not found"))
+	if len(validIDs) == 0 {
+		return make(map[string]string), []string{}, nil
 	}
 
-	return workspaceName, nil
+	found, err := session.GetManyJSON[string](ctx, ss, validIDs, workspaceNameNamespace)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	missing := make([]string, 0)
+	for _, id := range validIDs {
+		if _, exists := found[id]; !exists {
+			missing = append(missing, id)
+		}
+	}
+
+	return found, missing, nil
 }
 
 // GetUserInfo returns the user info for the given user ID.
@@ -545,7 +508,7 @@ func (c *Client) ListIDPGroups(
 		},
 	)
 	if err != nil {
-		return nil, ratelimitData, fmt.Errorf("failed to fetch IDP groups: %w", err)
+		return nil, ratelimitData, fmt.Errorf("error fetching IDP groups: %w", err)
 	}
 
 	return &response, ratelimitData, nil
@@ -568,7 +531,7 @@ func (c *Client) GetIDPGroup(
 		nil,
 	)
 	if err != nil {
-		return nil, ratelimitData, fmt.Errorf("failed to fetch IDP group: %w", err)
+		return nil, ratelimitData, fmt.Errorf("error fetching IDP group: %w", err)
 	}
 
 	return &response, ratelimitData, nil
@@ -598,7 +561,7 @@ func (c *Client) AddUserToGroup(
 
 	ratelimitData, err := c.patchGroup(ctx, groupID, requestBody)
 	if err != nil {
-		return ratelimitData, fmt.Errorf("failed to add user to IDP group: %w", err)
+		return ratelimitData, fmt.Errorf("error adding user to IDP group: %w", err)
 	}
 
 	return ratelimitData, nil
@@ -617,7 +580,7 @@ func (c *Client) RemoveUserFromGroup(
 	// First, we need to fetch group to get existing members.
 	group, ratelimitData, err := c.GetIDPGroup(ctx, groupID)
 	if err != nil {
-		return false, ratelimitData, fmt.Errorf("failed to fetch IDP group for removal: %w", err)
+		return false, ratelimitData, fmt.Errorf("error fetching IDP group: %w", err)
 	}
 
 	found := false
@@ -648,7 +611,7 @@ func (c *Client) RemoveUserFromGroup(
 
 	ratelimitData, err = c.patchGroup(ctx, groupID, requestBody)
 	if err != nil {
-		return false, ratelimitData, fmt.Errorf("failed to remove user from IDP group: %w", err)
+		return false, ratelimitData, fmt.Errorf("error removing user from IDP group: %w", err)
 	}
 
 	return true, ratelimitData, nil
@@ -664,7 +627,7 @@ func (c *Client) patchGroup(
 ) {
 	payload, err := json.Marshal(requestBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal patch request: %w", err)
+		return nil, err
 	}
 
 	var response *GroupResource
@@ -675,7 +638,7 @@ func (c *Client) patchGroup(
 		payload,
 	)
 	if err != nil {
-		return ratelimitData, fmt.Errorf("failed to patch IDP group: %w", err)
+		return ratelimitData, fmt.Errorf("error patching IDP group: %w", err)
 	}
 
 	return ratelimitData, nil
@@ -761,7 +724,7 @@ func (c *Client) DisableUser(
 		fmt.Sprintf(UrlPathIDPUser, c.scimVersion, userID),
 	)
 	if err != nil {
-		return ratelimitData, fmt.Errorf("failed to disable user: %w", err)
+		return ratelimitData, fmt.Errorf("error disabling user: %w", err)
 	}
 
 	return ratelimitData, nil
@@ -794,7 +757,7 @@ func (c *Client) EnableUser(
 		requestBody,
 	)
 	if err != nil {
-		return ratelimitData, fmt.Errorf("failed to enable user: %w", err)
+		return ratelimitData, fmt.Errorf("error enabling user: %w", err)
 	}
 
 	return ratelimitData, nil
@@ -810,7 +773,7 @@ func (c *Client) AssignEnterpriseRole(
 	error,
 ) {
 	if c.enterpriseID == "" {
-		return nil, uhttp.WrapErrors(codes.InvalidArgument, "enterprise ID is required for role assignment", errors.New("missing enterprise ID"))
+		return nil, fmt.Errorf("enterprise ID is required for role assignment")
 	}
 
 	var response struct {
@@ -853,7 +816,7 @@ func (c *Client) UnassignEnterpriseRole(
 	error,
 ) {
 	if c.enterpriseID == "" {
-		return nil, uhttp.WrapErrors(codes.InvalidArgument, "enterprise ID is required for role removal", errors.New("missing enterprise ID"))
+		return nil, fmt.Errorf("enterprise ID is required for role removal")
 	}
 
 	var response struct {
