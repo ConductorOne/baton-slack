@@ -10,7 +10,6 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
 
-	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/slack-go/slack"
 )
@@ -99,12 +98,12 @@ func (o *userGroupResourceType) List(
 		}
 		userGroups, err = o.client.GetUserGroupsContext(ctx, opts...)
 		if err != nil {
-			annos, err := pkg.AnnotationsForError(err)
+			annos, err := AnnotationsForError(err)
 			return nil, &resource.SyncOpResults{Annotations: annos}, err
 		}
 	}
 
-	output, err := pkg.MakeResourceList(
+	output, err := MakeResourceList(
 		ctx,
 		userGroups,
 		parentResourceID,
@@ -174,7 +173,7 @@ func (o *userGroupResourceType) Grants(
 	for _, member := range groupMembers {
 		user, err := o.client.GetUserInfoContext(ctx, member)
 		if err != nil {
-			annos, err := pkg.AnnotationsForError(err)
+			annos, err := AnnotationsForError(err)
 			return nil, &resource.SyncOpResults{Annotations: annos}, err
 		}
 		ur, err := userResource(ctx, user, res.Id)

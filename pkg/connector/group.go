@@ -13,7 +13,6 @@ import (
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 
-	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
@@ -122,7 +121,7 @@ func (g *groupResourceType) List(
 		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, err
 	}
 
-	groups, err := pkg.MakeResourceList(
+	groups, err := MakeResourceList(
 		ctx,
 		groupsResponse.Resources,
 		parentResourceId,
@@ -230,7 +229,7 @@ func (g *groupResourceType) Grant(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, uhttp.WrapErrors(codes.PermissionDenied, "only users can be granted IDP group membership", errors.New("invalid principal type"))
+		return nil, fmt.Errorf("only users can be granted IDP group membership", errors.New("invalid principal type"))
 	}
 
 	outputAnnotations := annotations.New()
@@ -274,7 +273,7 @@ func (g *groupResourceType) Revoke(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, uhttp.WrapErrors(codes.PermissionDenied, "only users can have IDP group membership revoked", errors.New("invalid principal type"))
+		return nil, fmt.Errorf("only users can have IDP group membership revoked")
 	}
 
 	outputAnnotations := annotations.New()

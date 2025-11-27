@@ -9,11 +9,8 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
-	"github.com/conductorone/baton-sdk/pkg/uhttp"
-	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/slack-go/slack"
-	"google.golang.org/grpc/codes"
 )
 
 type userResourceType struct {
@@ -196,7 +193,7 @@ func (o *userResourceType) List(
 	)
 	outputAnnotations := annotations.New()
 	if o.enterpriseID != "" {
-		bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+		bag, err := ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to parse page token: %w", err)
 		}
@@ -217,12 +214,12 @@ func (o *userResourceType) List(
 	options := slack.GetUsersOptionTeamID(parentResourceID.Resource)
 	users, err := o.client.GetUsersContext(ctx, options)
 	if err != nil {
-		annos, err := pkg.AnnotationsForError(err)
+		annos, err := AnnotationsForError(err)
 		return nil, &resource.SyncOpResults{Annotations: annos}, err
 	}
 
 	// Create a base resource if user has no workspace.
-	rv0, err := pkg.MakeResourceList(
+	rv0, err := MakeResourceList(
 		ctx,
 		allUsers,
 		nil,
@@ -233,7 +230,7 @@ func (o *userResourceType) List(
 	}
 
 	// Users without workspace won't be part of users array.
-	rv1, err := pkg.MakeResourceList(
+	rv1, err := MakeResourceList(
 		ctx,
 		users,
 		parentResourceID,
@@ -266,11 +263,11 @@ func (o *userResourceType) CreateAccount(
 ) {
 	params, err := getInviteUserParams(accountInfo)
 	if err != nil {
-		return nil, nil, nil, uhttp.WrapErrors(codes.InvalidArgument, "failed to get invite user params for account creation", err)
+		return nil, nil, nil, fmt.Errorf("failed to get invite user params for account creation", err)
 	}
 
 	if o.enterpriseClient == nil {
-		return nil, nil, nil, uhttp.WrapErrors(codes.InvalidArgument, "account provisioning requires Slack enterprise client", errors.New("enterprise client not configured"))
+		return nil, nil, nil, fmt.Errorf("account provisioning requires Slack enterprise client", errors.New("enterprise client not configured"))
 	}
 
 	ratelimitData, err := o.enterpriseClient.InviteUserToWorkspace(ctx, params)

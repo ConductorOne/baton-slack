@@ -9,9 +9,8 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/cli"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
-	"github.com/conductorone/baton-slack/pkg"
 	cfg "github.com/conductorone/baton-slack/pkg/config"
-	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
+	slackClient "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
 	"go.uber.org/zap"
@@ -75,12 +74,12 @@ func (c *Slack) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
 func (s *Slack) Validate(ctx context.Context) (annotations.Annotations, error) {
 	res, err := s.client.AuthTestContext(ctx)
 	if err != nil {
-		return nil, pkg.WrapSlackClientError(err, "authenticating")
+		return nil, slackClient.WrapSlackClientError(err, "authenticating")
 	}
 
 	user, err := s.client.GetUserInfoContext(ctx, res.UserID)
 	if err != nil {
-		return nil, pkg.WrapSlackClientError(err, "retrieving authenticated user")
+		return nil, slackClient.WrapSlackClientError(err, "retrieving authenticated user")
 	}
 
 	isValidUser := user.IsAdmin || user.IsOwner || user.IsPrimaryOwner || user.IsBot
@@ -124,7 +123,7 @@ func NewSlack(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool
 
 	res, err := client.AuthTestContext(ctx)
 	if err != nil {
-		return nil, pkg.WrapSlackClientError(err, "authenticating during initialization")
+		return nil, slackClient.WrapSlackClientError(err, "authenticating during initialization")
 	}
 
 	var enterpriseId string
@@ -138,7 +137,7 @@ func NewSlack(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool
 			)
 		}
 	}
-	enterpriseClient, err := enterprise.NewClient(
+	enterpriseClient, err := slackClient.NewClient(
 		httpClient,
 		enterpriseKey,
 		apiKey,

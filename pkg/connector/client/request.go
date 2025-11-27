@@ -61,7 +61,7 @@ func WithBearerToken(token string) uhttp.RequestOption {
 func (c *Client) post(
 	ctx context.Context,
 	path string,
-	target interface{},
+	target Response,
 	payload map[string]interface{},
 	useBotToken bool,
 ) (
@@ -86,7 +86,7 @@ func (c *Client) post(
 func (c *Client) postJSON(
 	ctx context.Context,
 	path string,
-	target interface{},
+	target Response,
 	payload interface{},
 	useBotToken bool,
 ) (
@@ -111,7 +111,7 @@ func (c *Client) postJSON(
 func (c *Client) getScim(
 	ctx context.Context,
 	path string,
-	target interface{},
+	target Response,
 	queryParameters map[string]interface{},
 ) (
 	*v2.RateLimitDescription,
@@ -121,7 +121,7 @@ func (c *Client) getScim(
 		ctx,
 		http.MethodGet,
 		c.getUrl(path, queryParameters, true),
-		&target,
+		target,
 		WithBearerToken(c.token),
 	)
 }
@@ -129,7 +129,7 @@ func (c *Client) getScim(
 func (c *Client) patchScimBytes(
 	ctx context.Context,
 	path string,
-	target interface{},
+	target Response,
 	payload []byte,
 ) (
 	*v2.RateLimitDescription,
@@ -139,7 +139,7 @@ func (c *Client) patchScimBytes(
 		ctx,
 		http.MethodPatch,
 		c.getUrl(path, nil, true),
-		&target,
+		target,
 		WithBearerToken(c.token),
 		uhttp.WithJSONBody(payload),
 	)
@@ -148,7 +148,7 @@ func (c *Client) patchScimBytes(
 func (c *Client) patchScim(
 	ctx context.Context,
 	path string,
-	target interface{},
+	target Response,
 	payload map[string]any,
 ) (
 	*v2.RateLimitDescription,
@@ -158,7 +158,7 @@ func (c *Client) patchScim(
 		ctx,
 		http.MethodPatch,
 		c.getUrl(path, nil, true),
-		&target,
+		target,
 		WithBearerToken(c.token),
 		uhttp.WithJSONBody(payload),
 	)
@@ -168,7 +168,7 @@ func (c *Client) doRequest(
 	ctx context.Context,
 	method string,
 	url *url.URL,
-	target interface{},
+	target Response,
 	options ...uhttp.RequestOption,
 ) (
 	*v2.RateLimitDescription,
@@ -200,6 +200,7 @@ func (c *Client) doRequest(
 	response, err := c.wrapper.Do(
 		request,
 		uhttp.WithRatelimitData(&ratelimitData),
+		uhttp.WithJSONResponse(&target),
 	)
 	if err != nil {
 		logBody(ctx, response)
@@ -207,15 +208,8 @@ func (c *Client) doRequest(
 	}
 	defer response.Body.Close()
 
-	bodyBytes, err := io.ReadAll(response.Body)
-	if err != nil {
-		logBody(ctx, response)
-		return &ratelimitData, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if err := json.Unmarshal(bodyBytes, &target); err != nil {
-		logBody(ctx, response)
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	if err := target.handleError(err, "fetching user info"); err != nil {
+		return &ratelimitData, err
 	}
 
 	return &ratelimitData, nil

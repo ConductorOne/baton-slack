@@ -187,3 +187,57 @@ type ScimOperate struct {
 type UserID struct {
 	Value string `json:"value"`
 }
+
+type Response interface {
+	handleError(err error, context string) error
+}
+
+type UserResponse struct {
+	BaseResponse
+	User *User `json:"user"`
+}
+
+type UsersResponse struct {
+	BaseResponse
+	Users []User `json:"users"`
+}
+
+type UsersAdminResponse struct {
+	BaseResponse
+	Users []UserAdmin `json:"users"`
+	Pagination
+}
+
+type UserGroupMembersResponse struct {
+	BaseResponse
+	Users []string `json:"users"`
+}
+
+type TeamMembersResponse struct {
+	BaseResponse
+	Users []User `json:"members"`
+	Pagination
+}
+
+type TeamsResponse struct {
+	BaseResponse
+	Teams []slack.Team `json:"teams"`
+	Pagination
+}
+
+type RoleAssignmentsResponse struct {
+	BaseResponse
+	RoleAssignments []RoleAssignment `json:"role_assignments"`
+	Pagination
+}
+
+type UserGroupsResponse struct {
+	BaseResponse
+	UserGroups []slack.UserGroup `json:"usergroups"`
+}
+
+type EnterpriseRolesAssignmentsResponse struct {
+	BaseResponse
+	RejectedUsers    []string `json:"rejected_users"`
+	RejectedEntities []string `json:"rejected_entities"`
+}

@@ -3,7 +3,6 @@ package enterprise
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -12,19 +11,14 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/session"
 	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
-	"github.com/conductorone/baton-slack/pkg"
 	"github.com/slack-go/slack"
-	"google.golang.org/grpc/codes"
 )
 
 const (
 	PageSizeDefault = 100
 
-	// Slack API error string constants.
-	SlackErrUserAlreadyTeamMember = "user_already_team_member"
-	SlackErrUserAlreadyDeleted    = "user_already_deleted"
-	ScimVersionV2                 = "v2"
-	ScimVersionV1                 = "v1"
+	ScimVersionV2 = "v2"
+	ScimVersionV1 = "v1"
 )
 
 var workspaceNameNamespace = sessions.WithPrefix("workspace_name")
@@ -79,55 +73,6 @@ func NewClient(
 	}, nil
 }
 
-// handleError - Slack can return a 200 with an error in the JSON body.
-// This function wraps errors with appropriate gRPC codes for better classification
-// and handling in C1 and alerting systems.
-// It uses the centralized MapSlackErrorToGRPCCode function from pkg/helpers.go.
-func (a BaseResponse) handleError(err error, action string) error {
-	if err != nil {
-		return fmt.Errorf("error %s: %w", action, err)
-	}
-
-	if a.Error != "" {
-		// Use the centralized error mapping from pkg package
-		grpcCode := pkg.MapSlackErrorToGRPCCode(a.Error)
-
-		// Build detailed error message
-		errMsg := a.Error
-		if a.Needed != "" || a.Provided != "" {
-			errMsg = fmt.Sprintf("%s (needed: %v, provided: %v)", a.Error, a.Needed, a.Provided)
-		}
-
-		// Create appropriate context message based on the code
-		var contextMsg string
-		switch grpcCode {
-		case codes.Unauthenticated:
-			contextMsg = "authentication failed"
-		case codes.PermissionDenied:
-			contextMsg = "insufficient permissions"
-		case codes.NotFound:
-			contextMsg = "resource not found"
-		case codes.InvalidArgument:
-			contextMsg = "invalid argument"
-		case codes.ResourceExhausted:
-			contextMsg = "rate limited"
-		case codes.Unavailable:
-			contextMsg = "service unavailable"
-		case codes.AlreadyExists:
-			contextMsg = "resource already exists"
-		default:
-			contextMsg = "error"
-		}
-
-		return uhttp.WrapErrors(
-			grpcCode,
-			fmt.Sprintf("%s during %s", contextMsg, action),
-			errors.New(errMsg),
-		)
-	}
-	return nil
-}
-
 func (c *Client) SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaces []slack.Team) error {
 	workspaceMap := make(map[string]string)
 	for _, workspace := range workspaces {
@@ -173,10 +118,7 @@ func (c *Client) GetUserInfo(
 	*v2.RateLimitDescription,
 	error,
 ) {
-	var response struct {
-		BaseResponse
-		User *User `json:"user"`
-	}
+	var response UserResponse
 
 	ratelimitData, err := c.post(
 		ctx,
@@ -185,7 +127,7 @@ func (c *Client) GetUserInfo(
 		map[string]interface{}{"user": userID},
 		true,
 	)
-	if err := response.handleError(err, "fetching user info"); err != nil {
+	if err != nil {
 		return nil, ratelimitData, err
 	}
 
@@ -202,10 +144,7 @@ func (c *Client) GetUserGroupMembers(
 	*v2.RateLimitDescription,
 	error,
 ) {
-	var response struct {
-		BaseResponse
-		Users []string `json:"users"`
-	}
+	var response UserGroupMembersResponse
 
 	ratelimitData, err := c.post(
 		ctx,
@@ -217,7 +156,7 @@ func (c *Client) GetUserGroupMembers(
 		},
 		true,
 	)
-	if err := response.handleError(err, "fetching user group members"); err != nil {
+	if err != nil {
 		return nil, ratelimitData, err
 	}
 
@@ -241,11 +180,7 @@ func (c *Client) GetUsersAdmin(
 		values["cursor"] = cursor
 	}
 
-	var response struct {
-		BaseResponse
-		Users []UserAdmin `json:"users"`
-		Pagination
-	}
+	var response UsersAdminResponse
 
 	ratelimitData, err := c.post(
 		ctx,
@@ -254,7 +189,7 @@ func (c *Client) GetUsersAdmin(
 		values,
 		false,
 	)
-	if err := response.handleError(err, "fetching users"); err != nil {
+	if err != nil {
 		return nil, "", ratelimitData, err
 	}
 
@@ -280,11 +215,7 @@ func (c *Client) GetUsers(
 		values["cursor"] = cursor
 	}
 
-	var response struct {
-		BaseResponse
-		Users []User `json:"members"`
-		Pagination
-	}
+	var response TeamMembersResponse
 
 	ratelimitData, err := c.post(
 		ctx,
@@ -293,7 +224,7 @@ func (c *Client) GetUsers(
 		values,
 		true,
 	)
-	if err := response.handleError(err, "fetching users"); err != nil {
+	if err != nil {
 		return nil, "", ratelimitData, err
 	}
 
@@ -319,11 +250,7 @@ func (c *Client) GetTeams(
 		values["cursor"] = cursor
 	}
 
-	var response struct {
-		BaseResponse
-		Teams []slack.Team `json:"teams"`
-		Pagination
-	}
+	var response TeamsResponse
 
 	ratelimitData, err := c.post(
 		ctx,
@@ -333,7 +260,7 @@ func (c *Client) GetTeams(
 		false,
 	)
 
-	if err := response.handleError(err, "fetching teams"); err != nil {
+	if err != nil {
 		return nil, "", ratelimitData, err
 	}
 
@@ -364,11 +291,7 @@ func (c *Client) GetRoleAssignments(
 		values["cursor"] = cursor
 	}
 
-	var response struct {
-		BaseResponse
-		RoleAssignments []RoleAssignment `json:"role_assignments"`
-		Pagination
-	}
+	var response RoleAssignmentsResponse
 
 	ratelimitData, err := c.post(
 		ctx,
@@ -377,7 +300,7 @@ func (c *Client) GetRoleAssignments(
 		values,
 		false,
 	)
-	if err := response.handleError(err, "fetching role assignments"); err != nil {
+	if err != nil {
 		return nil, "", ratelimitData, err
 	}
 
@@ -396,10 +319,7 @@ func (c *Client) GetUserGroups(
 	*v2.RateLimitDescription,
 	error,
 ) {
-	var response struct {
-		BaseResponse
-		UserGroups []slack.UserGroup `json:"usergroups"`
-	}
+	var response UserGroupsResponse
 
 	ratelimitData, err := c.post(
 		ctx,
@@ -410,7 +330,7 @@ func (c *Client) GetUserGroups(
 		// is in all workspaces.
 		true,
 	)
-	if err := response.handleError(err, "fetching user groups"); err != nil {
+	if err != nil {
 		return nil, ratelimitData, err
 	}
 
@@ -433,11 +353,7 @@ func (c *Client) GetAuthTeamsList(
 		values["cursor"] = cursor
 	}
 
-	var response struct {
-		BaseResponse
-		Teams []slack.Team `json:"teams"`
-		Pagination
-	}
+	var response TeamsResponse
 
 	ratelimitData, err := c.post(
 		ctx,
@@ -446,7 +362,7 @@ func (c *Client) GetAuthTeamsList(
 		values,
 		false,
 	)
-	if err := response.handleError(err, "fetching authed teams"); err != nil {
+	if err != nil {
 		return nil, "", ratelimitData, err
 	}
 
@@ -483,7 +399,11 @@ func (c *Client) SetWorkspaceRole(
 		},
 		false,
 	)
-	return ratelimitData, response.handleError(err, "setting user role")
+	if err != nil {
+		return ratelimitData, err
+	}
+
+	return ratelimitData, nil
 }
 
 // ListIDPGroups returns all IDP groups from the SCIM API.
@@ -634,7 +554,7 @@ func (c *Client) patchGroup(
 	ratelimitData, err := c.patchScimBytes(
 		ctx,
 		fmt.Sprintf(UrlPathIDPGroup, c.scimVersion, groupID),
-		&response,
+		response,
 		payload,
 	)
 	if err != nil {
@@ -659,7 +579,7 @@ func (o *Client) AddUser(ctx context.Context, teamID, userID string) (*v2.RateLi
 
 	// Check for Slack API errors.
 	// If the user is already a member of the team, the function returns the error "user_already_team_member".
-	if err := response.handleError(err, "adding user"); err != nil {
+	if err != nil {
 		return ratelimitData, err
 	}
 
@@ -753,7 +673,7 @@ func (c *Client) EnableUser(
 	ratelimitData, err := c.patchScim(
 		ctx,
 		fmt.Sprintf(UrlPathIDPUser, c.scimVersion, userID),
-		&response,
+		response,
 		requestBody,
 	)
 	if err != nil {
@@ -776,11 +696,7 @@ func (c *Client) AssignEnterpriseRole(
 		return nil, fmt.Errorf("enterprise ID is required for role assignment")
 	}
 
-	var response struct {
-		BaseResponse
-		RejectedUsers    []string `json:"rejected_users"`
-		RejectedEntities []string `json:"rejected_entities"`
-	}
+	var response EnterpriseRolesAssignmentsResponse
 
 	entityIDs := []string{teamID}
 	params := map[string]interface{}{
@@ -819,11 +735,7 @@ func (c *Client) UnassignEnterpriseRole(
 		return nil, fmt.Errorf("enterprise ID is required for role removal")
 	}
 
-	var response struct {
-		BaseResponse
-		RejectedUsers    []string `json:"rejected_users"`
-		RejectedEntities []string `json:"rejected_entities"`
-	}
+	var response EnterpriseRolesAssignmentsResponse
 
 	entityIDs := []string{teamID}
 	params := map[string]interface{}{
