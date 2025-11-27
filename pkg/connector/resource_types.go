@@ -21,30 +21,9 @@ var (
 			v2.ResourceType_TRAIT_GROUP,
 		},
 	}
-	resourceTypeUserGroup = &v2.ResourceType{
-		Id:          "userGroup",
-		DisplayName: "User Group",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_GROUP,
-		},
-	}
-	resourceTypeGroup = &v2.ResourceType{
-		Id:          "group",
-		DisplayName: "IDP Group",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_GROUP,
-		},
-	}
 	resourceTypeWorkspaceRole = &v2.ResourceType{
 		Id:          "workspaceRole",
 		DisplayName: "Workspace Role",
-		Traits: []v2.ResourceType_Trait{
-			v2.ResourceType_TRAIT_ROLE,
-		},
-	}
-	resourceTypeEnterpriseRole = &v2.ResourceType{
-		Id:          "enterpriseRole",
-		DisplayName: "Enterprise Role",
 		Traits: []v2.ResourceType_Trait{
 			v2.ResourceType_TRAIT_ROLE,
 		},
