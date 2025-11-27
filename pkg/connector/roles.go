@@ -2,23 +2,16 @@ package connector
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
-	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
-	"github.com/conductorone/baton-sdk/pkg/uhttp"
 
 	"github.com/conductorone/baton-slack/pkg"
-	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
-	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -47,22 +40,18 @@ var roles = map[string]string{
 }
 
 type workspaceRoleType struct {
-	resourceType     *v2.ResourceType
-	client           *slack.Client
-	enterpriseClient *enterprise.Client
-	enterpriseID     string
+	resourceType *v2.ResourceType
+	client       *slack.Client
 }
 
 func (o *workspaceRoleType) ResourceType(_ context.Context) *v2.ResourceType {
 	return o.resourceType
 }
 
-func workspaceRoleBuilder(client *slack.Client, enterpriseID string, enterpriseClient *enterprise.Client) *workspaceRoleType {
+func workspaceRoleBuilder(client *slack.Client) *workspaceRoleType {
 	return &workspaceRoleType{
-		resourceType:     resourceTypeWorkspaceRole,
-		client:           client,
-		enterpriseClient: enterpriseClient,
-		enterpriseID:     enterpriseID,
+		resourceType: resourceTypeWorkspaceRole,
+		client:       client,
 	}
 }
 
@@ -125,14 +114,6 @@ func (o *workspaceRoleType) Entitlements(
 	*resources.SyncOpResults,
 	error,
 ) {
-	found, missing, err := o.enterpriseClient.GetWorkspaceNames(ctx, attrs.Session, []string{resource.ParentResourceId.Resource})
-	if err != nil {
-		return nil, nil, fmt.Errorf("error getting workspace name for workspace id %s: %w", resource.ParentResourceId.Resource, err)
-	}
-	workspaceName, exists := found[resource.ParentResourceId.Resource]
-	if !exists {
-		return nil, nil, fmt.Errorf("workspace not found in cache: %s (missing: %v)", resource.ParentResourceId.Resource, missing)
-	}
 	return []*v2.Entitlement{
 			entitlement.NewAssignmentEntitlement(
 				resource,
@@ -140,15 +121,13 @@ func (o *workspaceRoleType) Entitlements(
 				entitlement.WithGrantableTo(resourceTypeUser),
 				entitlement.WithDescription(
 					fmt.Sprintf(
-						"Has the %s role in the Slack %s workspace",
+						"Has the %s role in the Slack workspace",
 						resource.DisplayName,
-						workspaceName,
 					),
 				),
 				entitlement.WithDisplayName(
 					fmt.Sprintf(
-						"%s workspace %s role",
-						workspaceName,
+						"%s role",
 						resource.DisplayName,
 					),
 				),
@@ -173,114 +152,4 @@ func (o *workspaceRoleType) Grants(
 	error,
 ) {
 	return nil, &resources.SyncOpResults{}, nil
-}
-
-func (o *workspaceRoleType) Grant(
-	ctx context.Context,
-	principal *v2.Resource,
-	entitlement *v2.Entitlement,
-) (
-	annotations.Annotations,
-	error,
-) {
-	logger := ctxzap.Extract(ctx)
-
-	if principal.Id.ResourceType != resourceTypeUser.Id {
-		logger.Warn(
-			"baton-slack: only users can be assigned a role",
-			zap.String("principal_type", principal.Id.ResourceType),
-			zap.String("principal_id", principal.Id.Resource),
-		)
-		return nil, uhttp.WrapErrors(codes.InvalidArgument, "only users can be granted workspace role assignments", errors.New("invalid principal type"))
-	}
-
-	// teamID is in the entitlement ID at second position
-	teamID, err := pkg.ParseID(entitlement.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	roleID, err := pkg.ParseRole(entitlement.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	var rateLimitData *v2.RateLimitDescription
-	rateLimitData, err = o.enterpriseClient.SetWorkspaceRole(
-		ctx,
-		teamID,
-		principal.Id.Resource,
-		roleID,
-	)
-
-	outputAnnotations := annotations.New()
-	outputAnnotations.WithRateLimiting(rateLimitData)
-	if err != nil {
-		return outputAnnotations, fmt.Errorf("failed to assign workspace role during grant operation: %w", err)
-	}
-
-	return outputAnnotations, nil
-}
-
-func (o *workspaceRoleType) Revoke(
-	ctx context.Context,
-	grant *v2.Grant,
-) (
-	annotations.Annotations,
-	error,
-) {
-	if o.enterpriseID == "" {
-		return nil, uhttp.WrapErrors(codes.InvalidArgument, "enterprise ID and token are both required for workspace role revocation", errors.New("missing enterprise configuration"))
-	}
-
-	logger := ctxzap.Extract(ctx)
-
-	principal := grant.Principal
-
-	if principal.Id.ResourceType != resourceTypeUser.Id {
-		logger.Warn(
-			"baton-slack: only users can have role revoked",
-			zap.String("principal_type", principal.Id.ResourceType),
-			zap.String("principal_id", principal.Id.Resource),
-		)
-		return nil, uhttp.WrapErrors(codes.InvalidArgument, "only users can have workspace role assignments revoked", errors.New("invalid principal type"))
-	}
-
-	// teamID is in the grant ID at second position
-	teamID, err := pkg.ParseID(grant.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	role, err := pkg.ParseRole(grant.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	outputAnnotations := annotations.New()
-
-	var rateLimitData *v2.RateLimitDescription
-	switch role {
-	case AdminRoleID, OwnerRoleID:
-		rateLimitData, err = o.enterpriseClient.SetWorkspaceRole(
-			ctx,
-			teamID,
-			principal.Id.Resource,
-			RegularRoleID,
-		)
-
-	case MemberRoleID:
-		rateLimitData, err = o.enterpriseClient.RemoveUser(
-			ctx,
-			teamID,
-			principal.Id.Resource,
-		)
-	}
-	outputAnnotations.WithRateLimiting(rateLimitData)
-
-	if err != nil {
-		return outputAnnotations, fmt.Errorf("failed to revoke workspace role during revoke operation: %w", err)
-	}
-
-	return outputAnnotations, nil
 }
