@@ -20,7 +20,7 @@ import (
 type Slack struct {
 	client           *slack.Client
 	apiKey           string
-	enterpriseClient *enterprise.Client
+	enterpriseClient *slackClient.Client
 	enterpriseID     string
 	ssoEnabled       bool
 	govEnv           bool
