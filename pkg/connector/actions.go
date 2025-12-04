@@ -30,9 +30,7 @@ var (
 				DisplayName: "User ID",
 				Description: "The Slack user ID to disable",
 				IsRequired:  true,
-				Field: &config_sdk.Field_StringField{
-					StringField: &config_sdk.StringField{},
-				},
+				Field: &config_sdk.Field_StringField{},
 			},
 		},
 		ReturnTypes: []*config_sdk.Field{
@@ -46,21 +44,16 @@ var (
 				Name:        "message",
 				DisplayName: "Message",
 				Description: "A descriptive message about the operation result",
-				Field: &config_sdk.Field_StringField{
-					StringField: &config_sdk.StringField{},
-				},
+				Field: &config_sdk.Field_StringField{},
 			},
 			{
 				Name:        "user_id",
 				DisplayName: "User ID",
 				Description: "The Slack user ID that was processed",
-				Field: &config_sdk.Field_StringField{
-					StringField: &config_sdk.StringField{},
-				},
+				Field: &config_sdk.Field_StringField{},
 			},
 		},
 		ActionType: []v2.ActionType{
-			v2.ActionType_ACTION_TYPE_ACCOUNT,
 			v2.ActionType_ACTION_TYPE_ACCOUNT_DISABLE,
 		},
 	}
@@ -74,9 +67,7 @@ var (
 				DisplayName: "User ID",
 				Description: "The Slack user ID to enable",
 				IsRequired:  true,
-				Field: &config_sdk.Field_StringField{
-					StringField: &config_sdk.StringField{},
-				},
+				Field: &config_sdk.Field_StringField{},
 			},
 		},
 		ReturnTypes: []*config_sdk.Field{
@@ -90,21 +81,16 @@ var (
 				Name:        "message",
 				DisplayName: "Message",
 				Description: "A descriptive message about the operation result",
-				Field: &config_sdk.Field_StringField{
-					StringField: &config_sdk.StringField{},
-				},
+				Field: &config_sdk.Field_StringField{},
 			},
 			{
 				Name:        "user_id",
 				DisplayName: "User ID",
 				Description: "The Slack user ID that was processed",
-				Field: &config_sdk.Field_StringField{
-					StringField: &config_sdk.StringField{},
-				},
+				Field: &config_sdk.Field_StringField{},
 			},
 		},
 		ActionType: []v2.ActionType{
-			v2.ActionType_ACTION_TYPE_ACCOUNT,
 			v2.ActionType_ACTION_TYPE_ACCOUNT_ENABLE,
 		},
 	}
@@ -152,23 +138,13 @@ func (s *Slack) handleDisableUser(
 	l.Debug("disabling user via SCIM", zap.String("user_id", userID))
 
 	if s.enterpriseClient == nil {
-		return &structpb.Struct{
-			Fields: map[string]*structpb.Value{
-				"success": {Kind: &structpb.Value_BoolValue{BoolValue: false}},
-				"message": {Kind: &structpb.Value_StringValue{StringValue: "Enterprise client not available - SCIM API requires Enterprise Grid"}},
-			},
-		}, nil, fmt.Errorf("enterprise client not available - SCIM API requires Enterprise Grid")
+		return nil, nil, fmt.Errorf("enterprise client not available - SCIM API requires Enterprise Grid")
 	}
 
 	ratelimitData, err := s.enterpriseClient.DisableUser(ctx, userID)
 	if err != nil {
 		l.Error("failed to disable user", zap.String("user_id", userID), zap.Error(err))
-		return &structpb.Struct{
-			Fields: map[string]*structpb.Value{
-				"success": {Kind: &structpb.Value_BoolValue{BoolValue: false}},
-				"message": {Kind: &structpb.Value_StringValue{StringValue: fmt.Sprintf("Failed to disable user: %v", err)}},
-			},
-		}, nil, err
+		return nil, nil, fmt.Errorf("failed to disable user %s: %w", userID, err)
 	}
 
 	outputAnnotations := annotations.New()
@@ -207,23 +183,13 @@ func (s *Slack) handleEnableUser(
 	l.Debug("enabling user via SCIM", zap.String("user_id", userID))
 
 	if s.enterpriseClient == nil {
-		return &structpb.Struct{
-			Fields: map[string]*structpb.Value{
-				"success": {Kind: &structpb.Value_BoolValue{BoolValue: false}},
-				"message": {Kind: &structpb.Value_StringValue{StringValue: "Enterprise client not available - SCIM API requires Enterprise Grid"}},
-			},
-		}, nil, fmt.Errorf("enterprise client not available - SCIM API requires Enterprise Grid")
+		return nil, nil, fmt.Errorf("enterprise client not available - SCIM API requires Enterprise Grid")
 	}
 
 	ratelimitData, err := s.enterpriseClient.EnableUser(ctx, userID)
 	if err != nil {
 		l.Error("failed to enable user", zap.String("user_id", userID), zap.Error(err))
-		return &structpb.Struct{
-			Fields: map[string]*structpb.Value{
-				"success": {Kind: &structpb.Value_BoolValue{BoolValue: false}},
-				"message": {Kind: &structpb.Value_StringValue{StringValue: fmt.Sprintf("Failed to enable user: %v", err)}},
-			},
-		}, nil, err
+		return nil, nil, fmt.Errorf("failed to enable user %s: %w", userID, err)
 	}
 
 	outputAnnotations := annotations.New()
