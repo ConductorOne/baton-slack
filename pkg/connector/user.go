@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
@@ -12,19 +13,74 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
+	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 )
 
 type userResourceType struct {
-	resourceType     *v2.ResourceType
-	client           *slack.Client
-	enterpriseID     string
-	enterpriseClient *enterprise.Client
+	resourceType       *v2.ResourceType
+	client             *slack.Client
+	enterpriseID       string
+	businessPlusClient *enterprise.Client
+	ssoEnabled         bool
 }
 
 func (o *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return o.resourceType
+}
+
+// scimUserResource creates a new connector resource for a Slack user from SCIM API.
+func (o *userResourceType) scimUserResource(ctx context.Context, user enterprise.UserResource) (*v2.Resource, error) {
+	primaryEmail := ""
+	emails := make([]resource.UserTraitOption, 0, len(user.Emails))
+	for _, email := range user.Emails {
+		if email.Primary {
+			primaryEmail = email.Value
+		}
+		emails = append(emails, resource.WithEmail(email.Value, email.Primary))
+	}
+
+	displayName := user.DisplayName
+	if displayName == "" {
+		displayName = user.UserName
+	}
+	profile := make(map[string]interface{})
+	profile["first_name"] = user.Name.GivenName
+	profile["last_name"] = user.Name.FamilyName
+	profile["display_name"] = user.DisplayName
+	profile["login"] = primaryEmail
+	profile["user_id"] = user.ID
+	profile["user_name"] = user.UserName
+
+	var userStatus v2.UserTrait_Status_Status
+	if user.Active {
+		userStatus = v2.UserTrait_Status_STATUS_ENABLED
+	} else {
+		userStatus = v2.UserTrait_Status_STATUS_DISABLED
+	}
+
+	userTraitOptions := []resource.UserTraitOption{
+		resource.WithUserProfile(profile),
+		resource.WithStatus(userStatus),
+		resource.WithUserLogin(user.UserName),
+	}
+	userTraitOptions = append(userTraitOptions, emails...)
+
+	if primaryEmail != "" {
+		userTraitOptions = append(
+			userTraitOptions,
+			resource.WithEmail(primaryEmail, true),
+		)
+	}
+
+	return resource.NewUserResource(
+		displayName,
+		resourceTypeUser,
+		user.ID,
+		userTraitOptions,
+	)
 }
 
 // Create a new connector resource for a Slack user.
@@ -188,6 +244,20 @@ func (o *userResourceType) List(
 		return nil, &resource.SyncOpResults{}, nil
 	}
 
+	l := ctxzap.Extract(ctx)
+
+	// Use SCIM API if business plus client is available and SSO is enabled
+	if o.businessPlusClient != nil && o.ssoEnabled {
+		l.Debug("Using SCIM API to list users",
+			zap.Bool("ssoEnabled", o.ssoEnabled),
+			zap.Bool("hasBusinessPlusClient", o.businessPlusClient != nil))
+		return o.listScimAPI(ctx, parentResourceID, attrs)
+	}
+
+	// Otherwise use the standard API
+	l.Debug("Using standard API to list users",
+		zap.Bool("ssoEnabled", o.ssoEnabled),
+		zap.Bool("hasBusinessPlusClient", o.businessPlusClient != nil))
 	var (
 		allUsers      []enterprise.UserAdmin
 		pageToken     string
@@ -203,7 +273,7 @@ func (o *userResourceType) List(
 
 		// We need to fetch all users because users without workspace won't be
 		// fetched by GetUsersContext.
-		allUsers, nextCursor, ratelimitData, err = o.enterpriseClient.GetUsersAdmin(ctx, bag.PageToken())
+		allUsers, nextCursor, ratelimitData, err = o.businessPlusClient.GetUsersAdmin(ctx, bag.PageToken())
 		outputAnnotations.WithRateLimiting(ratelimitData)
 		if err != nil {
 			return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, err
@@ -254,6 +324,43 @@ func (o *userResourceType) List(
 	return append(rv0, rv1...), &resource.SyncOpResults{NextPageToken: pageToken, Annotations: outputAnnotations}, nil
 }
 
+func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2.ResourceId, attrs resource.SyncOpAttrs) ([]*v2.Resource, *resource.SyncOpResults, error) {
+	l := ctxzap.Extract(ctx)
+	l.Info("Listing Slack users via SCIM API")
+
+	var err error
+	startIndex := 1
+	if attrs.PageToken.Token != "" {
+		startIndex, err = strconv.Atoi(attrs.PageToken.Token)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error parsing page token: %w", err)
+		}
+	}
+
+	var annos annotations.Annotations
+	count := 100
+	response, ratelimitData, err := o.businessPlusClient.ListIDPUsers(ctx, startIndex, count)
+	annos.WithRateLimiting(ratelimitData)
+	if err != nil {
+		return nil, &resource.SyncOpResults{Annotations: annos}, fmt.Errorf("error fetching SCIM users: %w", err)
+	}
+
+	rv := make([]*v2.Resource, 0, len(response.Resources))
+	for _, user := range response.Resources {
+		userResource, err := o.scimUserResource(ctx, user)
+		if err != nil {
+			return nil, &resource.SyncOpResults{Annotations: annos}, fmt.Errorf("error creating user resource: %w", err)
+		}
+		rv = append(rv, userResource)
+	}
+
+	var nextPageToken string
+	if response.TotalResults > startIndex+count-1 {
+		nextPageToken = fmt.Sprint(startIndex + count)
+	}
+	return rv, &resource.SyncOpResults{NextPageToken: nextPageToken, Annotations: annos}, nil
+}
+
 func (o *userResourceType) CreateAccount(
 	ctx context.Context,
 	accountInfo *v2.AccountInfo,
@@ -269,11 +376,11 @@ func (o *userResourceType) CreateAccount(
 		return nil, nil, nil, uhttp.WrapErrors(codes.InvalidArgument, "failed to get invite user params for account creation", err)
 	}
 
-	if o.enterpriseClient == nil {
+	if o.businessPlusClient == nil {
 		return nil, nil, nil, uhttp.WrapErrors(codes.InvalidArgument, "account provisioning requires Slack enterprise client", errors.New("enterprise client not configured"))
 	}
 
-	ratelimitData, err := o.enterpriseClient.InviteUserToWorkspace(ctx, params)
+	ratelimitData, err := o.businessPlusClient.InviteUserToWorkspace(ctx, params)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -336,12 +443,14 @@ func getInviteUserParams(accountInfo *v2.AccountInfo) (*enterprise.InviteUserPar
 func userBuilder(
 	client *slack.Client,
 	enterpriseID string,
-	enterpriseClient *enterprise.Client,
+	businessPlusClient *enterprise.Client,
+	ssoEnabled bool,
 ) *userResourceType {
 	return &userResourceType{
-		resourceType:     resourceTypeUser,
-		client:           client,
-		enterpriseID:     enterpriseID,
-		enterpriseClient: enterpriseClient,
+		resourceType:       resourceTypeUser,
+		client:             client,
+		enterpriseID:       enterpriseID,
+		businessPlusClient: businessPlusClient,
+		ssoEnabled:         ssoEnabled,
 	}
 }

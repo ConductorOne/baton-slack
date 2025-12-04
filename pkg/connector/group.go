@@ -26,7 +26,7 @@ const StartingOffset = 1
 type groupResourceType struct {
 	resourceType     *v2.ResourceType
 	enterpriseID     string
-	enterpriseClient *enterprise.Client
+	businessPlusClient *enterprise.Client
 	ssoEnabled       bool
 	govEnv           bool
 }
@@ -35,11 +35,11 @@ func (g *groupResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return g.resourceType
 }
 
-func groupBuilder(enterpriseClient *enterprise.Client, enterpriseID string, ssoEnabled bool, govEnv bool) *groupResourceType {
+func groupBuilder(businessPlusClient *enterprise.Client, enterpriseID string, ssoEnabled bool, govEnv bool) *groupResourceType {
 	return &groupResourceType{
 		resourceType:     resourceTypeGroup,
 		enterpriseID:     enterpriseID,
-		enterpriseClient: enterpriseClient,
+		businessPlusClient: businessPlusClient,
 		ssoEnabled:       ssoEnabled,
 		govEnv:           govEnv,
 	}
@@ -116,7 +116,7 @@ func (g *groupResourceType) List(
 	}
 
 	outputAnnotations := annotations.New()
-	groupsResponse, ratelimitData, err := g.enterpriseClient.ListIDPGroups(ctx, offset, limit)
+	groupsResponse, ratelimitData, err := g.businessPlusClient.ListIDPGroups(ctx, offset, limit)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
 		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, err
@@ -182,7 +182,7 @@ func (g *groupResourceType) Grants(
 	outputAnnotations := annotations.New()
 
 	var rv []*v2.Grant
-	group, ratelimitData, err := g.enterpriseClient.GetIDPGroup(ctx, resource.Id.Resource)
+	group, ratelimitData, err := g.businessPlusClient.GetIDPGroup(ctx, resource.Id.Resource)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
 		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, err
@@ -234,7 +234,7 @@ func (g *groupResourceType) Grant(
 	}
 
 	outputAnnotations := annotations.New()
-	ratelimitData, err := g.enterpriseClient.AddUserToGroup(
+	ratelimitData, err := g.businessPlusClient.AddUserToGroup(
 		ctx,
 		entitlement.Resource.Id.Resource,
 		principal.Id.Resource,
@@ -278,7 +278,7 @@ func (g *groupResourceType) Revoke(
 	}
 
 	outputAnnotations := annotations.New()
-	wasRevoked, ratelimitData, err := g.enterpriseClient.RemoveUserFromGroup(
+	wasRevoked, ratelimitData, err := g.businessPlusClient.RemoveUserFromGroup(
 		ctx,
 		entitlement.Resource.Id.Resource,
 		principal.Id.Resource,

@@ -2,7 +2,6 @@ package connector
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
@@ -10,13 +9,9 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
-	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
-	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
 )
 
 const memberEntitlement = "member"
@@ -26,7 +21,7 @@ type workspaceResourceType struct {
 	client            *slack.Client
 	enterpriseID      string
 	enterpriseService enterprise.SlackEnterpriseService
-	enterpriseClient  *enterprise.Client
+	businessPlusClient  *enterprise.Client
 }
 
 func (o *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -36,14 +31,14 @@ func (o *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType
 func workspaceBuilder(
 	client *slack.Client,
 	enterpriseID string,
-	enterpriseClient *enterprise.Client,
+	businessPlusClient *enterprise.Client,
 ) *workspaceResourceType {
 	return &workspaceResourceType{
 		resourceType:      resourceTypeWorkspace,
 		client:            client,
 		enterpriseID:      enterpriseID,
-		enterpriseClient:  enterpriseClient,
-		enterpriseService: enterprise.NewSlackEnterpriseService(enterpriseClient),
+		businessPlusClient:  businessPlusClient,
+		enterpriseService: enterprise.NewSlackEnterpriseService(businessPlusClient),
 	}
 }
 
@@ -69,7 +64,6 @@ func workspaceResource(
 		resources.WithAnnotation(
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUser.Id},
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUserGroup.Id},
-			&v2.ChildResourceType{ResourceTypeId: resourceTypeWorkspaceRole.Id},
 		),
 	)
 }
@@ -91,7 +85,7 @@ func (o *workspaceResourceType) List(
 	)
 	outputAnnotations := annotations.New()
 	if o.enterpriseID != "" {
-		workspaces, nextCursor, ratelimitData, err = o.enterpriseClient.GetAuthTeamsList(ctx, bag.PageToken())
+		workspaces, nextCursor, ratelimitData, err = o.businessPlusClient.GetAuthTeamsList(ctx, bag.PageToken())
 		outputAnnotations.WithRateLimiting(ratelimitData)
 		if err != nil {
 			return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, err
@@ -109,7 +103,7 @@ func (o *workspaceResourceType) List(
 		return nil, nil, err
 	}
 
-	err = o.enterpriseClient.SetWorkspaceNames(ctx, attrs.Session, workspaces)
+	err = o.businessPlusClient.SetWorkspaceNames(ctx, attrs.Session, workspaces)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -167,7 +161,7 @@ func (o *workspaceResourceType) Grants(
 	}
 
 	outputAnnotations := annotations.New()
-	users, nextCursor, ratelimitData, err := o.enterpriseClient.GetUsers(
+	users, nextCursor, ratelimitData, err := o.businessPlusClient.GetUsers(
 		ctx,
 		resource.Id.Resource,
 		bag.PageToken(),
@@ -290,91 +284,6 @@ func (o *workspaceResourceType) Grants(
 	}, nil
 }
 
-func (o *workspaceResourceType) Grant(
-	ctx context.Context,
-	principal *v2.Resource,
-	entitlement *v2.Entitlement,
-) (annotations.Annotations, error) {
-	if o.enterpriseID == "" {
-		return nil, uhttp.WrapErrors(codes.InvalidArgument, "enterprise ID and enterprise token are both required", errors.New("missing enterprise configuration"))
-	}
-
-	logger := ctxzap.Extract(ctx)
-
-	if principal.Id.ResourceType != resourceTypeUser.Id {
-		logger.Warn(
-			"baton-slack: only users can be assigned to a workspace",
-			zap.String("principal_type", principal.Id.ResourceType),
-			zap.String("principal_id", principal.Id.Resource),
-		)
-		return nil, uhttp.WrapErrors(codes.PermissionDenied, "only users can be assigned to a workspace", errors.New("invalid principal type"))
-	}
-
-	outputAnnotations := annotations.New()
-
-	// Add the user to the workspace directly without requiring confirmation
-	rateLimitData, err := o.enterpriseService.AddUser(
-		ctx,
-		entitlement.Resource.Id.Resource,
-		principal.Id.Resource,
-	)
-	outputAnnotations.WithRateLimiting(rateLimitData)
-
-	if err != nil {
-		// Check if the error indicates the user is already a member.
-		if err.Error() == enterprise.SlackErrUserAlreadyTeamMember {
-			outputAnnotations.Append(&v2.GrantAlreadyExists{})
-			return outputAnnotations, nil
-		}
-		// Handle other errors.
-		return outputAnnotations, fmt.Errorf("baton-slack: failed to add user to workspace: %w", err)
-	}
-
-	return outputAnnotations, nil
-}
-
-func (o *workspaceResourceType) Revoke(
-	ctx context.Context,
-	grant *v2.Grant,
-) (
-	annotations.Annotations,
-	error,
-) {
-	if o.enterpriseID == "" {
-		return nil, uhttp.WrapErrors(codes.InvalidArgument, "enterprise ID and enterprise token are both required to revoke grants", errors.New("missing enterprise configuration"))
-	}
-
-	logger := ctxzap.Extract(ctx)
-
-	principal := grant.Principal
-	if principal.Id.ResourceType != resourceTypeUser.Id {
-		logger.Warn(
-			"baton-slack: only users can be revoked from a workspace",
-			zap.String("principal_type", principal.Id.ResourceType),
-			zap.String("principal_id", principal.Id.Resource),
-		)
-		return nil, uhttp.WrapErrors(codes.PermissionDenied, "only users can be revoked from a workspace", errors.New("invalid principal type"))
-	}
-
-	outputAnnotations := annotations.New()
-
-	// Remove the user from the workspace directly without requiring confirmation
-	rateLimitData, err := o.enterpriseService.RemoveUser(
-		ctx,
-		grant.Entitlement.Resource.Id.Resource,
-		principal.Id.Resource,
-	)
-	outputAnnotations.WithRateLimiting(rateLimitData)
-
-	if err != nil {
-		// Check if the error indicates the user is already deleted/removed.
-		if err.Error() == enterprise.SlackErrUserAlreadyDeleted {
-			outputAnnotations.Append(&v2.GrantAlreadyRevoked{})
-			return outputAnnotations, nil
-		}
-		// Handle other errors.
-		return outputAnnotations, fmt.Errorf("baton-slack: failed to remove user from workspace: %w", err)
-	}
-
-	return outputAnnotations, nil
-}
+// Grant and Revoke are not implemented for workspace membership because they require
+// Enterprise Grid-only API endpoints (admin.users.assign and admin.users.remove).
+// These endpoints are only available on Enterprise Grid plans, not Business+ plans.

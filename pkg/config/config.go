@@ -14,10 +14,10 @@ var (
 		field.WithRequired(true),
 		field.WithIsSecret(true),
 	)
-	EnterpriseTokenField = field.StringField(
-		"enterprise-token",
-		field.WithDisplayName("Enterprise Token"),
-		field.WithDescription("The Slack user oauth token used to connect to the Slack Enterprise Grid Admin API"),
+	BusinessPlusTokenField = field.StringField(
+		"business-plus-token",
+		field.WithDisplayName("Business Plus Token"),
+		field.WithDescription("The Slack user oauth token used to connect to the Slack Admin API (Business+ or Enterprise Grid)"),
 		field.WithIsSecret(true),
 	)
 	SSOEnabledField = field.BoolField(
@@ -38,18 +38,18 @@ var (
 	// required.
 	ConfigurationFields = []field.SchemaField{
 		AccessTokenField,
-		EnterpriseTokenField,
+		BusinessPlusTokenField,
 		SSOEnabledField,
 		GovEnvironmentField,
 	}
 
 	// FieldRelationships defines relationships between the fields listed in
 	// ConfigurationFields that can be automatically validated.
-	// Every Gov Slack instance is an Enterprise Grid instance.
+	// Every Gov Slack instance is a Business+ or Enterprise Grid instance.
 	FieldRelationships = []field.SchemaFieldRelationship{
 		field.FieldsDependentOn(
 			[]field.SchemaField{GovEnvironmentField},
-			[]field.SchemaField{EnterpriseTokenField},
+			[]field.SchemaField{BusinessPlusTokenField},
 		),
 	}
 

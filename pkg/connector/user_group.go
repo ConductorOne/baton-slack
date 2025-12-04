@@ -19,7 +19,7 @@ type userGroupResourceType struct {
 	resourceType     *v2.ResourceType
 	client           *slack.Client
 	enterpriseID     string
-	enterpriseClient *enterprise.Client
+	businessPlusClient *enterprise.Client
 }
 
 func (o *userGroupResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -29,13 +29,13 @@ func (o *userGroupResourceType) ResourceType(_ context.Context) *v2.ResourceType
 func userGroupBuilder(
 	client *slack.Client,
 	enterpriseID string,
-	enterpriseClient *enterprise.Client,
+	businessPlusClient *enterprise.Client,
 ) *userGroupResourceType {
 	return &userGroupResourceType{
 		resourceType:     resourceTypeUserGroup,
 		client:           client,
 		enterpriseID:     enterpriseID,
-		enterpriseClient: enterpriseClient,
+		businessPlusClient: businessPlusClient,
 	}
 }
 
@@ -84,7 +84,7 @@ func (o *userGroupResourceType) List(
 	// We use different method here because we need to pass a teamID, but it's
 	// not supported by the slack-go library.
 	if o.enterpriseID != "" {
-		userGroups, ratelimitData, err = o.enterpriseClient.GetUserGroups(ctx, parentResourceID.Resource)
+		userGroups, ratelimitData, err = o.businessPlusClient.GetUserGroups(ctx, parentResourceID.Resource)
 		outputAnnotations.WithRateLimiting(ratelimitData)
 		if err != nil {
 			return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, err
@@ -160,7 +160,7 @@ func (o *userGroupResourceType) Grants(
 ) {
 	outputAnnotations := annotations.New()
 	// TODO(marcos): This should use 2D pagination.
-	groupMembers, ratelimitData, err := o.enterpriseClient.GetUserGroupMembers(
+	groupMembers, ratelimitData, err := o.businessPlusClient.GetUserGroupMembers(
 		ctx,
 		res.Id.Resource,
 		res.ParentResourceId.Resource,

@@ -49,7 +49,7 @@ var roles = map[string]string{
 type workspaceRoleType struct {
 	resourceType     *v2.ResourceType
 	client           *slack.Client
-	enterpriseClient *enterprise.Client
+	businessPlusClient *enterprise.Client
 	enterpriseID     string
 }
 
@@ -57,11 +57,11 @@ func (o *workspaceRoleType) ResourceType(_ context.Context) *v2.ResourceType {
 	return o.resourceType
 }
 
-func workspaceRoleBuilder(client *slack.Client, enterpriseID string, enterpriseClient *enterprise.Client) *workspaceRoleType {
+func workspaceRoleBuilder(client *slack.Client, enterpriseID string, businessPlusClient *enterprise.Client) *workspaceRoleType {
 	return &workspaceRoleType{
 		resourceType:     resourceTypeWorkspaceRole,
 		client:           client,
-		enterpriseClient: enterpriseClient,
+		businessPlusClient: businessPlusClient,
 		enterpriseID:     enterpriseID,
 	}
 }
@@ -125,7 +125,7 @@ func (o *workspaceRoleType) Entitlements(
 	*resources.SyncOpResults,
 	error,
 ) {
-	found, missing, err := o.enterpriseClient.GetWorkspaceNames(ctx, attrs.Session, []string{resource.ParentResourceId.Resource})
+	found, missing, err := o.businessPlusClient.GetWorkspaceNames(ctx, attrs.Session, []string{resource.ParentResourceId.Resource})
 	if err != nil {
 		return nil, nil, fmt.Errorf("error getting workspace name for workspace id %s: %w", resource.ParentResourceId.Resource, err)
 	}
@@ -206,7 +206,7 @@ func (o *workspaceRoleType) Grant(
 	}
 
 	var rateLimitData *v2.RateLimitDescription
-	rateLimitData, err = o.enterpriseClient.SetWorkspaceRole(
+	rateLimitData, err = o.businessPlusClient.SetWorkspaceRole(
 		ctx,
 		teamID,
 		principal.Id.Resource,
@@ -262,7 +262,7 @@ func (o *workspaceRoleType) Revoke(
 	var rateLimitData *v2.RateLimitDescription
 	switch role {
 	case AdminRoleID, OwnerRoleID:
-		rateLimitData, err = o.enterpriseClient.SetWorkspaceRole(
+		rateLimitData, err = o.businessPlusClient.SetWorkspaceRole(
 			ctx,
 			teamID,
 			principal.Id.Resource,
@@ -270,7 +270,7 @@ func (o *workspaceRoleType) Revoke(
 		)
 
 	case MemberRoleID:
-		rateLimitData, err = o.enterpriseClient.RemoveUser(
+		rateLimitData, err = o.businessPlusClient.RemoveUser(
 			ctx,
 			teamID,
 			principal.Id.Resource,

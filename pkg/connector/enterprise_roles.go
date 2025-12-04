@@ -66,7 +66,7 @@ var organizationRoles = map[string]string{
 
 type enterpriseRoleType struct {
 	resourceType     *v2.ResourceType
-	enterpriseClient *enterprise.Client
+	businessPlusClient *enterprise.Client
 	enterpriseID     string
 }
 
@@ -74,10 +74,10 @@ func (o *enterpriseRoleType) ResourceType(_ context.Context) *v2.ResourceType {
 	return o.resourceType
 }
 
-func enterpriseRoleBuilder(enterpriseID string, enterpriseClient *enterprise.Client) *enterpriseRoleType {
+func enterpriseRoleBuilder(enterpriseID string, businessPlusClient *enterprise.Client) *enterpriseRoleType {
 	return &enterpriseRoleType{
 		resourceType:     resourceTypeEnterpriseRole,
-		enterpriseClient: enterpriseClient,
+		businessPlusClient: businessPlusClient,
 		enterpriseID:     enterpriseID,
 	}
 }
@@ -141,7 +141,7 @@ func (o *enterpriseRoleType) List(
 	}
 
 	outputAnnotations := annotations.New()
-	roleAssignments, nextPage, ratelimitData, err := o.enterpriseClient.GetRoleAssignments(ctx, "", bag.Cursor)
+	roleAssignments, nextPage, ratelimitData, err := o.businessPlusClient.GetRoleAssignments(ctx, "", bag.Cursor)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
 		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, err
@@ -231,7 +231,7 @@ func (o *enterpriseRoleType) Grants(
 	}
 
 	outputAnnotations := annotations.New()
-	roleAssignments, nextPage, ratelimitData, err := o.enterpriseClient.GetRoleAssignments(
+	roleAssignments, nextPage, ratelimitData, err := o.businessPlusClient.GetRoleAssignments(
 		ctx,
 		resource.Id.Resource,
 		bag.PageToken(),
@@ -260,7 +260,7 @@ func (o *enterpriseRoleType) Grants(
 
 // getTeamIDForUser retrieves the team ID for a user by calling the Slack API directly.
 func (o *enterpriseRoleType) getTeamIDForUser(ctx context.Context, userID string) (string, *v2.RateLimitDescription, error) {
-	user, ratelimitData, err := o.enterpriseClient.GetUserInfo(ctx, userID)
+	user, ratelimitData, err := o.businessPlusClient.GetUserInfo(ctx, userID)
 	if err != nil {
 		return "", ratelimitData, fmt.Errorf("failed to get user info for user %s: %w", userID, err)
 	}
@@ -292,7 +292,7 @@ func (o *enterpriseRoleType) Grant(
 		return outputAnnotations, err
 	}
 
-	ratelimitData, err = o.enterpriseClient.AssignEnterpriseRole(ctx, roleID, userID, teamID)
+	ratelimitData, err = o.businessPlusClient.AssignEnterpriseRole(ctx, roleID, userID, teamID)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
 		return outputAnnotations, fmt.Errorf("failed to assign enterprise role %s to user %s in team %s: %w", roleID, userID, teamID, err)
@@ -320,7 +320,7 @@ func (o *enterpriseRoleType) Revoke(
 		return outputAnnotations, err
 	}
 
-	ratelimitData, err = o.enterpriseClient.UnassignEnterpriseRole(ctx, roleID, userID, teamID)
+	ratelimitData, err = o.businessPlusClient.UnassignEnterpriseRole(ctx, roleID, userID, teamID)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
 		return outputAnnotations, fmt.Errorf("failed to unassign enterprise role %s from user %s in team %s: %w", roleID, userID, teamID, err)
