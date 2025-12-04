@@ -30,7 +30,7 @@ var (
 				DisplayName: "User ID",
 				Description: "The Slack user ID to disable",
 				IsRequired:  true,
-				Field: &config_sdk.Field_StringField{},
+				Field:       &config_sdk.Field_StringField{},
 			},
 		},
 		ReturnTypes: []*config_sdk.Field{
@@ -44,13 +44,13 @@ var (
 				Name:        "message",
 				DisplayName: "Message",
 				Description: "A descriptive message about the operation result",
-				Field: &config_sdk.Field_StringField{},
+				Field:       &config_sdk.Field_StringField{},
 			},
 			{
 				Name:        "user_id",
 				DisplayName: "User ID",
 				Description: "The Slack user ID that was processed",
-				Field: &config_sdk.Field_StringField{},
+				Field:       &config_sdk.Field_StringField{},
 			},
 		},
 		ActionType: []v2.ActionType{
@@ -67,7 +67,7 @@ var (
 				DisplayName: "User ID",
 				Description: "The Slack user ID to enable",
 				IsRequired:  true,
-				Field: &config_sdk.Field_StringField{},
+				Field:       &config_sdk.Field_StringField{},
 			},
 		},
 		ReturnTypes: []*config_sdk.Field{
@@ -81,13 +81,13 @@ var (
 				Name:        "message",
 				DisplayName: "Message",
 				Description: "A descriptive message about the operation result",
-				Field: &config_sdk.Field_StringField{},
+				Field:       &config_sdk.Field_StringField{},
 			},
 			{
 				Name:        "user_id",
 				DisplayName: "User ID",
 				Description: "The Slack user ID that was processed",
-				Field: &config_sdk.Field_StringField{},
+				Field:       &config_sdk.Field_StringField{},
 			},
 		},
 		ActionType: []v2.ActionType{
