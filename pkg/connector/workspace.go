@@ -17,11 +17,10 @@ import (
 const memberEntitlement = "member"
 
 type workspaceResourceType struct {
-	resourceType      *v2.ResourceType
-	client            *slack.Client
-	enterpriseID      string
-	enterpriseService enterprise.SlackEnterpriseService
-	businessPlusClient  *enterprise.Client
+	resourceType       *v2.ResourceType
+	client             *slack.Client
+	enterpriseID       string
+	businessPlusClient *enterprise.Client
 }
 
 func (o *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -34,11 +33,10 @@ func workspaceBuilder(
 	businessPlusClient *enterprise.Client,
 ) *workspaceResourceType {
 	return &workspaceResourceType{
-		resourceType:      resourceTypeWorkspace,
-		client:            client,
-		enterpriseID:      enterpriseID,
-		businessPlusClient:  businessPlusClient,
-		enterpriseService: enterprise.NewSlackEnterpriseService(businessPlusClient),
+		resourceType:       resourceTypeWorkspace,
+		client:             client,
+		enterpriseID:       enterpriseID,
+		businessPlusClient: businessPlusClient,
 	}
 }
 
@@ -186,96 +184,7 @@ func (o *workspaceResourceType) Grants(
 			return nil, nil, err
 		}
 
-		if user.IsPrimaryOwner {
-			rr, err := roleResource(ctx, PrimaryOwnerRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, err
-			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-		}
-
-		if user.IsOwner {
-			rr, err := roleResource(ctx, OwnerRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, err
-			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-		}
-
-		if user.IsAdmin {
-			rr, err := roleResource(ctx, AdminRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, err
-			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-		}
-
-		if user.IsRestricted {
-			if user.IsUltraRestricted {
-				rr, err := roleResource(ctx, SingleChannelGuestRoleID, resource.Id)
-				if err != nil {
-					return nil, nil, err
-				}
-				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-			} else {
-				rr, err := roleResource(ctx, MultiChannelGuestRoleID, resource.Id)
-				if err != nil {
-					return nil, nil, err
-				}
-				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-			}
-		}
-
-		if user.IsInvitedUser {
-			rr, err := roleResource(ctx, InvitedMemberRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, err
-			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-		}
-
-		if !user.IsRestricted && !user.IsUltraRestricted && !user.IsInvitedUser && !user.IsBot && !user.Deleted {
-			rr, err := roleResource(ctx, MemberRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, err
-			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-		}
-
-		if user.IsBot {
-			rr, err := roleResource(ctx, BotRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, err
-			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-		}
-
-		if o.enterpriseID != "" {
-			if user.Enterprise.IsPrimaryOwner {
-				rr, err := enterpriseRoleResource(ctx, OrganizationPrimaryOwnerID, resource.Id)
-				if err != nil {
-					return nil, nil, err
-				}
-				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-			}
-			if user.Enterprise.IsOwner {
-				rr, err := enterpriseRoleResource(ctx, OrganizationOwnerID, resource.Id)
-				if err != nil {
-					return nil, nil, err
-				}
-				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-			}
-			if user.Enterprise.IsAdmin {
-				rr, err := enterpriseRoleResource(ctx, OrganizationAdminID, resource.Id)
-				if err != nil {
-					return nil, nil, err
-				}
-				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-			}
-		}
-
-		// confused about Workspace vs Workspace Role? check this link:
-		// https://github.com/ConductorOne/baton-slack/pull/4
+		// Only create workspace membership grants (no role-based grants)
 		rv = append(rv, grant.NewGrant(resource, memberEntitlement, userID))
 	}
 

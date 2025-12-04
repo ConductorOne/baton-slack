@@ -23,26 +23,6 @@ type SCIMResponse[T any] struct {
 	StartIndex   int      `json:"startIndex"`
 }
 
-type UserAdmin struct {
-	ID                string   `json:"id"`
-	Email             string   `json:"email"`
-	IsAdmin           bool     `json:"is_admin"`
-	IsOwner           bool     `json:"is_owner"`
-	IsPrimaryOwner    bool     `json:"is_primary_owner"`
-	IsRestricted      bool     `json:"is_restricted"`
-	IsUltraRestricted bool     `json:"is_ultra_restricted"`
-	IsBot             bool     `json:"is_bot"`
-	Username          string   `json:"username"`
-	FullName          string   `json:"full_name"`
-	IsActive          bool     `json:"is_active"`
-	DateCreated       int      `json:"date_created"`
-	DeactivatedTs     int      `json:"deactivated_ts"`
-	ExpirationTs      int      `json:"expiration_ts"`
-	Workspaces        []string `json:"workspaces"`
-	Has2Fa            bool     `json:"has_2fa"`
-	HasSso            bool     `json:"has_sso"`
-}
-
 type RoleAssignment struct {
 	RoleID     string `json:"role_id"`
 	EntityID   string `json:"entity_id"`

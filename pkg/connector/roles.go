@@ -2,7 +2,6 @@ package connector
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -11,14 +10,10 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
-	"github.com/conductorone/baton-sdk/pkg/uhttp"
 
 	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
-	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -47,10 +42,10 @@ var roles = map[string]string{
 }
 
 type workspaceRoleType struct {
-	resourceType     *v2.ResourceType
-	client           *slack.Client
+	resourceType       *v2.ResourceType
+	client             *slack.Client
 	businessPlusClient *enterprise.Client
-	enterpriseID     string
+	enterpriseID       string
 }
 
 func (o *workspaceRoleType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -59,10 +54,10 @@ func (o *workspaceRoleType) ResourceType(_ context.Context) *v2.ResourceType {
 
 func workspaceRoleBuilder(client *slack.Client, enterpriseID string, businessPlusClient *enterprise.Client) *workspaceRoleType {
 	return &workspaceRoleType{
-		resourceType:     resourceTypeWorkspaceRole,
-		client:           client,
+		resourceType:       resourceTypeWorkspaceRole,
+		client:             client,
 		businessPlusClient: businessPlusClient,
-		enterpriseID:     enterpriseID,
+		enterpriseID:       enterpriseID,
 	}
 }
 
@@ -183,43 +178,7 @@ func (o *workspaceRoleType) Grant(
 	annotations.Annotations,
 	error,
 ) {
-	logger := ctxzap.Extract(ctx)
-
-	if principal.Id.ResourceType != resourceTypeUser.Id {
-		logger.Warn(
-			"baton-slack: only users can be assigned a role",
-			zap.String("principal_type", principal.Id.ResourceType),
-			zap.String("principal_id", principal.Id.Resource),
-		)
-		return nil, uhttp.WrapErrors(codes.InvalidArgument, "only users can be granted workspace role assignments", errors.New("invalid principal type"))
-	}
-
-	// teamID is in the entitlement ID at second position
-	teamID, err := pkg.ParseID(entitlement.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	roleID, err := pkg.ParseRole(entitlement.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	var rateLimitData *v2.RateLimitDescription
-	rateLimitData, err = o.businessPlusClient.SetWorkspaceRole(
-		ctx,
-		teamID,
-		principal.Id.Resource,
-		roleID,
-	)
-
-	outputAnnotations := annotations.New()
-	outputAnnotations.WithRateLimiting(rateLimitData)
-	if err != nil {
-		return outputAnnotations, fmt.Errorf("failed to assign workspace role during grant operation: %w", err)
-	}
-
-	return outputAnnotations, nil
+	return nil, nil
 }
 
 func (o *workspaceRoleType) Revoke(
@@ -229,58 +188,5 @@ func (o *workspaceRoleType) Revoke(
 	annotations.Annotations,
 	error,
 ) {
-	if o.enterpriseID == "" {
-		return nil, uhttp.WrapErrors(codes.InvalidArgument, "enterprise ID and token are both required for workspace role revocation", errors.New("missing enterprise configuration"))
-	}
-
-	logger := ctxzap.Extract(ctx)
-
-	principal := grant.Principal
-
-	if principal.Id.ResourceType != resourceTypeUser.Id {
-		logger.Warn(
-			"baton-slack: only users can have role revoked",
-			zap.String("principal_type", principal.Id.ResourceType),
-			zap.String("principal_id", principal.Id.Resource),
-		)
-		return nil, uhttp.WrapErrors(codes.InvalidArgument, "only users can have workspace role assignments revoked", errors.New("invalid principal type"))
-	}
-
-	// teamID is in the grant ID at second position
-	teamID, err := pkg.ParseID(grant.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	role, err := pkg.ParseRole(grant.Id)
-	if err != nil {
-		return nil, err
-	}
-
-	outputAnnotations := annotations.New()
-
-	var rateLimitData *v2.RateLimitDescription
-	switch role {
-	case AdminRoleID, OwnerRoleID:
-		rateLimitData, err = o.businessPlusClient.SetWorkspaceRole(
-			ctx,
-			teamID,
-			principal.Id.Resource,
-			RegularRoleID,
-		)
-
-	case MemberRoleID:
-		rateLimitData, err = o.businessPlusClient.RemoveUser(
-			ctx,
-			teamID,
-			principal.Id.Resource,
-		)
-	}
-	outputAnnotations.WithRateLimiting(rateLimitData)
-
-	if err != nil {
-		return outputAnnotations, fmt.Errorf("failed to revoke workspace role during revoke operation: %w", err)
-	}
-
-	return outputAnnotations, nil
+	return nil, nil
 }
