@@ -2,7 +2,6 @@ package pkg
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -16,11 +15,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
-
-type EnterpriseRolesPagination struct {
-	Cursor   string          `json:"cursor"`
-	FoundMap map[string]bool `json:"foundMap"`
-}
 
 func ParseID(id string) (string, error) {
 	parts := strings.Split(id, ":")
@@ -62,46 +56,6 @@ func MakeResourceList[T any](
 		outputSlice = append(outputSlice, nextResource)
 	}
 	return outputSlice, nil
-}
-
-func (e *EnterpriseRolesPagination) Marshal() (string, error) {
-	if e.Cursor == "" {
-		return "", nil
-	}
-	bytes, err := json.Marshal(e)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal EnterpriseRolesPagination: %w", err)
-	}
-
-	return string(bytes), nil
-}
-
-func (e *EnterpriseRolesPagination) Unmarshal(input string) error {
-	if input == "" {
-		e.FoundMap = make(map[string]bool)
-		return nil
-	}
-
-	err := json.Unmarshal([]byte(input), e)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal EnterpriseRolesPagination: %w", err)
-	}
-
-	return nil
-}
-
-func ParseRolesPageToken(i string) (*EnterpriseRolesPagination, error) {
-	b := &EnterpriseRolesPagination{}
-	err := b.Unmarshal(i)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse roles page token: %w", err)
-	}
-
-	if b.FoundMap == nil {
-		b.FoundMap = make(map[string]bool)
-	}
-
-	return b, nil
 }
 
 func ParsePageToken(i string, resourceID *v2.ResourceId) (*pagination.Bag, error) {
