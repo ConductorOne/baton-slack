@@ -82,7 +82,7 @@ func (o *workspaceResourceType) List(
 	params := slack.ListTeamsParameters{Cursor: bag.PageToken()}
 	workspaces, nextCursor, err = o.client.ListTeamsContext(ctx, params)
 	if err != nil {
-		wrappedErr := pkg.WrapSlackClientError(err, "listing teams")
+		wrappedErr := pkg.WrapError(err, "listing teams")
 		return nil, nil, wrappedErr
 	}
 

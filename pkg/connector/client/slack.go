@@ -131,34 +131,6 @@ func SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaces
 	return session.SetManyJSON(ctx, ss, workspaceMap, workspaceNameNamespace)
 }
 
-// GetWorkspaceNames retrieves workspace names for the given IDs from the session store.
-func GetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaceIDs []string) (map[string]string, []string, error) {
-	validIDs := make([]string, 0, len(workspaceIDs))
-	for _, id := range workspaceIDs {
-		if id != "" {
-			validIDs = append(validIDs, id)
-		}
-	}
-
-	if len(validIDs) == 0 {
-		return make(map[string]string), []string{}, nil
-	}
-
-	found, err := session.GetManyJSON[string](ctx, ss, validIDs, workspaceNameNamespace)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	missing := make([]string, 0)
-	for _, id := range validIDs {
-		if _, exists := found[id]; !exists {
-			missing = append(missing, id)
-		}
-	}
-
-	return found, missing, nil
-}
-
 // GetUserInfo returns the user info for the given user ID.
 func (c *Client) GetUserInfo(
 	ctx context.Context,

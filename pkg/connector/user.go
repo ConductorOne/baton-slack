@@ -30,7 +30,7 @@ func (o *userResourceType) scimUserResource(ctx context.Context, scimUser client
 	// NOTE: this is mainly to maintain compatibility with existing profile in non scim flow.
 	slackUser, err := o.client.GetUserInfoContext(ctx, scimUser.ID)
 	if err != nil {
-		wrappedErr := pkg.WrapSlackClientError(err, fmt.Sprintf("fetching user info for SCIM user %s", scimUser.ID))
+		wrappedErr := pkg.WrapError(err, fmt.Sprintf("fetching user info for SCIM user %s", scimUser.ID))
 		return nil, wrappedErr
 	}
 

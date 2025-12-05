@@ -23,7 +23,7 @@ var (
 	SSOEnabledField = field.BoolField(
 		"sso-enabled",
 		field.WithDisplayName("SSO Enabled"),
-		field.WithDescription("Deprecated: to be removed"),
+		field.WithDescription("Deprecated: No longer needed. Enterprise Grid features (including SSO/SCIM) have moved to baton-slack-enterprise connector. This connector now focuses on Business+ plans."),
 		field.WithDefaultValue(false),
 	)
 	GovEnvironmentField = field.BoolField(

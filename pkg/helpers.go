@@ -168,9 +168,9 @@ func MapSlackErrorToGRPCCode(errorString string) codes.Code {
 	}
 }
 
-// WrapSlackClientError wraps errors from the slack-go/slack client with appropriate
+// WrapError wraps errors from the slack-go/slack client with appropriate
 // gRPC codes for better classification and handling in C1 and alerting systems.
-func WrapSlackClientError(err error, action string) error {
+func WrapError(err error, action string) error {
 	if err == nil {
 		return nil
 	}
@@ -238,5 +238,5 @@ func AnnotationsForError(err error) (annotations.Annotations, error) {
 		return annos, nil
 	}
 	// Wrap the error with appropriate gRPC code for non-ratelimit errors
-	return annos, WrapSlackClientError(err, "listing resources")
+	return annos, WrapError(err, "listing resources")
 }
