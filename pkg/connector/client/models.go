@@ -1,4 +1,4 @@
-package enterprise
+package client
 
 import "github.com/slack-go/slack"
 

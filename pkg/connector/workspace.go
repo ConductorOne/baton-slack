@@ -9,9 +9,11 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/conductorone/baton-slack/pkg"
-	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
+	"github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/slack-go/slack"
+	"google.golang.org/grpc/codes"
 )
 
 const memberEntitlement = "member"
@@ -19,8 +21,7 @@ const memberEntitlement = "member"
 type workspaceResourceType struct {
 	resourceType       *v2.ResourceType
 	client             *slack.Client
-	enterpriseID       string
-	businessPlusClient *enterprise.Client
+	businessPlusClient *client.Client
 }
 
 func (o *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -28,14 +29,12 @@ func (o *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType
 }
 
 func workspaceBuilder(
-	client *slack.Client,
-	enterpriseID string,
-	businessPlusClient *enterprise.Client,
+	slackClient *slack.Client,
+	businessPlusClient *client.Client,
 ) *workspaceResourceType {
 	return &workspaceResourceType{
 		resourceType:       resourceTypeWorkspace,
-		client:             client,
-		enterpriseID:       enterpriseID,
+		client:             slackClient,
 		businessPlusClient: businessPlusClient,
 	}
 }
@@ -73,52 +72,40 @@ func (o *workspaceResourceType) List(
 ) ([]*v2.Resource, *resources.SyncOpResults, error) {
 	bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, uhttp.WrapErrors(codes.InvalidArgument, "parsing page token", err)
 	}
 
 	var (
-		workspaces    []slack.Team
-		nextCursor    string
-		ratelimitData *v2.RateLimitDescription
+		workspaces []slack.Team
+		nextCursor string
 	)
-	outputAnnotations := annotations.New()
-	if o.enterpriseID != "" {
-		workspaces, nextCursor, ratelimitData, err = o.businessPlusClient.GetAuthTeamsList(ctx, bag.PageToken())
-		outputAnnotations.WithRateLimiting(ratelimitData)
+	params := slack.ListTeamsParameters{Cursor: bag.PageToken()}
+	workspaces, nextCursor, err = o.client.ListTeamsContext(ctx, params)
+	if err != nil {
+		wrappedErr := pkg.WrapSlackClientError(err, "listing teams")
+		return nil, nil, wrappedErr
+	}
+
+	rv := make([]*v2.Resource, 0, len(workspaces))
+	for _, ws := range workspaces {
+		resource, err := workspaceResource(ctx, ws, parentID)
 		if err != nil {
-			return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, err
+			return nil, nil, uhttp.WrapErrors(codes.Internal, "creating workspace resource", err)
 		}
-	} else {
-		params := slack.ListTeamsParameters{Cursor: bag.PageToken()}
-		workspaces, nextCursor, err = o.client.ListTeamsContext(ctx, params)
-		if err != nil {
-			return nil, nil, err
-		}
+		rv = append(rv, resource)
+	}
+
+	err = client.SetWorkspaceNames(ctx, attrs.Session, workspaces)
+	if err != nil {
+		return nil, nil, uhttp.WrapErrors(codes.Internal, "storing workspace names in session", err)
 	}
 
 	pageToken, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, uhttp.WrapErrors(codes.Internal, "creating next page token", err)
 	}
-
-	err = o.businessPlusClient.SetWorkspaceNames(ctx, attrs.Session, workspaces)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	output, err := pkg.MakeResourceList(
-		ctx,
-		workspaces,
-		nil,
-		workspaceResource,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return output, &resources.SyncOpResults{
+	return rv, &resources.SyncOpResults{
 		NextPageToken: pageToken,
-		Annotations:   outputAnnotations,
 	}, nil
 }
 
@@ -153,9 +140,13 @@ func (o *workspaceResourceType) Grants(
 	resource *v2.Resource,
 	attrs resources.SyncOpAttrs,
 ) ([]*v2.Grant, *resources.SyncOpResults, error) {
+	if o.businessPlusClient == nil {
+		return nil, &resources.SyncOpResults{}, nil
+	}
+
 	bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, uhttp.WrapErrors(codes.InvalidArgument, "parsing page token", err)
 	}
 
 	outputAnnotations := annotations.New()
@@ -166,12 +157,12 @@ func (o *workspaceResourceType) Grants(
 	)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, uhttp.WrapErrors(codes.Internal, "fetching users for workspace", err)
 	}
 
 	pageToken, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, uhttp.WrapErrors(codes.Internal, "creating next page token", err)
 	}
 
 	var rv []*v2.Grant
@@ -181,7 +172,7 @@ func (o *workspaceResourceType) Grants(
 		}
 		userID, err := resources.NewResourceID(resourceTypeUser, user.ID)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, uhttp.WrapErrors(codes.Internal, "creating user resource ID", err)
 		}
 
 		// Only create workspace membership grants (no role-based grants)

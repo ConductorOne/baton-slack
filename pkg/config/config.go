@@ -23,7 +23,7 @@ var (
 	SSOEnabledField = field.BoolField(
 		"sso-enabled",
 		field.WithDisplayName("SSO Enabled"),
-		field.WithDescription("Flag indicating that the SSO has been configured for Enterprise Grid Organization. Enables usage of SCIM API"),
+		field.WithDescription("Deprecated: to be removed"),
 		field.WithDefaultValue(false),
 	)
 	GovEnvironmentField = field.BoolField(
@@ -39,7 +39,6 @@ var (
 	ConfigurationFields = []field.SchemaField{
 		AccessTokenField,
 		BusinessPlusTokenField,
-		SSOEnabledField,
 		GovEnvironmentField,
 	}
 

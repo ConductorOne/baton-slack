@@ -1,4 +1,4 @@
-package enterprise
+package client
 
 import (
 	"context"
@@ -30,22 +30,18 @@ const (
 var workspaceNameNamespace = sessions.WithPrefix("workspace_name")
 
 type Client struct {
-	baseScimUrl  *url.URL
-	baseUrl      *url.URL
-	token        string
-	enterpriseID string
-	botToken     string
-	ssoEnabled   bool
-	scimVersion  string
-	wrapper      *uhttp.BaseHttpClient
+	baseScimUrl *url.URL
+	baseUrl     *url.URL
+	token       string
+	botToken    string
+	scimVersion string
+	wrapper     *uhttp.BaseHttpClient
 }
 
 func NewClient(
 	httpClient *http.Client,
 	token string,
 	botToken string,
-	enterpriseID string,
-	ssoEnabled bool,
 	govEnv bool,
 ) (*Client, error) {
 	finalBaseUrl := baseUrl
@@ -68,14 +64,12 @@ func NewClient(
 	}
 
 	return &Client{
-		baseUrl:      baseUrl0,
-		baseScimUrl:  baseScimUrl0,
-		token:        token,
-		enterpriseID: enterpriseID,
-		botToken:     botToken,
-		ssoEnabled:   ssoEnabled,
-		scimVersion:  finalScimVersion,
-		wrapper:      uhttp.NewBaseHttpClient(httpClient),
+		baseUrl:     baseUrl0,
+		baseScimUrl: baseScimUrl0,
+		token:       token,
+		botToken:    botToken,
+		scimVersion: finalScimVersion,
+		wrapper:     uhttp.NewBaseHttpClient(httpClient),
 	}, nil
 }
 
@@ -128,7 +122,8 @@ func (a BaseResponse) handleError(err error, action string) error {
 	return nil
 }
 
-func (c *Client) SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaces []slack.Team) error {
+// SetWorkspaceNames stores workspace names in the session store.
+func SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaces []slack.Team) error {
 	workspaceMap := make(map[string]string)
 	for _, workspace := range workspaces {
 		workspaceMap[workspace.ID] = workspace.Name
@@ -137,7 +132,7 @@ func (c *Client) SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore
 }
 
 // GetWorkspaceNames retrieves workspace names for the given IDs from the session store.
-func (c *Client) GetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaceIDs []string) (map[string]string, []string, error) {
+func GetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaceIDs []string) (map[string]string, []string, error) {
 	validIDs := make([]string, 0, len(workspaceIDs))
 	for _, id := range workspaceIDs {
 		if id != "" {

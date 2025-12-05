@@ -8,29 +8,30 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
+	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/conductorone/baton-slack/pkg"
-	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
+	"github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
+	"google.golang.org/grpc/codes"
 )
 
 type userResourceType struct {
 	resourceType       *v2.ResourceType
 	client             *slack.Client
-	enterpriseID       string
-	businessPlusClient *enterprise.Client
-	ssoEnabled         bool
+	businessPlusClient *client.Client
 }
 
 func (o *userResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return o.resourceType
 }
 
-func (o *userResourceType) scimUserResource(ctx context.Context, scimUser enterprise.UserResource, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
+func (o *userResourceType) scimUserResource(ctx context.Context, scimUser client.UserResource, parentResourceID *v2.ResourceId) (*v2.Resource, error) {
 	// NOTE: this is mainly to maintain compatibility with existing profile in non scim flow.
 	slackUser, err := o.client.GetUserInfoContext(ctx, scimUser.ID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get full user info for SCIM user %s: %w", scimUser.ID, err)
+		wrappedErr := pkg.WrapSlackClientError(err, fmt.Sprintf("fetching user info for SCIM user %s", scimUser.ID))
+		return nil, wrappedErr
 	}
 
 	profile := make(map[string]interface{})
@@ -191,9 +192,8 @@ func (o *userResourceType) List(
 	}
 
 	l := ctxzap.Extract(ctx)
-
-	if o.businessPlusClient != nil && o.ssoEnabled {
-		l.Debug("Using SCIM API to list users")
+	if o.businessPlusClient != nil {
+		l.Debug("Attempting to use SCIM API to list users")
 		return o.listScimAPI(ctx, parentResourceID, attrs)
 	}
 
@@ -221,7 +221,7 @@ func (o *userResourceType) listStandardAPI(
 	for _, u := range users {
 		resource, err := userResource(ctx, &u, parentResourceID)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error creating user resource: %w", err)
+			return nil, nil, uhttp.WrapErrors(codes.Internal, "creating user resource", err)
 		}
 		rv = append(rv, resource)
 	}
@@ -234,7 +234,7 @@ func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2
 	if attrs.PageToken.Token != "" {
 		startIndex, err = strconv.Atoi(attrs.PageToken.Token)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error parsing page token: %w", err)
+			return nil, nil, uhttp.WrapErrors(codes.InvalidArgument, "parsing page token", err)
 		}
 	}
 
@@ -243,14 +243,14 @@ func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2
 	response, ratelimitData, err := o.businessPlusClient.ListIDPUsers(ctx, startIndex, count)
 	annos.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, &resource.SyncOpResults{Annotations: annos}, fmt.Errorf("error fetching SCIM users: %w", err)
+		return nil, &resource.SyncOpResults{Annotations: annos}, uhttp.WrapErrors(codes.Internal, "fetching SCIM users", err)
 	}
 
 	rv := make([]*v2.Resource, 0, len(response.Resources))
 	for _, user := range response.Resources {
 		userResource, err := o.scimUserResource(ctx, user, parentResourceID)
 		if err != nil {
-			return nil, &resource.SyncOpResults{Annotations: annos}, fmt.Errorf("error creating user resource: %w", err)
+			return nil, &resource.SyncOpResults{Annotations: annos}, uhttp.WrapErrors(codes.Internal, "creating user resource from SCIM data", err)
 		}
 		rv = append(rv, userResource)
 	}
@@ -263,16 +263,12 @@ func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2
 }
 
 func userBuilder(
-	client *slack.Client,
-	enterpriseID string,
-	businessPlusClient *enterprise.Client,
-	ssoEnabled bool,
+	slackClient *slack.Client,
+	businessPlusClient *client.Client,
 ) *userResourceType {
 	return &userResourceType{
 		resourceType:       resourceTypeUser,
-		client:             client,
-		enterpriseID:       enterpriseID,
+		client:             slackClient,
 		businessPlusClient: businessPlusClient,
-		ssoEnabled:         ssoEnabled,
 	}
 }

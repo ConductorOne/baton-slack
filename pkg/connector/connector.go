@@ -11,7 +11,7 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/conductorone/baton-slack/pkg"
 	cfg "github.com/conductorone/baton-slack/pkg/config"
-	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
+	"github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
 	"go.uber.org/zap"
@@ -21,9 +21,7 @@ import (
 type Slack struct {
 	client             *slack.Client
 	apiKey             string
-	businessPlusClient *enterprise.Client
-	enterpriseID       string
-	ssoEnabled         bool
+	businessPlusClient *client.Client
 	govEnv             bool
 }
 
@@ -104,7 +102,7 @@ func (s *slackLogger) Output(callDepth int, msg string) error {
 	return nil
 }
 
-func NewSlack(ctx context.Context, apiKey, businessPlusKey string, ssoEnabled bool, govEnv bool) (*Slack, error) {
+func NewSlack(ctx context.Context, apiKey, businessPlusKey string, govEnv bool) (*Slack, error) {
 	l := ctxzap.Extract(ctx)
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, l))
 	if err != nil {
@@ -120,41 +118,26 @@ func NewSlack(ctx context.Context, apiKey, businessPlusKey string, ssoEnabled bo
 	if govEnv {
 		opts = append(opts, slack.OptionAPIURL(govSlackApiUrl))
 	}
-	client := slack.New(apiKey, opts...)
+	slackClient := slack.New(apiKey, opts...)
 
-	res, err := client.AuthTestContext(ctx)
-	if err != nil {
-		return nil, pkg.WrapSlackClientError(err, "authenticating during initialization")
-	}
-
-	var enterpriseId string
-	if res.EnterpriseID != "" {
-		enterpriseId = res.EnterpriseID
-		if businessPlusKey == "" {
-			return nil, uhttp.WrapErrors(
-				codes.InvalidArgument,
-				"business plus account detected, but no business plus token specified",
-				fmt.Errorf("missing business plus token"),
-			)
+	var businessPlusClient *client.Client
+	if businessPlusKey != "" {
+		var err error
+		businessPlusClient, err = client.NewClient(
+			httpClient,
+			businessPlusKey,
+			apiKey,
+			govEnv,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Business+ client. Error: %w", err)
 		}
 	}
-	businessPlusClient, err := enterprise.NewClient(
-		httpClient,
-		businessPlusKey,
-		apiKey,
-		res.EnterpriseID,
-		ssoEnabled,
-		govEnv,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create business plus client. Error: %w", err)
-	}
+
 	return &Slack{
-		client:             client,
+		client:             slackClient,
 		apiKey:             apiKey,
 		businessPlusClient: businessPlusClient,
-		enterpriseID:       enterpriseId,
-		ssoEnabled:         ssoEnabled,
 		govEnv:             govEnv,
 	}, nil
 }
@@ -164,7 +147,6 @@ func New(ctx context.Context, config *cfg.Slack, opts *cli.ConnectorOpts) (conne
 		ctx,
 		config.Token,
 		config.BusinessPlusToken,
-		config.SsoEnabled,
 		config.GovEnv,
 	)
 	if err != nil {
@@ -177,9 +159,9 @@ func New(ctx context.Context, config *cfg.Slack, opts *cli.ConnectorOpts) (conne
 
 func (s *Slack) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncerV2 {
 	return []connectorbuilder.ResourceSyncerV2{
-		userBuilder(s.client, s.enterpriseID, s.businessPlusClient, s.ssoEnabled),
-		workspaceBuilder(s.client, s.enterpriseID, s.businessPlusClient),
-		userGroupBuilder(s.client, s.enterpriseID, s.businessPlusClient),
-		groupBuilder(s.businessPlusClient, s.enterpriseID, s.ssoEnabled, s.govEnv),
+		userBuilder(s.client, s.businessPlusClient),
+		workspaceBuilder(s.client, s.businessPlusClient),
+		userGroupBuilder(s.client, s.businessPlusClient),
+		groupBuilder(s.businessPlusClient, s.govEnv),
 	}
 }

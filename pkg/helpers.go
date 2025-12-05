@@ -19,7 +19,7 @@ import (
 func ParseID(id string) (string, error) {
 	parts := strings.Split(id, ":")
 	if len(parts) < 2 {
-		return "", fmt.Errorf("invalid ID format: %s", id)
+		return "", uhttp.WrapErrors(codes.InvalidArgument, "parsing ID", fmt.Errorf("invalid ID format: %s", id))
 	}
 	return parts[1], nil
 }
@@ -27,7 +27,7 @@ func ParseID(id string) (string, error) {
 func ParseRole(id string) (string, error) {
 	parts := strings.Split(id, ":")
 	if len(parts) < 3 {
-		return "", fmt.Errorf("invalid role ID format: %s", id)
+		return "", uhttp.WrapErrors(codes.InvalidArgument, "parsing role ID", fmt.Errorf("invalid role ID format: %s", id))
 	}
 	return parts[2], nil
 }
@@ -51,7 +51,7 @@ func MakeResourceList[T any](
 	for _, object := range objects {
 		nextResource, err := toResource(ctx, object, parentResourceID)
 		if err != nil {
-			return nil, err
+			return nil, uhttp.WrapErrors(codes.Internal, "converting object to resource", err)
 		}
 		outputSlice = append(outputSlice, nextResource)
 	}
@@ -62,7 +62,7 @@ func ParsePageToken(i string, resourceID *v2.ResourceId) (*pagination.Bag, error
 	b := &pagination.Bag{}
 	err := b.Unmarshal(i)
 	if err != nil {
-		return nil, fmt.Errorf("pagination bag unmarshal error: %w", err)
+		return nil, uhttp.WrapErrors(codes.InvalidArgument, "unmarshaling pagination token", err)
 	}
 
 	if b.Current() == nil {

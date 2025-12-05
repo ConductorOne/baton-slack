@@ -1,4 +1,4 @@
-package enterprise
+package client
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 )
 
 func toValues(queryParameters map[string]interface{}) string {
@@ -193,7 +194,7 @@ func (c *Client) doRequest(
 		options...,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+		return nil, uhttp.WrapErrors(codes.Internal, "creating HTTP request", err)
 	}
 
 	var ratelimitData v2.RateLimitDescription
@@ -210,12 +211,12 @@ func (c *Client) doRequest(
 	bodyBytes, err := io.ReadAll(response.Body)
 	if err != nil {
 		logBody(ctx, response)
-		return &ratelimitData, fmt.Errorf("failed to read response body: %w", err)
+		return &ratelimitData, uhttp.WrapErrors(codes.Internal, "reading response body", err)
 	}
 
 	if err := json.Unmarshal(bodyBytes, &target); err != nil {
 		logBody(ctx, response)
-		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+		return nil, uhttp.WrapErrors(codes.Internal, "unmarshaling response", err)
 	}
 
 	return &ratelimitData, nil
@@ -243,7 +244,7 @@ func (c *Client) deleteScim(
 		uhttp.WithAcceptJSONHeader(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create SCIM delete request: %w", err)
+		return nil, uhttp.WrapErrors(codes.Internal, "creating SCIM delete request", err)
 	}
 
 	var ratelimitData v2.RateLimitDescription
@@ -264,17 +265,17 @@ func (c *Client) deleteScim(
 	bodyBytes, err := io.ReadAll(response.Body)
 	if err != nil {
 		logBody(ctx, response)
-		return &ratelimitData, fmt.Errorf("failed to read SCIM error response body: %w", err)
+		return &ratelimitData, uhttp.WrapErrors(codes.Internal, "reading SCIM error response body", err)
 	}
 
 	// return error details if available
 	if len(bodyBytes) > 0 {
 		var errorResponse map[string]interface{}
 		if err := json.Unmarshal(bodyBytes, &errorResponse); err != nil {
-			return &ratelimitData, fmt.Errorf("failed to parse SCIM error response: %w", err)
+			return &ratelimitData, uhttp.WrapErrors(codes.Internal, "parsing SCIM error response", err)
 		}
 		if detail, ok := errorResponse["detail"].(string); ok {
-			return &ratelimitData, fmt.Errorf("SCIM API error: %s", detail)
+			return &ratelimitData, uhttp.WrapErrors(codes.Internal, "SCIM API error", fmt.Errorf("%s", detail))
 		}
 	}
 

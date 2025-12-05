@@ -14,7 +14,7 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 
 	"github.com/conductorone/baton-slack/pkg"
-	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
+	"github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -24,31 +24,27 @@ import (
 const StartingOffset = 1
 
 type groupResourceType struct {
-	resourceType     *v2.ResourceType
-	enterpriseID     string
-	businessPlusClient *enterprise.Client
-	ssoEnabled       bool
-	govEnv           bool
+	resourceType       *v2.ResourceType
+	businessPlusClient *client.Client
+	govEnv             bool
 }
 
 func (g *groupResourceType) ResourceType(_ context.Context) *v2.ResourceType {
 	return g.resourceType
 }
 
-func groupBuilder(businessPlusClient *enterprise.Client, enterpriseID string, ssoEnabled bool, govEnv bool) *groupResourceType {
+func groupBuilder(businessPlusClient *client.Client, govEnv bool) *groupResourceType {
 	return &groupResourceType{
-		resourceType:     resourceTypeGroup,
-		enterpriseID:     enterpriseID,
+		resourceType:       resourceTypeGroup,
 		businessPlusClient: businessPlusClient,
-		ssoEnabled:       ssoEnabled,
-		govEnv:           govEnv,
+		govEnv:             govEnv,
 	}
 }
 
 // Create a new connector resource for a Slack IDP group.
 func groupResource(
 	_ context.Context,
-	group enterprise.GroupResource,
+	group client.GroupResource,
 	_ *v2.ResourceId,
 ) (*v2.Resource, error) {
 	return resources.NewGroupResource(
@@ -70,7 +66,7 @@ func groupResource(
 // in that order. TODO(marcos): move this to a util.
 func parsePaginationToken(tokenStr string, tokenSize int) (int, int, error) {
 	var (
-		limit  = enterprise.PageSizeDefault
+		limit  = client.PageSizeDefault
 		offset = StartingOffset
 	)
 
@@ -106,20 +102,22 @@ func (g *groupResourceType) List(
 	*resources.SyncOpResults,
 	error,
 ) {
-	if !g.ssoEnabled {
+	l := ctxzap.Extract(ctx)
+	if g.businessPlusClient == nil {
+		l.Debug("Business+ client not available, skipping IDP groups")
 		return nil, &resources.SyncOpResults{}, nil
 	}
 
 	offset, limit, err := parsePaginationToken(attrs.PageToken.Token, attrs.PageToken.Size)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, uhttp.WrapErrors(codes.InvalidArgument, "parsing pagination token", err)
 	}
 
 	outputAnnotations := annotations.New()
 	groupsResponse, ratelimitData, err := g.businessPlusClient.ListIDPGroups(ctx, offset, limit)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, err
+		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, uhttp.WrapErrors(codes.Internal, "listing IDP groups", err)
 	}
 
 	groups, err := pkg.MakeResourceList(
@@ -129,7 +127,7 @@ func (g *groupResourceType) List(
 		groupResource,
 	)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, uhttp.WrapErrors(codes.Internal, "creating group resources", err)
 	}
 
 	nextToken := getNextToken(offset, limit, groupsResponse.TotalResults)
@@ -185,13 +183,13 @@ func (g *groupResourceType) Grants(
 	group, ratelimitData, err := g.businessPlusClient.GetIDPGroup(ctx, resource.Id.Resource)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, err
+		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, uhttp.WrapErrors(codes.Internal, "fetching IDP group", err)
 	}
 
 	for _, member := range group.Members {
 		userID, err := resources.NewResourceID(resourceTypeUser, member.Value)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, uhttp.WrapErrors(codes.Internal, "creating user resource ID", err)
 		}
 		grantOptions := []grant.GrantOption{}
 		if g.govEnv {
@@ -214,6 +212,10 @@ func (g *groupResourceType) Grant(
 	error,
 ) {
 	logger := ctxzap.Extract(ctx)
+
+	if g.businessPlusClient == nil {
+		return nil, uhttp.WrapErrors(codes.FailedPrecondition, "Business+ client not available", errors.New("missing Business+ token"))
+	}
 
 	if g.govEnv {
 		logger.Debug(
@@ -241,7 +243,7 @@ func (g *groupResourceType) Grant(
 	)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return outputAnnotations, fmt.Errorf("failed to add user to IDP group during grant operation: %w", err)
+		return outputAnnotations, uhttp.WrapErrors(codes.Internal, "adding user to IDP group", err)
 	}
 
 	return outputAnnotations, nil
@@ -258,6 +260,10 @@ func (g *groupResourceType) Revoke(
 
 	principal := grant.Principal
 	entitlement := grant.Entitlement
+
+	if g.businessPlusClient == nil {
+		return nil, uhttp.WrapErrors(codes.FailedPrecondition, "Business+ client not available", errors.New("missing Business+ token"))
+	}
 
 	if g.govEnv {
 		logger.Debug(
@@ -286,7 +292,7 @@ func (g *groupResourceType) Revoke(
 	outputAnnotations.WithRateLimiting(ratelimitData)
 
 	if err != nil {
-		return outputAnnotations, fmt.Errorf("failed to remove user from IDP group during revoke operation: %w", err)
+		return outputAnnotations, uhttp.WrapErrors(codes.Internal, "removing user from IDP group", err)
 	}
 
 	if !wasRevoked {

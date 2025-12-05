@@ -1,4 +1,4 @@
-package enterprise
+package client
 
 // docs: https://api.slack.com/methods
 const (

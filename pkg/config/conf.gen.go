@@ -6,7 +6,6 @@ import "reflect"
 type Slack struct {
 	Token string `mapstructure:"token"`
 	BusinessPlusToken string `mapstructure:"business-plus-token"`
-	SsoEnabled bool `mapstructure:"sso-enabled"`
 	GovEnv bool `mapstructure:"gov-env"`
 }
 
