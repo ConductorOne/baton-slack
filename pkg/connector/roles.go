@@ -13,7 +13,6 @@ import (
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 
-	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
@@ -104,7 +103,7 @@ func (o *workspaceRoleType) List(
 		return nil, &resources.SyncOpResults{}, nil
 	}
 
-	output, err := pkg.MakeResourceList(
+	output, err := MakeResourceList(
 		ctx,
 		slices.Collect(maps.Keys(roles)),
 		parentResourceID,
@@ -191,16 +190,16 @@ func (o *workspaceRoleType) Grant(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, uhttp.WrapErrors(codes.InvalidArgument, "only users can be granted workspace role assignments", errors.New("invalid principal type"))
+		return nil, fmt.Errorf("only users can be granted workspace role assignments")
 	}
 
 	// teamID is in the entitlement ID at second position
-	teamID, err := pkg.ParseID(entitlement.Id)
+	teamID, err := ParseID(entitlement.Id)
 	if err != nil {
 		return nil, err
 	}
 
-	roleID, err := pkg.ParseRole(entitlement.Id)
+	roleID, err := ParseRole(entitlement.Id)
 	if err != nil {
 		return nil, err
 	}
@@ -243,16 +242,16 @@ func (o *workspaceRoleType) Revoke(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, uhttp.WrapErrors(codes.InvalidArgument, "only users can have workspace role assignments revoked", errors.New("invalid principal type"))
+		return nil, fmt.Errorf("only users can have workspace role assignments revoked")
 	}
 
 	// teamID is in the grant ID at second position
-	teamID, err := pkg.ParseID(grant.Id)
+	teamID, err := ParseID(grant.Id)
 	if err != nil {
 		return nil, err
 	}
 
-	role, err := pkg.ParseRole(grant.Id)
+	role, err := ParseRole(grant.Id)
 	if err != nil {
 		return nil, err
 	}

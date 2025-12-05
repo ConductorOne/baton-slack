@@ -10,7 +10,6 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
 
-	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 )
 
@@ -123,7 +122,7 @@ func (o *enterpriseRoleType) List(
 		return nil, &resources.SyncOpResults{}, nil
 	}
 
-	bag, err := pkg.ParseRolesPageToken(attrs.PageToken.Token)
+	bag, err := ParseRolesPageToken(attrs.PageToken.Token)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -219,7 +218,7 @@ func (o *enterpriseRoleType) Grants(
 ) {
 	var rv []*v2.Grant
 
-	bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeEnterpriseRole.Id})
+	bag, err := ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeEnterpriseRole.Id})
 	if err != nil {
 		return nil, nil, err
 	}
