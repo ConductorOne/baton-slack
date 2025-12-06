@@ -102,25 +102,6 @@ func (c *Client) getScim(
 	)
 }
 
-func (c *Client) patchScimBytes(
-	ctx context.Context,
-	path string,
-	target interface{},
-	payload []byte,
-) (
-	*v2.RateLimitDescription,
-	error,
-) {
-	return c.doRequest(
-		ctx,
-		http.MethodPatch,
-		c.getUrl(path, nil, true),
-		&target,
-		WithBearerToken(c.token),
-		uhttp.WithJSONBody(payload),
-	)
-}
-
 func (c *Client) patchScim(
 	ctx context.Context,
 	path string,
