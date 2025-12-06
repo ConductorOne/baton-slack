@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -389,20 +388,33 @@ func (c *Client) AddUserToGroup(
 	*v2.RateLimitDescription,
 	error,
 ) {
+	group, ratelimitData, err := c.GetIDPGroup(ctx, groupID)
+	if err != nil {
+		return ratelimitData, fmt.Errorf("error fetching IDP group: %w", err)
+	}
+
+	var members []UserID
+	for _, member := range group.Members {
+		if member.Value == user {
+			return ratelimitData, nil
+		}
+		members = append(members, UserID{Value: member.Value})
+	}
+
+	members = append(members, UserID{Value: user})
+
 	requestBody := PatchOp{
 		Schemas: []string{"urn:ietf:params:scim:api:messages:2.0:PatchOp"},
 		Operations: []ScimOperate{
 			{
-				Op:   "add",
-				Path: "members",
-				Value: []UserID{
-					{Value: user},
-				},
+				Op:    "add",
+				Path:  "members",
+				Value: members,
 			},
 		},
 	}
 
-	ratelimitData, err := c.patchGroup(ctx, groupID, requestBody)
+	ratelimitData, err = c.patchGroup(ctx, groupID, requestBody)
 	if err != nil {
 		return ratelimitData, fmt.Errorf("error adding user to IDP group: %w", err)
 	}
@@ -427,12 +439,10 @@ func (c *Client) RemoveUserFromGroup(
 	}
 
 	found := false
-	var result []UserID
 	for _, member := range group.Members {
 		if member.Value == user {
 			found = true
-		} else {
-			result = append(result, UserID{Value: member.Value})
+			break
 		}
 	}
 
@@ -445,9 +455,13 @@ func (c *Client) RemoveUserFromGroup(
 		Schemas: []string{"urn:ietf:params:scim:api:messages:2.0:PatchOp"},
 		Operations: []ScimOperate{
 			{
-				Op:    "replace",
-				Path:  "members",
-				Value: result,
+				Op:   "remove",
+				Path: "members",
+				Value: []UserID{
+					{
+						Value: user,
+					},
+				},
 			},
 		},
 	}
@@ -468,17 +482,13 @@ func (c *Client) patchGroup(
 	*v2.RateLimitDescription,
 	error,
 ) {
-	payload, err := json.Marshal(requestBody)
-	if err != nil {
-		return nil, err
-	}
-
 	var response *GroupResource
-	ratelimitData, err := c.patchScimBytes(
+	ratelimitData, err := c.doScimRequest(
 		ctx,
+		http.MethodPatch,
 		fmt.Sprintf(UrlPathIDPGroup, c.scimVersion, groupID),
 		&response,
-		payload,
+		requestBody,
 	)
 	if err != nil {
 		return ratelimitData, fmt.Errorf("error patching IDP group: %w", err)

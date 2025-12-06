@@ -197,6 +197,33 @@ func (c *Client) doRequest(
 	return &ratelimitData, nil
 }
 
+func (c *Client) doScimRequest(
+	ctx context.Context,
+	method string,
+	path string,
+	target interface{},
+	payload interface{},
+) (
+	*v2.RateLimitDescription,
+	error,
+) {
+	options := []uhttp.RequestOption{
+		WithBearerToken(c.token),
+	}
+
+	if payload != nil {
+		options = append(options, uhttp.WithJSONBody(payload))
+	}
+
+	return c.doRequest(
+		ctx,
+		method,
+		c.getUrl(path, nil, true),
+		target,
+		options...,
+	)
+}
+
 func (c *Client) deleteScim(
 	ctx context.Context,
 	path string,
