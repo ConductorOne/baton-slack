@@ -138,7 +138,7 @@ func (s *Slack) handleDisableUser(
 	l.Debug("disabling user via SCIM", zap.String("user_id", userID))
 
 	if s.businessPlusClient == nil {
-		return nil, nil, fmt.Errorf("enterprise client not available - SCIM API requires Enterprise Grid")
+		return nil, nil, fmt.Errorf("Business+ client not available - SCIM API requires Business+ plan")
 	}
 
 	ratelimitData, err := s.businessPlusClient.DisableUser(ctx, userID)
@@ -183,7 +183,7 @@ func (s *Slack) handleEnableUser(
 	l.Debug("enabling user via SCIM", zap.String("user_id", userID))
 
 	if s.businessPlusClient == nil {
-		return nil, nil, fmt.Errorf("enterprise client not available - SCIM API requires Enterprise Grid")
+		return nil, nil, fmt.Errorf("Business+ client not available - SCIM API requires Business+ plan")
 	}
 
 	ratelimitData, err := s.businessPlusClient.EnableUser(ctx, userID)

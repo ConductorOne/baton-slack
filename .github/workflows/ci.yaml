@@ -35,3 +35,24 @@ jobs:
         uses: guyarb/golang-test-annotations@v0.8.0
         with:
           test-results: test.json
+  ci:
+    runs-on: ubuntu-latest
+    env:
+      BATON_TOKEN: ${{ secrets.BATON_TOKEN }}
+      BATON_BUSINESS_PLUS_TOKEN: ${{ secrets.BATON_BUSINESS_PLUS_TOKEN }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build baton-slack
+        run: go build ./cmd/baton-slack
+      - name: Grant/revoke
+        uses: ConductorOne/github-workflows/actions/sync-test@v2
+        with:
+          connector: ./baton-slack
+          baton-entitlement: 'usergroup:S08101MQWC6:member'
+          baton-principal: 'U083SJ36LCD'
+          baton-principal-type: 'user'
