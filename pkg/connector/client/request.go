@@ -84,31 +84,6 @@ func (c *Client) post(
 	)
 }
 
-func (c *Client) postJSON(
-	ctx context.Context,
-	path string,
-	target interface{},
-	payload interface{},
-	useBotToken bool,
-) (
-	*v2.RateLimitDescription,
-	error,
-) {
-	token := c.token
-	if useBotToken {
-		token = c.botToken
-	}
-
-	return c.doRequest(
-		ctx,
-		http.MethodPost,
-		c.getUrl(path, nil, false),
-		target,
-		WithBearerToken(token),
-		uhttp.WithJSONBody(payload),
-	)
-}
-
 func (c *Client) getScim(
 	ctx context.Context,
 	path string,
