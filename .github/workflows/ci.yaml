@@ -53,6 +53,6 @@ jobs:
         uses: ConductorOne/github-workflows/actions/sync-test@v2
         with:
           connector: ./baton-slack
-          baton-entitlement: 'usergroup:S08101MQWC6:member'
-          baton-principal: 'U083SJ36LCD'
+          baton-entitlement: 'usergroup:S080HE5AEJK:member'
+          baton-principal: 'U080HD5HKE3'
           baton-principal-type: 'user'
