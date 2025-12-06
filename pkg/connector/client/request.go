@@ -170,9 +170,11 @@ func (c *Client) doRequest(
 		return &ratelimitData, uhttp.WrapErrors(codes.Internal, "reading response body", err)
 	}
 
-	if err := json.Unmarshal(bodyBytes, &target); err != nil {
-		logBody(ctx, response)
-		return nil, uhttp.WrapErrors(codes.Internal, "unmarshaling response", err)
+	if response.StatusCode != http.StatusNoContent && len(bodyBytes) > 0 {
+		if err := json.Unmarshal(bodyBytes, &target); err != nil {
+			logBody(ctx, response)
+			return nil, uhttp.WrapErrors(codes.Internal, "unmarshaling response", err)
+		}
 	}
 
 	return &ratelimitData, nil

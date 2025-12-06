@@ -250,7 +250,7 @@ func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2
 	for _, user := range response.Resources {
 		userResource, err := o.scimUserResource(ctx, user, parentResourceID)
 		if err != nil {
-			return nil, &resource.SyncOpResults{Annotations: annos}, uhttp.WrapErrors(codes.Internal, "creating user resource from SCIM data", err)
+			return nil, &resource.SyncOpResults{Annotations: annos}, err
 		}
 		rv = append(rv, userResource)
 	}
