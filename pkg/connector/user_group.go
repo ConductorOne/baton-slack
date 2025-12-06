@@ -11,15 +11,14 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
 
 	"github.com/conductorone/baton-slack/pkg"
-	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
+	"github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/slack-go/slack"
 )
 
 type userGroupResourceType struct {
-	resourceType     *v2.ResourceType
-	client           *slack.Client
-	enterpriseID     string
-	enterpriseClient *enterprise.Client
+	resourceType       *v2.ResourceType
+	client             *slack.Client
+	businessPlusClient *client.Client
 }
 
 func (o *userGroupResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -27,15 +26,13 @@ func (o *userGroupResourceType) ResourceType(_ context.Context) *v2.ResourceType
 }
 
 func userGroupBuilder(
-	client *slack.Client,
-	enterpriseID string,
-	enterpriseClient *enterprise.Client,
+	slackClient *slack.Client,
+	businessPlusClient *client.Client,
 ) *userGroupResourceType {
 	return &userGroupResourceType{
-		resourceType:     resourceTypeUserGroup,
-		client:           client,
-		enterpriseID:     enterpriseID,
-		enterpriseClient: enterpriseClient,
+		resourceType:       resourceTypeUserGroup,
+		client:             slackClient,
+		businessPlusClient: businessPlusClient,
 	}
 }
 
@@ -76,44 +73,26 @@ func (o *userGroupResourceType) List(
 	}
 
 	var (
-		userGroups    []slack.UserGroup
-		ratelimitData *v2.RateLimitDescription
-		err           error
+		userGroups []slack.UserGroup
+		err        error
 	)
 	outputAnnotations := annotations.New()
-	// We use different method here because we need to pass a teamID, but it's
-	// not supported by the slack-go library.
-	if o.enterpriseID != "" {
-		userGroups, ratelimitData, err = o.enterpriseClient.GetUserGroups(ctx, parentResourceID.Resource)
-		outputAnnotations.WithRateLimiting(ratelimitData)
-		if err != nil {
-			return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, err
-		}
-	} else {
-		opts := []slack.GetUserGroupsOption{
-			slack.GetUserGroupsOptionIncludeUsers(true),
-			// We need to add a way to signify disabled resources in baton in
-			// order to include disabled groups. We should also be doing this
-			// for both enterprise and non-enterprise groups.
-			// slack.GetUserGroupsOptionIncludeDisabled(true),
-		}
-		userGroups, err = o.client.GetUserGroupsContext(ctx, opts...)
-		if err != nil {
-			annos, err := pkg.AnnotationsForError(err)
-			return nil, &resource.SyncOpResults{Annotations: annos}, err
-		}
+	userGroups, err = o.client.GetUserGroupsContext(ctx, slack.GetUserGroupsOptionWithTeamID(parentResourceID.Resource))
+	if err != nil {
+		wrappedErr := pkg.WrapError(err, fmt.Sprintf("fetching user groups for team %s", parentResourceID.Resource))
+		return nil, &resource.SyncOpResults{}, wrappedErr
 	}
 
-	output, err := pkg.MakeResourceList(
-		ctx,
-		userGroups,
-		parentResourceID,
-		userGroupResource,
-	)
-	if err != nil {
-		return nil, nil, err
+	rv := make([]*v2.Resource, 0, len(userGroups))
+	for _, ug := range userGroups {
+		resource, err := userGroupResource(ctx, ug, parentResourceID)
+		if err != nil {
+			return nil, nil, pkg.WrapError(err, "creating user group resource")
+		}
+		rv = append(rv, resource)
 	}
-	return output, &resource.SyncOpResults{Annotations: outputAnnotations}, nil
+
+	return rv, &resource.SyncOpResults{Annotations: outputAnnotations}, nil
 }
 
 func (o *userGroupResourceType) Entitlements(
@@ -158,28 +137,22 @@ func (o *userGroupResourceType) Grants(
 	*resource.SyncOpResults,
 	error,
 ) {
-	outputAnnotations := annotations.New()
-	// TODO(marcos): This should use 2D pagination.
-	groupMembers, ratelimitData, err := o.enterpriseClient.GetUserGroupMembers(
-		ctx,
-		res.Id.Resource,
-		res.ParentResourceId.Resource,
-	)
-	outputAnnotations.WithRateLimiting(ratelimitData)
+	groupMembers, err := o.client.GetUserGroupMembersContext(ctx, res.Id.Resource)
 	if err != nil {
-		return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, err
+		wrappedErr := pkg.WrapError(err, fmt.Sprintf("fetching user group members for group %s", res.Id.Resource))
+		return nil, &resource.SyncOpResults{}, wrappedErr
 	}
 
 	var rv []*v2.Grant
 	for _, member := range groupMembers {
 		user, err := o.client.GetUserInfoContext(ctx, member)
 		if err != nil {
-			annos, err := pkg.AnnotationsForError(err)
-			return nil, &resource.SyncOpResults{Annotations: annos}, err
+			wrappedErr := pkg.WrapError(err, fmt.Sprintf("fetching user info for member %s", member))
+			return nil, &resource.SyncOpResults{}, wrappedErr
 		}
 		ur, err := userResource(ctx, user, res.Id)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, pkg.WrapError(err, "creating user resource")
 		}
 
 		grant := grant.NewGrant(res, memberEntitlement, ur.Id)

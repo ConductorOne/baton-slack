@@ -11,7 +11,7 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/conductorone/baton-slack/pkg"
 	cfg "github.com/conductorone/baton-slack/pkg/config"
-	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
+	"github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
 	"go.uber.org/zap"
@@ -19,12 +19,10 @@ import (
 )
 
 type Slack struct {
-	client           *slack.Client
-	apiKey           string
-	enterpriseClient *enterprise.Client
-	enterpriseID     string
-	ssoEnabled       bool
-	govEnv           bool
+	client             *slack.Client
+	apiKey             string
+	businessPlusClient *client.Client
+	govEnv             bool
 }
 
 const govSlackApiUrl = "https://api.slack-gov.com/api/"
@@ -75,12 +73,12 @@ func (c *Slack) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
 func (s *Slack) Validate(ctx context.Context) (annotations.Annotations, error) {
 	res, err := s.client.AuthTestContext(ctx)
 	if err != nil {
-		return nil, pkg.WrapSlackClientError(err, "authenticating")
+		return nil, pkg.WrapError(err, "authenticating")
 	}
 
 	user, err := s.client.GetUserInfoContext(ctx, res.UserID)
 	if err != nil {
-		return nil, pkg.WrapSlackClientError(err, "retrieving authenticated user")
+		return nil, pkg.WrapError(err, "retrieving authenticated user")
 	}
 
 	isValidUser := user.IsAdmin || user.IsOwner || user.IsPrimaryOwner || user.IsBot
@@ -104,7 +102,7 @@ func (s *slackLogger) Output(callDepth int, msg string) error {
 	return nil
 }
 
-func NewSlack(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool, govEnv bool) (*Slack, error) {
+func NewSlack(ctx context.Context, apiKey, businessPlusKey string, govEnv bool) (*Slack, error) {
 	l := ctxzap.Extract(ctx)
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, l))
 	if err != nil {
@@ -120,42 +118,27 @@ func NewSlack(ctx context.Context, apiKey, enterpriseKey string, ssoEnabled bool
 	if govEnv {
 		opts = append(opts, slack.OptionAPIURL(govSlackApiUrl))
 	}
-	client := slack.New(apiKey, opts...)
+	slackClient := slack.New(apiKey, opts...)
 
-	res, err := client.AuthTestContext(ctx)
-	if err != nil {
-		return nil, pkg.WrapSlackClientError(err, "authenticating during initialization")
-	}
-
-	var enterpriseId string
-	if res.EnterpriseID != "" {
-		enterpriseId = res.EnterpriseID
-		if enterpriseKey == "" {
-			return nil, uhttp.WrapErrors(
-				codes.InvalidArgument,
-				"enterprise account detected, but no enterprise token specified",
-				fmt.Errorf("missing enterprise token"),
-			)
+	var businessPlusClient *client.Client
+	if businessPlusKey != "" {
+		var err error
+		businessPlusClient, err = client.NewClient(
+			httpClient,
+			businessPlusKey,
+			apiKey,
+			govEnv,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create Business+ client. Error: %w", err)
 		}
 	}
-	enterpriseClient, err := enterprise.NewClient(
-		httpClient,
-		enterpriseKey,
-		apiKey,
-		res.EnterpriseID,
-		ssoEnabled,
-		govEnv,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create enterprise client. Error: %w", err)
-	}
+
 	return &Slack{
-		client:           client,
-		apiKey:           apiKey,
-		enterpriseClient: enterpriseClient,
-		enterpriseID:     enterpriseId,
-		ssoEnabled:       ssoEnabled,
-		govEnv:           govEnv,
+		client:             slackClient,
+		apiKey:             apiKey,
+		businessPlusClient: businessPlusClient,
+		govEnv:             govEnv,
 	}, nil
 }
 
@@ -163,8 +146,7 @@ func New(ctx context.Context, config *cfg.Slack, opts *cli.ConnectorOpts) (conne
 	cb, err := NewSlack(
 		ctx,
 		config.Token,
-		config.EnterpriseToken,
-		config.SsoEnabled,
+		config.BusinessPlusToken,
 		config.GovEnv,
 	)
 	if err != nil {
@@ -177,11 +159,9 @@ func New(ctx context.Context, config *cfg.Slack, opts *cli.ConnectorOpts) (conne
 
 func (s *Slack) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncerV2 {
 	return []connectorbuilder.ResourceSyncerV2{
-		userBuilder(s.client, s.enterpriseID, s.enterpriseClient),
-		workspaceBuilder(s.client, s.enterpriseID, s.enterpriseClient),
-		userGroupBuilder(s.client, s.enterpriseID, s.enterpriseClient),
-		workspaceRoleBuilder(s.client, s.enterpriseID, s.enterpriseClient),
-		enterpriseRoleBuilder(s.enterpriseID, s.enterpriseClient),
-		groupBuilder(s.enterpriseClient, s.enterpriseID, s.ssoEnabled, s.govEnv),
+		userBuilder(s.client, s.businessPlusClient),
+		workspaceBuilder(s.client, s.businessPlusClient),
+		userGroupBuilder(s.client, s.businessPlusClient),
+		groupBuilder(s.businessPlusClient, s.govEnv),
 	}
 }

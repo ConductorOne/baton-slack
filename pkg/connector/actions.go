@@ -137,11 +137,11 @@ func (s *Slack) handleDisableUser(
 
 	l.Debug("disabling user via SCIM", zap.String("user_id", userID))
 
-	if s.enterpriseClient == nil {
-		return nil, nil, fmt.Errorf("enterprise client not available - SCIM API requires Enterprise Grid")
+	if s.businessPlusClient == nil {
+		return nil, nil, fmt.Errorf("business+ client not available - SCIM API requires Business+ plan")
 	}
 
-	ratelimitData, err := s.enterpriseClient.DisableUser(ctx, userID)
+	ratelimitData, err := s.businessPlusClient.DisableUser(ctx, userID)
 	if err != nil {
 		l.Error("failed to disable user", zap.String("user_id", userID), zap.Error(err))
 		return nil, nil, fmt.Errorf("failed to disable user %s: %w", userID, err)
@@ -182,11 +182,11 @@ func (s *Slack) handleEnableUser(
 
 	l.Debug("enabling user via SCIM", zap.String("user_id", userID))
 
-	if s.enterpriseClient == nil {
-		return nil, nil, fmt.Errorf("enterprise client not available - SCIM API requires Enterprise Grid")
+	if s.businessPlusClient == nil {
+		return nil, nil, fmt.Errorf("business+ client not available - SCIM API requires Business+ plan")
 	}
 
-	ratelimitData, err := s.enterpriseClient.EnableUser(ctx, userID)
+	ratelimitData, err := s.businessPlusClient.EnableUser(ctx, userID)
 	if err != nil {
 		l.Error("failed to enable user", zap.String("user_id", userID), zap.Error(err))
 		return nil, nil, fmt.Errorf("failed to enable user %s: %w", userID, err)

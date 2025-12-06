@@ -1,8 +1,7 @@
-package enterprise
+package client
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -30,22 +29,18 @@ const (
 var workspaceNameNamespace = sessions.WithPrefix("workspace_name")
 
 type Client struct {
-	baseScimUrl  *url.URL
-	baseUrl      *url.URL
-	token        string
-	enterpriseID string
-	botToken     string
-	ssoEnabled   bool
-	scimVersion  string
-	wrapper      *uhttp.BaseHttpClient
+	baseScimUrl *url.URL
+	baseUrl     *url.URL
+	token       string
+	botToken    string
+	scimVersion string
+	wrapper     *uhttp.BaseHttpClient
 }
 
 func NewClient(
 	httpClient *http.Client,
 	token string,
 	botToken string,
-	enterpriseID string,
-	ssoEnabled bool,
 	govEnv bool,
 ) (*Client, error) {
 	finalBaseUrl := baseUrl
@@ -68,14 +63,12 @@ func NewClient(
 	}
 
 	return &Client{
-		baseUrl:      baseUrl0,
-		baseScimUrl:  baseScimUrl0,
-		token:        token,
-		enterpriseID: enterpriseID,
-		botToken:     botToken,
-		ssoEnabled:   ssoEnabled,
-		scimVersion:  finalScimVersion,
-		wrapper:      uhttp.NewBaseHttpClient(httpClient),
+		baseUrl:     baseUrl0,
+		baseScimUrl: baseScimUrl0,
+		token:       token,
+		botToken:    botToken,
+		scimVersion: finalScimVersion,
+		wrapper:     uhttp.NewBaseHttpClient(httpClient),
 	}, nil
 }
 
@@ -128,40 +121,13 @@ func (a BaseResponse) handleError(err error, action string) error {
 	return nil
 }
 
-func (c *Client) SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaces []slack.Team) error {
+// SetWorkspaceNames stores workspace names in the session store.
+func SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaces []slack.Team) error {
 	workspaceMap := make(map[string]string)
 	for _, workspace := range workspaces {
 		workspaceMap[workspace.ID] = workspace.Name
 	}
 	return session.SetManyJSON(ctx, ss, workspaceMap, workspaceNameNamespace)
-}
-
-// GetWorkspaceNames retrieves workspace names for the given IDs from the session store.
-func (c *Client) GetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaceIDs []string) (map[string]string, []string, error) {
-	validIDs := make([]string, 0, len(workspaceIDs))
-	for _, id := range workspaceIDs {
-		if id != "" {
-			validIDs = append(validIDs, id)
-		}
-	}
-
-	if len(validIDs) == 0 {
-		return make(map[string]string), []string{}, nil
-	}
-
-	found, err := session.GetManyJSON[string](ctx, ss, validIDs, workspaceNameNamespace)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	missing := make([]string, 0)
-	for _, id := range validIDs {
-		if _, exists := found[id]; !exists {
-			missing = append(missing, id)
-		}
-	}
-
-	return found, missing, nil
 }
 
 // GetUserInfo returns the user info for the given user ID.
@@ -224,44 +190,6 @@ func (c *Client) GetUserGroupMembers(
 	return response.Users, ratelimitData, nil
 }
 
-// GetUsersAdmin returns all users in Enterprise grid.
-func (c *Client) GetUsersAdmin(
-	ctx context.Context,
-	cursor string,
-) (
-	[]UserAdmin,
-	string,
-	*v2.RateLimitDescription,
-	error,
-) {
-	values := map[string]interface{}{}
-
-	// We need to check if cursor is empty because API throws error if empty string is passed.
-	if cursor != "" {
-		values["cursor"] = cursor
-	}
-
-	var response struct {
-		BaseResponse
-		Users []UserAdmin `json:"users"`
-		Pagination
-	}
-
-	ratelimitData, err := c.post(
-		ctx,
-		UrlPathGetUsersAdmin,
-		&response,
-		values,
-		false,
-	)
-	if err := response.handleError(err, "fetching users"); err != nil {
-		return nil, "", ratelimitData, err
-	}
-
-	nextToken := response.ResponseMetadata.NextCursor
-	return response.Users, nextToken, ratelimitData, nil
-}
-
 // GetUsers returns the users of the given team.
 func (c *Client) GetUsers(
 	ctx context.Context,
@@ -298,90 +226,6 @@ func (c *Client) GetUsers(
 	}
 
 	return response.Users,
-		response.ResponseMetadata.NextCursor,
-		ratelimitData,
-		nil
-}
-
-// GetTeams returns the teams of the given enterprise.
-func (c *Client) GetTeams(
-	ctx context.Context,
-	cursor string,
-) (
-	[]slack.Team,
-	string,
-	*v2.RateLimitDescription,
-	error,
-) {
-	values := map[string]interface{}{}
-
-	if cursor != "" {
-		values["cursor"] = cursor
-	}
-
-	var response struct {
-		BaseResponse
-		Teams []slack.Team `json:"teams"`
-		Pagination
-	}
-
-	ratelimitData, err := c.post(
-		ctx,
-		UrlPathGetTeams,
-		&response,
-		values,
-		false,
-	)
-
-	if err := response.handleError(err, "fetching teams"); err != nil {
-		return nil, "", ratelimitData, err
-	}
-
-	return response.Teams,
-		response.ResponseMetadata.NextCursor,
-		ratelimitData,
-		nil
-}
-
-// GetRoleAssignments returns the role assignments for the given role ID.
-func (c *Client) GetRoleAssignments(
-	ctx context.Context,
-	roleID string,
-	cursor string,
-) (
-	[]RoleAssignment,
-	string,
-	*v2.RateLimitDescription,
-	error,
-) {
-	values := map[string]interface{}{}
-
-	if roleID != "" {
-		values["role_ids"] = roleID
-	}
-
-	if cursor != "" {
-		values["cursor"] = cursor
-	}
-
-	var response struct {
-		BaseResponse
-		RoleAssignments []RoleAssignment `json:"role_assignments"`
-		Pagination
-	}
-
-	ratelimitData, err := c.post(
-		ctx,
-		UrlPathGetRoleAssignments,
-		&response,
-		values,
-		false,
-	)
-	if err := response.handleError(err, "fetching role assignments"); err != nil {
-		return nil, "", ratelimitData, err
-	}
-
-	return response.RoleAssignments,
 		response.ResponseMetadata.NextCursor,
 		ratelimitData,
 		nil
@@ -456,36 +300,6 @@ func (c *Client) GetAuthTeamsList(
 		nil
 }
 
-// SetWorkspaceRole sets the role for the given user in the given team.
-func (c *Client) SetWorkspaceRole(
-	ctx context.Context,
-	teamID string,
-	userID string,
-	roleID string,
-) (
-	*v2.RateLimitDescription,
-	error,
-) {
-	actionUrl, err := getWorkspaceUrlPathByRole(roleID)
-	if err != nil {
-		return nil, err
-	}
-
-	var response BaseResponse
-
-	ratelimitData, err := c.post(
-		ctx,
-		actionUrl,
-		&response,
-		map[string]interface{}{
-			"team_id": teamID,
-			"user_id": userID,
-		},
-		false,
-	)
-	return ratelimitData, response.handleError(err, "setting user role")
-}
-
 // ListIDPGroups returns all IDP groups from the SCIM API.
 func (c *Client) ListIDPGroups(
 	ctx context.Context,
@@ -509,6 +323,34 @@ func (c *Client) ListIDPGroups(
 	)
 	if err != nil {
 		return nil, ratelimitData, fmt.Errorf("error fetching IDP groups: %w", err)
+	}
+
+	return &response, ratelimitData, nil
+}
+
+// ListIDPUsers returns all IDP users from the SCIM API.
+func (c *Client) ListIDPUsers(
+	ctx context.Context,
+	startIndex int,
+	count int,
+) (
+	*SCIMResponse[UserResource],
+	*v2.RateLimitDescription,
+	error,
+) {
+	var response SCIMResponse[UserResource]
+	urlPathIDPUsers := fmt.Sprintf(UrlPathIDPUsers, c.scimVersion)
+	ratelimitData, err := c.getScim(
+		ctx,
+		urlPathIDPUsers,
+		&response,
+		map[string]interface{}{
+			"startIndex": startIndex,
+			"count":      count,
+		},
+	)
+	if err != nil {
+		return nil, ratelimitData, fmt.Errorf("error fetching IDP users: %w", err)
 	}
 
 	return &response, ratelimitData, nil
@@ -546,20 +388,33 @@ func (c *Client) AddUserToGroup(
 	*v2.RateLimitDescription,
 	error,
 ) {
+	group, ratelimitData, err := c.GetIDPGroup(ctx, groupID)
+	if err != nil {
+		return ratelimitData, fmt.Errorf("error fetching IDP group: %w", err)
+	}
+
+	var members []UserID
+	for _, member := range group.Members {
+		if member.Value == user {
+			return ratelimitData, nil
+		}
+		members = append(members, UserID{Value: member.Value})
+	}
+
+	members = append(members, UserID{Value: user})
+
 	requestBody := PatchOp{
 		Schemas: []string{"urn:ietf:params:scim:api:messages:2.0:PatchOp"},
 		Operations: []ScimOperate{
 			{
-				Op:   "add",
-				Path: "members",
-				Value: []UserID{
-					{Value: user},
-				},
+				Op:    "add",
+				Path:  "members",
+				Value: members,
 			},
 		},
 	}
 
-	ratelimitData, err := c.patchGroup(ctx, groupID, requestBody)
+	ratelimitData, err = c.patchGroup(ctx, groupID, requestBody)
 	if err != nil {
 		return ratelimitData, fmt.Errorf("error adding user to IDP group: %w", err)
 	}
@@ -584,12 +439,10 @@ func (c *Client) RemoveUserFromGroup(
 	}
 
 	found := false
-	var result []UserID
 	for _, member := range group.Members {
 		if member.Value == user {
 			found = true
-		} else {
-			result = append(result, UserID{Value: member.Value})
+			break
 		}
 	}
 
@@ -602,9 +455,13 @@ func (c *Client) RemoveUserFromGroup(
 		Schemas: []string{"urn:ietf:params:scim:api:messages:2.0:PatchOp"},
 		Operations: []ScimOperate{
 			{
-				Op:    "replace",
-				Path:  "members",
-				Value: result,
+				Op:   "remove",
+				Path: "members",
+				Value: []UserID{
+					{
+						Value: user,
+					},
+				},
 			},
 		},
 	}
@@ -625,64 +482,16 @@ func (c *Client) patchGroup(
 	*v2.RateLimitDescription,
 	error,
 ) {
-	payload, err := json.Marshal(requestBody)
-	if err != nil {
-		return nil, err
-	}
-
 	var response *GroupResource
-	ratelimitData, err := c.patchScimBytes(
+	ratelimitData, err := c.doScimRequest(
 		ctx,
+		http.MethodPatch,
 		fmt.Sprintf(UrlPathIDPGroup, c.scimVersion, groupID),
 		&response,
-		payload,
+		requestBody,
 	)
 	if err != nil {
 		return ratelimitData, fmt.Errorf("error patching IDP group: %w", err)
-	}
-
-	return ratelimitData, nil
-}
-
-func (o *Client) AddUser(ctx context.Context, teamID, userID string) (*v2.RateLimitDescription, error) {
-	var response BaseResponse
-	ratelimitData, err := o.post(
-		ctx,
-		UrlPathUserAdd,
-		&response,
-		map[string]interface{}{
-			"team_id": teamID,
-			"user_id": userID,
-		},
-		false,
-	)
-
-	// Check for Slack API errors.
-	// If the user is already a member of the team, the function returns the error "user_already_team_member".
-	if err := response.handleError(err, "adding user"); err != nil {
-		return ratelimitData, err
-	}
-
-	return ratelimitData, nil
-}
-
-func (o *Client) RemoveUser(ctx context.Context, teamID, userID string) (*v2.RateLimitDescription, error) {
-	var response BaseResponse
-	ratelimitData, err := o.post(
-		ctx,
-		UrlPathUserRemove,
-		&response,
-		map[string]interface{}{
-			"team_id": teamID,
-			"user_id": userID,
-		},
-		false,
-	)
-
-	// Check for Slack API errors.
-	// If the user is already deleted, the function returns the error "user_already_deleted".
-	if err := response.handleError(err, "removing user"); err != nil {
-		return ratelimitData, err
 	}
 
 	return ratelimitData, nil
@@ -692,22 +501,6 @@ type InviteUserParams struct {
 	TeamID     string
 	ChannelIDs string
 	Email      string
-}
-
-func (o *Client) InviteUserToWorkspace(ctx context.Context, p *InviteUserParams) (*v2.RateLimitDescription, error) {
-	var response BaseResponse
-	ratelimitData, err := o.post(
-		ctx,
-		UrlPathUserInvite,
-		&response,
-		map[string]interface{}{
-			"team_id":     p.TeamID,
-			"channel_ids": p.ChannelIDs,
-			"email":       p.Email,
-		},
-		false, /* bot token */
-	)
-	return ratelimitData, response.handleError(err, "invite user")
 }
 
 // DisableUser deactivates a user via SCIM API using DELETE.
@@ -760,91 +553,5 @@ func (c *Client) EnableUser(
 		return ratelimitData, fmt.Errorf("error enabling user: %w", err)
 	}
 
-	return ratelimitData, nil
-}
-
-func (c *Client) AssignEnterpriseRole(
-	ctx context.Context,
-	roleID string,
-	userID string,
-	teamID string,
-) (
-	*v2.RateLimitDescription,
-	error,
-) {
-	if c.enterpriseID == "" {
-		return nil, fmt.Errorf("enterprise ID is required for role assignment")
-	}
-
-	var response struct {
-		BaseResponse
-		RejectedUsers    []string `json:"rejected_users"`
-		RejectedEntities []string `json:"rejected_entities"`
-	}
-
-	entityIDs := []string{teamID}
-	params := map[string]interface{}{
-		"role_id":    roleID,
-		"user_ids":   []string{userID},
-		"entity_ids": entityIDs,
-	}
-
-	ratelimitData, err := c.postJSON(
-		ctx,
-		UrlPathAssignEnterpriseRole,
-		&response,
-		params,
-		false,
-	)
-
-	if err := response.handleError(err, "assigning enterprise role"); err != nil {
-		if len(response.RejectedUsers) > 0 || len(response.RejectedEntities) > 0 {
-			return ratelimitData, fmt.Errorf("%w - rejected_users: %v, rejected_entities: %v", err, response.RejectedUsers, response.RejectedEntities)
-		}
-		return ratelimitData, err
-	}
-	return ratelimitData, nil
-}
-
-func (c *Client) UnassignEnterpriseRole(
-	ctx context.Context,
-	roleID string,
-	userID string,
-	teamID string,
-) (
-	*v2.RateLimitDescription,
-	error,
-) {
-	if c.enterpriseID == "" {
-		return nil, fmt.Errorf("enterprise ID is required for role removal")
-	}
-
-	var response struct {
-		BaseResponse
-		RejectedUsers    []string `json:"rejected_users"`
-		RejectedEntities []string `json:"rejected_entities"`
-	}
-
-	entityIDs := []string{teamID}
-	params := map[string]interface{}{
-		"role_id":    roleID,
-		"user_ids":   []string{userID},
-		"entity_ids": entityIDs,
-	}
-
-	ratelimitData, err := c.post(
-		ctx,
-		UrlPathUnassignEnterpriseRole,
-		&response,
-		params,
-		false,
-	)
-
-	if err := response.handleError(err, "unassigning enterprise role"); err != nil {
-		if len(response.RejectedUsers) > 0 || len(response.RejectedEntities) > 0 {
-			return ratelimitData, fmt.Errorf("%w - rejected_users: %v, rejected_entities: %v", err, response.RejectedUsers, response.RejectedEntities)
-		}
-		return ratelimitData, err
-	}
 	return ratelimitData, nil
 }

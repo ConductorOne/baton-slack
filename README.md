@@ -2,6 +2,8 @@
 
 Check out [Baton](https://github.com/conductorone/baton) to learn more the project in general.
 
+> **Note**: For grant and revoke operations on roles, and account creation/management features, please use [`baton-slack-enterprise`](https://github.com/conductorone/baton-slack-enterprise) instead. This connector focuses on read-only syncing of Slack resources.
+
 # Getting Started
 
 ## Prerequisites
@@ -19,10 +21,10 @@ Check out [Baton](https://github.com/conductorone/baton) to learn more the proje
 3. Install the app to your workspace.
 4. Use Bot User OAuth Token as token in `baton-slack`.
 
-For the enterprise grid plan the same rules apply for creating an app. There is 
-a difference in setting scopes, for applications that will be installed on 
-organization level, User Token Scopes should be set as well as bot scopes. User 
-Token is used for Admin API needed to sync additional resources in the enterprise.
+For the Business+ plan the same rules apply for creating an app. There is
+a difference in setting scopes, for applications that will be installed on
+organization level, User Token Scopes should be set as well as bot scopes. User
+Token is used for Admin API needed to sync additional resources in Business+ organizations.
 Additional scopes for User Token are:
   - admin
   - admin.roles:read
@@ -34,17 +36,12 @@ For provisioning you will need this scope.
   - admin.users:write
 
 5. **Permissions for User Activation/Deactivation Actions**: To use the enable_user and disable_user actions, you need:
-  - An Enterprise Grid token with admin permissions in order to access the SCIM API
+  - A Business+ token with admin permissions in order to access the SCIM API
   - See [Slack SCIM API Permissions](https://docs.slack.dev/admins/scim-api/#permissions) for more details 
 
-Other difference is in the way the application is installed, on enterprise grid 
-app should be installed on the Organization level and on all the Workspaces from 
-which you want to sync the resources. The installation has to be done by Admin 
-or Owner of an Enterprise Grid organization. More info with an example is 
-available in the [Slack API Docs](https://api.slack.com/methods/admin.teams.list#markdown).
-To work with Enterprise Grid APIs use User OAuth Token passed as 
-`--enterprise-token` along with the Bot User OAuth Token passed via `--token` flag.
-To work with GovSlack instances use `--gov-env` flag along with the `--enterprise-token`.
+To work with Business+ APIs use User OAuth Token passed as
+`--business-plus-token` along with the Bot User OAuth Token passed via `--token` flag.
+To work with GovSlack instances use `--gov-env` flag along with the `--business-plus-token`.
 
 ## brew
 
@@ -80,13 +77,13 @@ baton resources
 - Channels
 - Workspace roles
 
-Enterprise grid additional resources:
-- Enterprise roles
+Business+ additional resources:
+- Business+ roles
 
-With SSO configured (enterprise grid):
+With SSO configured (Business+ plan):
 - IDP groups
 
-If you have SSO configured for your enterprise grid organization you can also 
+If you have SSO configured for your Business+ organization you can also
 sync IDP groups and provision them. Just pass the `--sso-enabled=true` flag.
 
 # Contributing, Support, and Issues
@@ -113,9 +110,9 @@ Available Commands:
   help               Help about any command
 
 Flags:
-      --client-id string          The client ID used to authenticate with ConductorOne ($BATON_CLIENT_ID)
-      --client-secret string      The client secret used to authenticate with ConductorOne ($BATON_CLIENT_SECRET)
-      --enterprise-token string   The Slack user oauth token used to connect to the Slack Enterprise Grid Admin API ($BATON_ENTERPRISE_TOKEN)
+      --business-plus-token string The Slack user oauth token used to connect to the Slack Business+ Admin API ($BATON_BUSINESS_PLUS_TOKEN)
+      --client-id string           The client ID used to authenticate with ConductorOne ($BATON_CLIENT_ID)
+      --client-secret string       The client secret used to authenticate with ConductorOne ($BATON_CLIENT_SECRET)
   -f, --file string               The path to the c1z file to sync with ($BATON_FILE) (default "sync.c1z")
   -h, --help                      help for baton-slack
       --log-format string         The output format for logs: json, console ($BATON_LOG_FORMAT) (default "json")
