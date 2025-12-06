@@ -9,12 +9,10 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
-	"github.com/conductorone/baton-sdk/pkg/uhttp"
 
 	"github.com/conductorone/baton-slack/pkg"
 	"github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/slack-go/slack"
-	"google.golang.org/grpc/codes"
 )
 
 type userGroupResourceType struct {
@@ -89,7 +87,7 @@ func (o *userGroupResourceType) List(
 	for _, ug := range userGroups {
 		resource, err := userGroupResource(ctx, ug, parentResourceID)
 		if err != nil {
-			return nil, nil, uhttp.WrapErrors(codes.Internal, "creating user group resource", err)
+			return nil, nil, pkg.WrapError(err, "creating user group resource")
 		}
 		rv = append(rv, resource)
 	}
@@ -154,7 +152,7 @@ func (o *userGroupResourceType) Grants(
 		}
 		ur, err := userResource(ctx, user, res.Id)
 		if err != nil {
-			return nil, nil, uhttp.WrapErrors(codes.Internal, "creating user resource", err)
+			return nil, nil, pkg.WrapError(err, "creating user resource")
 		}
 
 		grant := grant.NewGrant(res, memberEntitlement, ur.Id)

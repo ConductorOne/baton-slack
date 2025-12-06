@@ -110,14 +110,14 @@ func (g *groupResourceType) List(
 
 	offset, limit, err := parsePaginationToken(attrs.PageToken.Token, attrs.PageToken.Size)
 	if err != nil {
-		return nil, nil, uhttp.WrapErrors(codes.InvalidArgument, "parsing pagination token", err)
+		return nil, nil, pkg.WrapError(err, "parsing pagination token")
 	}
 
 	outputAnnotations := annotations.New()
 	groupsResponse, ratelimitData, err := g.businessPlusClient.ListIDPGroups(ctx, offset, limit)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, uhttp.WrapErrors(codes.Internal, "listing IDP groups", err)
+		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, pkg.WrapError(err, "listing IDP groups")
 	}
 
 	groups, err := pkg.MakeResourceList(
@@ -127,7 +127,7 @@ func (g *groupResourceType) List(
 		groupResource,
 	)
 	if err != nil {
-		return nil, nil, uhttp.WrapErrors(codes.Internal, "creating group resources", err)
+		return nil, nil, pkg.WrapError(err, "creating group resources")
 	}
 
 	nextToken := getNextToken(offset, limit, groupsResponse.TotalResults)
@@ -183,13 +183,13 @@ func (g *groupResourceType) Grants(
 	group, ratelimitData, err := g.businessPlusClient.GetIDPGroup(ctx, resource.Id.Resource)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, uhttp.WrapErrors(codes.Internal, "fetching IDP group", err)
+		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, pkg.WrapError(err, "fetching IDP group")
 	}
 
 	for _, member := range group.Members {
 		userID, err := resources.NewResourceID(resourceTypeUser, member.Value)
 		if err != nil {
-			return nil, nil, uhttp.WrapErrors(codes.Internal, "creating user resource ID", err)
+			return nil, nil, pkg.WrapError(err, "creating user resource ID")
 		}
 		grantOptions := []grant.GrantOption{}
 		if g.govEnv {

@@ -8,12 +8,10 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
-	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/conductorone/baton-slack/pkg"
 	"github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
-	"google.golang.org/grpc/codes"
 )
 
 type userResourceType struct {
@@ -221,7 +219,7 @@ func (o *userResourceType) listStandardAPI(
 	for _, u := range users {
 		resource, err := userResource(ctx, &u, parentResourceID)
 		if err != nil {
-			return nil, nil, uhttp.WrapErrors(codes.Internal, "creating user resource", err)
+			return nil, nil, pkg.WrapError(err, "creating user resource")
 		}
 		rv = append(rv, resource)
 	}
@@ -234,7 +232,7 @@ func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2
 	if attrs.PageToken.Token != "" {
 		startIndex, err = strconv.Atoi(attrs.PageToken.Token)
 		if err != nil {
-			return nil, nil, uhttp.WrapErrors(codes.InvalidArgument, "parsing page token", err)
+			return nil, nil, pkg.WrapError(err, "parsing page token")
 		}
 	}
 
@@ -243,7 +241,7 @@ func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2
 	response, ratelimitData, err := o.businessPlusClient.ListIDPUsers(ctx, startIndex, count)
 	annos.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, &resource.SyncOpResults{Annotations: annos}, uhttp.WrapErrors(codes.Internal, "fetching SCIM users", err)
+		return nil, &resource.SyncOpResults{Annotations: annos}, pkg.WrapError(err, "fetching SCIM users")
 	}
 
 	rv := make([]*v2.Resource, 0, len(response.Resources))
