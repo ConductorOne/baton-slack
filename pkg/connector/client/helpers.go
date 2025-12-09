@@ -10,16 +10,22 @@ import (
 
 func logBody(ctx context.Context, response *http.Response) {
 	l := ctxzap.Extract(ctx)
+
 	if response == nil {
 		l.Error("response is nil")
 		return
 	}
-	bodyCloser := response.Body
+
+	if response.Body == nil {
+		l.Error("response body is nil")
+		return
+	}
+
 	body := make([]byte, 512)
-	_, err := bodyCloser.Read(body)
+	_, err := response.Body.Read(body)
 	if err != nil {
 		l.Error("error reading response body", zap.Error(err))
 		return
 	}
-	l.Info("response body: ", zap.String("body", string(body)))
+	l.Info("response body", zap.String("body", string(body)))
 }
