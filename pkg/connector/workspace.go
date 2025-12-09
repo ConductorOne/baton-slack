@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
@@ -11,7 +12,6 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
-	"github.com/conductorone/baton-slack/pkg"
 	enterprise "github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
@@ -79,7 +79,7 @@ func (o *workspaceResourceType) List(
 	parentID *v2.ResourceId,
 	attrs resources.SyncOpAttrs,
 ) ([]*v2.Resource, *resources.SyncOpResults, error) {
-	bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id})
+	bag, err := ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -114,7 +114,7 @@ func (o *workspaceResourceType) List(
 		return nil, nil, err
 	}
 
-	output, err := pkg.MakeResourceList(
+	output, err := MakeResourceList(
 		ctx,
 		workspaces,
 		nil,
@@ -161,7 +161,7 @@ func (o *workspaceResourceType) Grants(
 	resource *v2.Resource,
 	attrs resources.SyncOpAttrs,
 ) ([]*v2.Grant, *resources.SyncOpResults, error) {
-	bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+	bag, err := ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -296,7 +296,7 @@ func (o *workspaceResourceType) Grant(
 	entitlement *v2.Entitlement,
 ) (annotations.Annotations, error) {
 	if o.enterpriseID == "" {
-		return nil, uhttp.WrapErrors(codes.InvalidArgument, "enterprise ID and enterprise token are both required", errors.New("missing enterprise configuration"))
+		return nil, fmt.Errorf("enterprise ID and enterprise token are both required", errors.New("missing enterprise configuration"))
 	}
 
 	logger := ctxzap.Extract(ctx)
@@ -307,7 +307,7 @@ func (o *workspaceResourceType) Grant(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, uhttp.WrapErrors(codes.PermissionDenied, "only users can be assigned to a workspace", errors.New("invalid principal type"))
+		return nil, fmt.Errorf("only users can be assigned to a workspace", errors.New("invalid principal type"))
 	}
 
 	outputAnnotations := annotations.New()
@@ -322,7 +322,7 @@ func (o *workspaceResourceType) Grant(
 
 	if err != nil {
 		// Check if the error indicates the user is already a member.
-		if err.Error() == enterprise.SlackErrUserAlreadyTeamMember {
+		if strings.Contains(err.Error(), codes.AlreadyExists.String()) {
 			outputAnnotations.Append(&v2.GrantAlreadyExists{})
 			return outputAnnotations, nil
 		}
@@ -353,7 +353,7 @@ func (o *workspaceResourceType) Revoke(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, uhttp.WrapErrors(codes.PermissionDenied, "only users can be revoked from a workspace", errors.New("invalid principal type"))
+		return nil, fmt.Errorf("only users can be revoked from a workspace", errors.New("invalid principal type"))
 	}
 
 	outputAnnotations := annotations.New()
@@ -368,7 +368,7 @@ func (o *workspaceResourceType) Revoke(
 
 	if err != nil {
 		// Check if the error indicates the user is already deleted/removed.
-		if err.Error() == enterprise.SlackErrUserAlreadyDeleted {
+		if strings.Contains(err.Error(), codes.AlreadyExists.String()) {
 			outputAnnotations.Append(&v2.GrantAlreadyRevoked{})
 			return outputAnnotations, nil
 		}
