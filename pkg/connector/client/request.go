@@ -166,7 +166,6 @@ func (c *Client) doRequest(
 
 	bodyBytes, err := io.ReadAll(response.Body)
 	if err != nil {
-		logBody(ctx, response)
 		return &ratelimitData, uhttp.WrapErrors(codes.Internal, "reading response body", err)
 	}
 
