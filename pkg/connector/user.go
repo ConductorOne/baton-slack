@@ -50,7 +50,6 @@ func (o *userResourceType) scimUserResource(ctx context.Context, scimUser client
 	profile["is_ultra_restricted"] = slackUser.IsUltraRestricted
 	profile["is_stranger"] = slackUser.IsStranger
 	profile["is_deleted"] = slackUser.Deleted
-	profile["user_id"] = fmt.Sprint(slackUser.ID)
 
 	userStatus := v2.UserTrait_Status_STATUS_ENABLED
 	if slackUser.Deleted {
@@ -113,7 +112,6 @@ func userResource(
 	profile["is_ultra_restricted"] = user.IsUltraRestricted
 	profile["is_stranger"] = user.IsStranger
 	profile["is_deleted"] = user.Deleted
-	profile["user_id"] = fmt.Sprint(user.ID)
 
 	userStatus := v2.UserTrait_Status_STATUS_ENABLED
 	if user.Deleted {
