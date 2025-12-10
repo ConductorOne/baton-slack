@@ -20,12 +20,6 @@ var (
 		field.WithDescription("The Slack user oauth token used to connect to the Slack Admin API (Business+ or Enterprise Grid)"),
 		field.WithIsSecret(true),
 	)
-	SSOEnabledField = field.BoolField(
-		"sso-enabled",
-		field.WithDisplayName("SSO Enabled"),
-		field.WithDescription("Deprecated: Enterprise Grid features moved to baton-slack-enterprise. This connector focuses on Business+ plans."),
-		field.WithDefaultValue(false),
-	)
 	GovEnvironmentField = field.BoolField(
 		"gov-env",
 		field.WithDisplayName("Gov Environment"),
