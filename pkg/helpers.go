@@ -2,7 +2,6 @@ package pkg
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -17,15 +16,10 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type EnterpriseRolesPagination struct {
-	Cursor   string          `json:"cursor"`
-	FoundMap map[string]bool `json:"foundMap"`
-}
-
 func ParseID(id string) (string, error) {
 	parts := strings.Split(id, ":")
 	if len(parts) < 2 {
-		return "", fmt.Errorf("invalid ID format: %s", id)
+		return "", uhttp.WrapErrors(codes.InvalidArgument, "parsing ID", fmt.Errorf("invalid ID format: %s", id))
 	}
 	return parts[1], nil
 }
@@ -33,7 +27,7 @@ func ParseID(id string) (string, error) {
 func ParseRole(id string) (string, error) {
 	parts := strings.Split(id, ":")
 	if len(parts) < 3 {
-		return "", fmt.Errorf("invalid role ID format: %s", id)
+		return "", uhttp.WrapErrors(codes.InvalidArgument, "parsing role ID", fmt.Errorf("invalid role ID format: %s", id))
 	}
 	return parts[2], nil
 }
@@ -57,58 +51,18 @@ func MakeResourceList[T any](
 	for _, object := range objects {
 		nextResource, err := toResource(ctx, object, parentResourceID)
 		if err != nil {
-			return nil, err
+			return nil, uhttp.WrapErrors(codes.Internal, "converting object to resource", err)
 		}
 		outputSlice = append(outputSlice, nextResource)
 	}
 	return outputSlice, nil
 }
 
-func (e *EnterpriseRolesPagination) Marshal() (string, error) {
-	if e.Cursor == "" {
-		return "", nil
-	}
-	bytes, err := json.Marshal(e)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal EnterpriseRolesPagination: %w", err)
-	}
-
-	return string(bytes), nil
-}
-
-func (e *EnterpriseRolesPagination) Unmarshal(input string) error {
-	if input == "" {
-		e.FoundMap = make(map[string]bool)
-		return nil
-	}
-
-	err := json.Unmarshal([]byte(input), e)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal EnterpriseRolesPagination: %w", err)
-	}
-
-	return nil
-}
-
-func ParseRolesPageToken(i string) (*EnterpriseRolesPagination, error) {
-	b := &EnterpriseRolesPagination{}
-	err := b.Unmarshal(i)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse roles page token: %w", err)
-	}
-
-	if b.FoundMap == nil {
-		b.FoundMap = make(map[string]bool)
-	}
-
-	return b, nil
-}
-
 func ParsePageToken(i string, resourceID *v2.ResourceId) (*pagination.Bag, error) {
 	b := &pagination.Bag{}
 	err := b.Unmarshal(i)
 	if err != nil {
-		return nil, fmt.Errorf("pagination bag unmarshal error: %w", err)
+		return nil, uhttp.WrapErrors(codes.InvalidArgument, "unmarshaling pagination token", err)
 	}
 
 	if b.Current() == nil {
@@ -214,9 +168,9 @@ func MapSlackErrorToGRPCCode(errorString string) codes.Code {
 	}
 }
 
-// WrapSlackClientError wraps errors from the slack-go/slack client with appropriate
+// WrapError wraps errors from the slack-go/slack client with appropriate
 // gRPC codes for better classification and handling in C1 and alerting systems.
-func WrapSlackClientError(err error, action string) error {
+func WrapError(err error, action string) error {
 	if err == nil {
 		return nil
 	}
@@ -284,5 +238,5 @@ func AnnotationsForError(err error) (annotations.Annotations, error) {
 		return annos, nil
 	}
 	// Wrap the error with appropriate gRPC code for non-ratelimit errors
-	return annos, WrapSlackClientError(err, "listing resources")
+	return annos, WrapError(err, "listing resources")
 }
