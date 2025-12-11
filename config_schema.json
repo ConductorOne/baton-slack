@@ -1,9 +1,9 @@
 {
   "fields": [
     {
-      "name": "enterprise-token",
-      "displayName": "Enterprise Token",
-      "description": "The Slack user oauth token used to connect to the Slack Enterprise Grid Admin API",
+      "name": "business-plus-token",
+      "displayName": "Business Plus Token",
+      "description": "The Slack user oauth token used to connect to the Slack Admin API (Business+ or Enterprise Grid)",
       "isSecret": true,
       "stringField": {}
     },
@@ -72,12 +72,6 @@
       }
     },
     {
-      "name": "sso-enabled",
-      "displayName": "SSO Enabled",
-      "description": "Flag indicating that the SSO has been configured for Enterprise Grid Organization. Enables usage of SCIM API",
-      "boolField": {}
-    },
-    {
       "name": "token",
       "displayName": "Access Token",
       "description": "The Slack bot user oauth token used to connect to the Slack API",
@@ -97,7 +91,7 @@
         "gov-env"
       ],
       "secondaryFieldNames": [
-        "enterprise-token"
+        "business-plus-token"
       ]
     }
   ],
