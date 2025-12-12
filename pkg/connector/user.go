@@ -52,8 +52,8 @@ func (o *userResourceType) scimUserResource(ctx context.Context, scimUser client
 	profile["is_deleted"] = slackUser.Deleted
 
 	userStatus := v2.UserTrait_Status_STATUS_ENABLED
-	if slackUser.Deleted {
-		userStatus = v2.UserTrait_Status_STATUS_DELETED
+	if !scimUser.Active {
+		userStatus = v2.UserTrait_Status_STATUS_DISABLED
 	}
 
 	userTraitOptions := []resource.UserTraitOption{
