@@ -2,24 +2,18 @@ package pkg
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
-	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/pagination"
-	"github.com/conductorone/baton-sdk/pkg/uhttp"
-	"github.com/slack-go/slack"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func ParseID(id string) (string, error) {
 	parts := strings.Split(id, ":")
 	if len(parts) < 2 {
-		return "", uhttp.WrapErrors(codes.InvalidArgument, "parsing ID", fmt.Errorf("invalid ID format: %s", id))
+		return "", fmt.Errorf("invalid ID format: %s", id)
 	}
 	return parts[1], nil
 }
@@ -27,7 +21,7 @@ func ParseID(id string) (string, error) {
 func ParseRole(id string) (string, error) {
 	parts := strings.Split(id, ":")
 	if len(parts) < 3 {
-		return "", uhttp.WrapErrors(codes.InvalidArgument, "parsing role ID", fmt.Errorf("invalid role ID format: %s", id))
+		return "", fmt.Errorf("invalid role ID format: %s", id)
 	}
 	return parts[2], nil
 }
@@ -51,7 +45,7 @@ func MakeResourceList[T any](
 	for _, object := range objects {
 		nextResource, err := toResource(ctx, object, parentResourceID)
 		if err != nil {
-			return nil, uhttp.WrapErrors(codes.Internal, "converting object to resource", err)
+			return nil, fmt.Errorf("converting object to resource: %w", err)
 		}
 		outputSlice = append(outputSlice, nextResource)
 	}
@@ -62,7 +56,7 @@ func ParsePageToken(i string, resourceID *v2.ResourceId) (*pagination.Bag, error
 	b := &pagination.Bag{}
 	err := b.Unmarshal(i)
 	if err != nil {
-		return nil, uhttp.WrapErrors(codes.InvalidArgument, "unmarshaling pagination token", err)
+		return nil, fmt.Errorf("unmarshaling pagination token: %w", err)
 	}
 
 	if b.Current() == nil {
@@ -167,70 +161,4 @@ func MapSlackErrorToGRPCCode(errorString string) codes.Code {
 	}
 }
 
-// WrapError wraps errors from the slack-go/slack client with appropriate
-// gRPC codes for better classification and handling in C1 and alerting systems.
-func WrapError(err error, action string) error {
-	if err == nil {
-		return nil
-	}
 
-	var rateLimitErr *slack.RateLimitedError
-	if errors.As(err, &rateLimitErr) {
-		return uhttp.WrapErrors(
-			codes.DeadlineExceeded,
-			fmt.Sprintf("rate limited during %s", action),
-			err,
-		)
-	}
-
-	// Map the error string to a gRPC code using the centralized mapping function
-	errMsg := err.Error()
-	grpcCode := MapSlackErrorToGRPCCode(errMsg)
-
-	// Create appropriate error message based on the code
-	var contextMsg string
-	switch grpcCode {
-	case codes.Unauthenticated:
-		contextMsg = "authentication failed"
-	case codes.PermissionDenied:
-		contextMsg = "insufficient permissions"
-	case codes.NotFound:
-		contextMsg = "resource not found"
-	case codes.InvalidArgument:
-		contextMsg = "invalid argument"
-	case codes.DeadlineExceeded:
-		contextMsg = "rate limited"
-	case codes.ResourceExhausted:
-		contextMsg = "resource exhausted"
-	case codes.Unavailable:
-		contextMsg = "service unavailable"
-	case codes.AlreadyExists:
-		contextMsg = "resource already exists"
-	case codes.FailedPrecondition:
-		contextMsg = "precondition failed"
-	default:
-		contextMsg = "error"
-	}
-
-	return uhttp.WrapErrors(
-		grpcCode,
-		fmt.Sprintf("%s during %s", contextMsg, action),
-		err,
-	)
-}
-
-func AnnotationsForError(err error) (annotations.Annotations, error) {
-	annos := annotations.Annotations{}
-	var rateLimitErr *slack.RateLimitedError
-	if errors.As(err, &rateLimitErr) {
-		annos.WithRateLimiting(
-			&v2.RateLimitDescription{
-				Limit:     0,
-				Remaining: 0,
-				ResetAt:   timestamppb.New(time.Now().Add(rateLimitErr.RetryAfter)),
-			},
-		)
-		return annos, WrapError(err, "listing resources")
-	}
-	return annos, WrapError(err, "listing resources")
-}

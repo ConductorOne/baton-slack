@@ -70,7 +70,7 @@ func (o *workspaceResourceType) List(
 ) ([]*v2.Resource, *resources.SyncOpResults, error) {
 	bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id})
 	if err != nil {
-		return nil, nil, pkg.WrapError(err, "parsing page token")
+		return nil, nil, fmt.Errorf("parsing page token: %w", err)
 	}
 
 	var (
@@ -80,7 +80,7 @@ func (o *workspaceResourceType) List(
 	params := slack.ListTeamsParameters{Cursor: bag.PageToken()}
 	workspaces, nextCursor, err = o.client.ListTeamsContext(ctx, params)
 	if err != nil {
-		wrappedErr := pkg.WrapError(err, "listing teams")
+		wrappedErr := fmt.Errorf("listing teams: %w", err)
 		return nil, nil, wrappedErr
 	}
 
@@ -88,19 +88,19 @@ func (o *workspaceResourceType) List(
 	for _, ws := range workspaces {
 		resource, err := workspaceResource(ctx, ws, parentID)
 		if err != nil {
-			return nil, nil, pkg.WrapError(err, "creating workspace resource")
+			return nil, nil, fmt.Errorf("creating workspace resource: %w", err)
 		}
 		rv = append(rv, resource)
 	}
 
 	err = client.SetWorkspaceNames(ctx, attrs.Session, workspaces)
 	if err != nil {
-		return nil, nil, pkg.WrapError(err, "storing workspace names in session")
+		return nil, nil, fmt.Errorf("storing workspace names in session: %w", err)
 	}
 
 	pageToken, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, nil, pkg.WrapError(err, "creating next page token")
+		return nil, nil, fmt.Errorf("creating next page token: %w", err)
 	}
 	return rv, &resources.SyncOpResults{
 		NextPageToken: pageToken,
@@ -144,7 +144,7 @@ func (o *workspaceResourceType) Grants(
 
 	bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 	if err != nil {
-		return nil, nil, pkg.WrapError(err, "parsing page token")
+		return nil, nil, fmt.Errorf("parsing page token: %w", err)
 	}
 
 	outputAnnotations := annotations.New()
@@ -155,12 +155,12 @@ func (o *workspaceResourceType) Grants(
 	)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, nil, pkg.WrapError(err, "fetching users for workspace")
+		return nil, nil, fmt.Errorf("fetching users for workspace: %w", err)
 	}
 
 	pageToken, err := bag.NextToken(nextCursor)
 	if err != nil {
-		return nil, nil, pkg.WrapError(err, "creating next page token")
+		return nil, nil, fmt.Errorf("creating next page token: %w", err)
 	}
 
 	var rv []*v2.Grant
@@ -170,7 +170,7 @@ func (o *workspaceResourceType) Grants(
 		}
 		userID, err := resources.NewResourceID(resourceTypeUser, user.ID)
 		if err != nil {
-			return nil, nil, pkg.WrapError(err, "creating user resource ID")
+			return nil, nil, fmt.Errorf("creating user resource ID: %w", err)
 		}
 
 		// Only create workspace membership grants (no role-based grants)

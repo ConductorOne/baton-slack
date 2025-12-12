@@ -10,7 +10,6 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
 
-	"github.com/conductorone/baton-slack/pkg"
 	"github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/slack-go/slack"
 )
@@ -79,15 +78,14 @@ func (o *userGroupResourceType) List(
 	outputAnnotations := annotations.New()
 	userGroups, err = o.client.GetUserGroupsContext(ctx, slack.GetUserGroupsOptionWithTeamID(parentResourceID.Resource))
 	if err != nil {
-		wrappedErr := pkg.WrapError(err, fmt.Sprintf("fetching user groups for team %s", parentResourceID.Resource))
-		return nil, &resource.SyncOpResults{}, wrappedErr
+		return nil, &resource.SyncOpResults{}, fmt.Errorf("fetching user groups for team %s: %w", parentResourceID.Resource, err)
 	}
 
 	rv := make([]*v2.Resource, 0, len(userGroups))
 	for _, ug := range userGroups {
 		resource, err := userGroupResource(ctx, ug, parentResourceID)
 		if err != nil {
-			return nil, nil, pkg.WrapError(err, "creating user group resource")
+			return nil, nil, fmt.Errorf("creating user group resource: %w", err)
 		}
 		rv = append(rv, resource)
 	}
@@ -139,20 +137,18 @@ func (o *userGroupResourceType) Grants(
 ) {
 	groupMembers, err := o.client.GetUserGroupMembersContext(ctx, res.Id.Resource)
 	if err != nil {
-		wrappedErr := pkg.WrapError(err, fmt.Sprintf("fetching user group members for group %s", res.Id.Resource))
-		return nil, &resource.SyncOpResults{}, wrappedErr
+		return nil, &resource.SyncOpResults{}, fmt.Errorf("fetching user group members for group %s: %w", res.Id.Resource, err)
 	}
 
 	var rv []*v2.Grant
 	for _, member := range groupMembers {
 		user, err := o.client.GetUserInfoContext(ctx, member)
 		if err != nil {
-			wrappedErr := pkg.WrapError(err, fmt.Sprintf("fetching user info for member %s", member))
-			return nil, &resource.SyncOpResults{}, wrappedErr
+			return nil, &resource.SyncOpResults{}, fmt.Errorf("fetching user info for member %s: %w", member, err)
 		}
 		ur, err := userResource(ctx, user, res.Id)
 		if err != nil {
-			return nil, nil, pkg.WrapError(err, "creating user resource")
+			return nil, nil, fmt.Errorf("creating user resource: %w", err)
 		}
 
 		grant := grant.NewGrant(res, memberEntitlement, ur.Id)

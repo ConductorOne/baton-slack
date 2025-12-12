@@ -13,7 +13,6 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/conductorone/baton-slack/pkg"
 	"github.com/slack-go/slack"
-	"google.golang.org/grpc/codes"
 )
 
 const (
@@ -72,55 +71,24 @@ func NewClient(
 	}, nil
 }
 
-// handleError - Slack can return a 200 with an error in the JSON body.
-// This function wraps errors with appropriate gRPC codes for better classification
-// and handling in C1 and alerting systems.
-// It uses the centralized MapSlackErrorToGRPCCode function from pkg/helpers.go.
-func (a BaseResponse) handleError(err error, action string) error {
+func (a BaseResponse) handleError(err error) error {
 	if err != nil {
-		return fmt.Errorf("error %s: %w", action, err)
+		return err
 	}
 
-	if a.Error != "" {
-		// Use the centralized error mapping from pkg package
-		grpcCode := pkg.MapSlackErrorToGRPCCode(a.Error)
-
-		// Build detailed error message
-		errMsg := a.Error
-		if a.Needed != "" || a.Provided != "" {
-			errMsg = fmt.Sprintf("%s (needed: %v, provided: %v)", a.Error, a.Needed, a.Provided)
-		}
-
-		// Create appropriate context message based on the code
-		var contextMsg string
-		switch grpcCode {
-		case codes.Unauthenticated:
-			contextMsg = "authentication failed"
-		case codes.PermissionDenied:
-			contextMsg = "insufficient permissions"
-		case codes.NotFound:
-			contextMsg = "resource not found"
-		case codes.InvalidArgument:
-			contextMsg = "invalid argument"
-		case codes.DeadlineExceeded:
-			contextMsg = "rate limited"
-		case codes.ResourceExhausted:
-			contextMsg = "resource exhausted"
-		case codes.Unavailable:
-			contextMsg = "service unavailable"
-		case codes.AlreadyExists:
-			contextMsg = "resource already exists"
-		default:
-			contextMsg = "error"
-		}
-
-		return uhttp.WrapErrors(
-			grpcCode,
-			fmt.Sprintf("%s during %s", contextMsg, action),
-			errors.New(errMsg),
-		)
+	if a.Error == "" {
+		return nil
 	}
-	return nil
+
+	errMsg := a.Error
+	if a.Needed != "" || a.Provided != "" {
+		errMsg = fmt.Sprintf("%s (needed: %v, provided: %v)", a.Error, a.Needed, a.Provided)
+	}
+
+	grpcCode := pkg.MapSlackErrorToGRPCCode(a.Error)
+	contextMsg := mapSlackErrorToMessage(grpcCode)
+
+	return uhttp.WrapErrors(grpcCode, contextMsg, errors.New(errMsg))
 }
 
 // SetWorkspaceNames stores workspace names in the session store.
@@ -153,7 +121,7 @@ func (c *Client) GetUserInfo(
 		map[string]interface{}{"user": userID},
 		true,
 	)
-	if err := response.handleError(err, "fetching user info"); err != nil {
+	if err != nil {
 		return nil, ratelimitData, err
 	}
 
@@ -185,7 +153,7 @@ func (c *Client) GetUserGroupMembers(
 		},
 		true,
 	)
-	if err := response.handleError(err, "fetching user group members"); err != nil {
+	if err != nil {
 		return nil, ratelimitData, err
 	}
 
@@ -223,7 +191,7 @@ func (c *Client) GetUsers(
 		values,
 		true,
 	)
-	if err := response.handleError(err, "fetching users"); err != nil {
+	if err != nil {
 		return nil, "", ratelimitData, err
 	}
 
@@ -252,11 +220,9 @@ func (c *Client) GetUserGroups(
 		UrlPathGetUserGroups,
 		&response,
 		map[string]interface{}{"team_id": teamID},
-		// The bot token needed here because user token doesn't work unless user
-		// is in all workspaces.
 		true,
 	)
-	if err := response.handleError(err, "fetching user groups"); err != nil {
+	if err != nil {
 		return nil, ratelimitData, err
 	}
 
@@ -292,7 +258,7 @@ func (c *Client) GetAuthTeamsList(
 		values,
 		false,
 	)
-	if err := response.handleError(err, "fetching authed teams"); err != nil {
+	if err != nil {
 		return nil, "", ratelimitData, err
 	}
 

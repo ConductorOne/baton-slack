@@ -11,13 +11,11 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
-	"github.com/conductorone/baton-sdk/pkg/uhttp"
 
 	"github.com/conductorone/baton-slack/pkg"
 	"github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
 )
 
 // TODO(marcos): Is this actually a bug?
@@ -110,14 +108,14 @@ func (g *groupResourceType) List(
 
 	offset, limit, err := parsePaginationToken(attrs.PageToken.Token, attrs.PageToken.Size)
 	if err != nil {
-		return nil, nil, pkg.WrapError(err, "parsing pagination token")
+		return nil, nil, fmt.Errorf("parsing pagination token: %w", err)
 	}
 
 	outputAnnotations := annotations.New()
 	groupsResponse, ratelimitData, err := g.businessPlusClient.ListIDPGroups(ctx, offset, limit)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, pkg.WrapError(err, "listing IDP groups")
+		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, fmt.Errorf("listing IDP groups: %w", err)
 	}
 
 	groups, err := pkg.MakeResourceList(
@@ -127,7 +125,7 @@ func (g *groupResourceType) List(
 		groupResource,
 	)
 	if err != nil {
-		return nil, nil, pkg.WrapError(err, "creating group resources")
+		return nil, nil, fmt.Errorf("creating group resources: %w", err)
 	}
 
 	nextToken := getNextToken(offset, limit, groupsResponse.TotalResults)
@@ -183,13 +181,13 @@ func (g *groupResourceType) Grants(
 	group, ratelimitData, err := g.businessPlusClient.GetIDPGroup(ctx, resource.Id.Resource)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, pkg.WrapError(err, "fetching IDP group")
+		return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, fmt.Errorf("fetching IDP group: %w", err)
 	}
 
 	for _, member := range group.Members {
 		userID, err := resources.NewResourceID(resourceTypeUser, member.Value)
 		if err != nil {
-			return nil, nil, pkg.WrapError(err, "creating user resource ID")
+			return nil, nil, fmt.Errorf("creating user resource ID: %w", err)
 		}
 		grantOptions := []grant.GrantOption{}
 		if g.govEnv {
@@ -214,7 +212,7 @@ func (g *groupResourceType) Grant(
 	logger := ctxzap.Extract(ctx)
 
 	if g.businessPlusClient == nil {
-		return nil, uhttp.WrapErrors(codes.FailedPrecondition, "Business+ client not available", errors.New("missing Business+ token"))
+		return nil, errors.New("Business+ client not available: missing Business+ token")
 	}
 
 	if g.govEnv {
@@ -223,7 +221,7 @@ func (g *groupResourceType) Grant(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, uhttp.WrapErrors(codes.PermissionDenied, "IDP group provisioning not supported in Gov environment for grant operation", errors.New("gov environment restriction"))
+		return nil, errors.New("IDP group provisioning not supported in Gov environment for grant operation")
 	}
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
@@ -232,7 +230,7 @@ func (g *groupResourceType) Grant(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, uhttp.WrapErrors(codes.PermissionDenied, "only users can be granted IDP group membership", errors.New("invalid principal type"))
+		return nil, errors.New("only users can be granted IDP group membership")
 	}
 
 	outputAnnotations := annotations.New()
@@ -243,7 +241,7 @@ func (g *groupResourceType) Grant(
 	)
 	outputAnnotations.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return outputAnnotations, uhttp.WrapErrors(codes.Internal, "adding user to IDP group", err)
+		return outputAnnotations, fmt.Errorf("adding user to IDP group: %w", err)
 	}
 
 	return outputAnnotations, nil
@@ -262,7 +260,7 @@ func (g *groupResourceType) Revoke(
 	entitlement := grant.Entitlement
 
 	if g.businessPlusClient == nil {
-		return nil, uhttp.WrapErrors(codes.FailedPrecondition, "Business+ client not available", errors.New("missing Business+ token"))
+		return nil, errors.New("Business+ client not available: missing Business+ token")
 	}
 
 	if g.govEnv {
@@ -271,7 +269,7 @@ func (g *groupResourceType) Revoke(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, uhttp.WrapErrors(codes.PermissionDenied, "IDP group provisioning not supported in Gov environment for revoke operation", errors.New("gov environment restriction"))
+		return nil, errors.New("IDP group provisioning not supported in Gov environment for revoke operation")
 	}
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
@@ -280,7 +278,7 @@ func (g *groupResourceType) Revoke(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, uhttp.WrapErrors(codes.PermissionDenied, "only users can have IDP group membership revoked", errors.New("invalid principal type"))
+		return nil, errors.New("only users can have IDP group membership revoked")
 	}
 
 	outputAnnotations := annotations.New()
@@ -292,7 +290,7 @@ func (g *groupResourceType) Revoke(
 	outputAnnotations.WithRateLimiting(ratelimitData)
 
 	if err != nil {
-		return outputAnnotations, uhttp.WrapErrors(codes.Internal, "removing user from IDP group", err)
+		return outputAnnotations, fmt.Errorf("removing user from IDP group: %w", err)
 	}
 
 	if !wasRevoked {
