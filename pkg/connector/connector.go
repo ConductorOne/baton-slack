@@ -9,7 +9,6 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/cli"
 	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
-	"github.com/conductorone/baton-slack/pkg"
 	cfg "github.com/conductorone/baton-slack/pkg/config"
 	"github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
@@ -73,12 +72,12 @@ func (c *Slack) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
 func (s *Slack) Validate(ctx context.Context) (annotations.Annotations, error) {
 	res, err := s.client.AuthTestContext(ctx)
 	if err != nil {
-		return nil, pkg.WrapError(err, "authenticating")
+		return nil, fmt.Errorf("authenticating: %w", err)
 	}
 
 	user, err := s.client.GetUserInfoContext(ctx, res.UserID)
 	if err != nil {
-		return nil, pkg.WrapError(err, "retrieving authenticated user")
+		return nil, fmt.Errorf("retrieving authenticated user: %w", err)
 	}
 
 	isValidUser := user.IsAdmin || user.IsOwner || user.IsPrimaryOwner || user.IsBot

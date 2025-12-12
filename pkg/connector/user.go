@@ -8,7 +8,6 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/types/resource"
-	"github.com/conductorone/baton-slack/pkg"
 	"github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
@@ -28,8 +27,7 @@ func (o *userResourceType) scimUserResource(ctx context.Context, scimUser client
 	// NOTE: this is mainly to maintain compatibility with existing profile in non scim flow.
 	slackUser, err := o.client.GetUserInfoContext(ctx, scimUser.ID)
 	if err != nil {
-		wrappedErr := pkg.WrapError(err, fmt.Sprintf("fetching user info for SCIM user %s", scimUser.ID))
-		return nil, wrappedErr
+		return nil, fmt.Errorf("fetching user info for SCIM user %s: %w", scimUser.ID, err)
 	}
 
 	profile := make(map[string]interface{})
@@ -52,8 +50,8 @@ func (o *userResourceType) scimUserResource(ctx context.Context, scimUser client
 	profile["is_deleted"] = slackUser.Deleted
 
 	userStatus := v2.UserTrait_Status_STATUS_ENABLED
-	if slackUser.Deleted {
-		userStatus = v2.UserTrait_Status_STATUS_DELETED
+	if !scimUser.Active {
+		userStatus = v2.UserTrait_Status_STATUS_DISABLED
 	}
 
 	userTraitOptions := []resource.UserTraitOption{
@@ -209,15 +207,14 @@ func (o *userResourceType) listStandardAPI(
 	options := slack.GetUsersOptionTeamID(parentResourceID.Resource)
 	users, err := o.client.GetUsersContext(ctx, options)
 	if err != nil {
-		annos, err := pkg.AnnotationsForError(err)
-		return nil, &resource.SyncOpResults{Annotations: annos}, err
+		return nil, nil, fmt.Errorf("error fetching users using standard API: %w", err)
 	}
 
 	rv := make([]*v2.Resource, 0, len(users))
 	for _, u := range users {
 		resource, err := userResource(ctx, &u, parentResourceID)
 		if err != nil {
-			return nil, nil, pkg.WrapError(err, "creating user resource")
+			return nil, nil, fmt.Errorf("creating user resource: %w", err)
 		}
 		rv = append(rv, resource)
 	}
@@ -230,7 +227,7 @@ func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2
 	if attrs.PageToken.Token != "" {
 		startIndex, err = strconv.Atoi(attrs.PageToken.Token)
 		if err != nil {
-			return nil, nil, pkg.WrapError(err, "parsing page token")
+			return nil, nil, fmt.Errorf("parsing page token: %w", err)
 		}
 	}
 
@@ -239,7 +236,7 @@ func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2
 	response, ratelimitData, err := o.businessPlusClient.ListIDPUsers(ctx, startIndex, count)
 	annos.WithRateLimiting(ratelimitData)
 	if err != nil {
-		return nil, &resource.SyncOpResults{Annotations: annos}, pkg.WrapError(err, "fetching SCIM users")
+		return nil, &resource.SyncOpResults{Annotations: annos}, fmt.Errorf("fetching SCIM users: %w", err)
 	}
 
 	rv := make([]*v2.Resource, 0, len(response.Resources))
