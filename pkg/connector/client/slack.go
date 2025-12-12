@@ -11,7 +11,6 @@ import (
 	"github.com/conductorone/baton-sdk/pkg/session"
 	"github.com/conductorone/baton-sdk/pkg/types/sessions"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
-	"github.com/conductorone/baton-slack/pkg"
 	"github.com/slack-go/slack"
 )
 
@@ -85,7 +84,7 @@ func (a BaseResponse) handleError(err error) error {
 		errMsg = fmt.Sprintf("%s (needed: %v, provided: %v)", a.Error, a.Needed, a.Provided)
 	}
 
-	grpcCode := pkg.MapSlackErrorToGRPCCode(a.Error)
+	grpcCode := mapSlackErrorToGRPCCode(a.Error)
 	contextMsg := mapSlackErrorToMessage(grpcCode)
 
 	return uhttp.WrapErrors(grpcCode, contextMsg, errors.New(errMsg))

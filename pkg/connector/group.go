@@ -2,7 +2,6 @@ package connector
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 
@@ -212,7 +211,7 @@ func (g *groupResourceType) Grant(
 	logger := ctxzap.Extract(ctx)
 
 	if g.businessPlusClient == nil {
-		return nil, errors.New("Business+ client not available: missing Business+ token")
+		return nil, fmt.Errorf("business+ client not available: missing Business+ token")
 	}
 
 	if g.govEnv {
@@ -221,7 +220,7 @@ func (g *groupResourceType) Grant(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, errors.New("IDP group provisioning not supported in Gov environment for grant operation")
+		return nil, fmt.Errorf("IDP group provisioning not supported in Gov environment for grant operation")
 	}
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
@@ -230,7 +229,7 @@ func (g *groupResourceType) Grant(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, errors.New("only users can be granted IDP group membership")
+		return nil, fmt.Errorf("only users can be granted IDP group membership")
 	}
 
 	outputAnnotations := annotations.New()
@@ -260,7 +259,7 @@ func (g *groupResourceType) Revoke(
 	entitlement := grant.Entitlement
 
 	if g.businessPlusClient == nil {
-		return nil, errors.New("Business+ client not available: missing Business+ token")
+		return nil, fmt.Errorf("business+ client not available: missing Business+ token")
 	}
 
 	if g.govEnv {
@@ -269,7 +268,7 @@ func (g *groupResourceType) Revoke(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, errors.New("IDP group provisioning not supported in Gov environment for revoke operation")
+		return nil, fmt.Errorf("provisioning of IDP group not supported in Gov environment for revoke operation")
 	}
 
 	if principal.Id.ResourceType != resourceTypeUser.Id {
@@ -278,7 +277,7 @@ func (g *groupResourceType) Revoke(
 			zap.String("principal_type", principal.Id.ResourceType),
 			zap.String("principal_id", principal.Id.Resource),
 		)
-		return nil, errors.New("only users can have IDP group membership revoked")
+		return nil, fmt.Errorf("only users can have IDP group membership revoked")
 	}
 
 	outputAnnotations := annotations.New()
