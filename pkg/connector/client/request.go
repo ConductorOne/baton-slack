@@ -179,12 +179,6 @@ func (c *Client) doRequest(
 		}
 	}
 
-	if handler, ok := target.(errorHandler); ok {
-		if err := handler.handleError(err); err != nil {
-			return &ratelimitData, err
-		}
-	}
-
 	return &ratelimitData, nil
 }
 

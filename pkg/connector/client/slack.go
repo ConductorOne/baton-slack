@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -68,26 +67,6 @@ func NewClient(
 		scimVersion: finalScimVersion,
 		wrapper:     uhttp.NewBaseHttpClient(httpClient),
 	}, nil
-}
-
-func (a BaseResponse) handleError(err error) error {
-	if err != nil {
-		return err
-	}
-
-	if a.Error == "" {
-		return nil
-	}
-
-	errMsg := a.Error
-	if a.Needed != "" || a.Provided != "" {
-		errMsg = fmt.Sprintf("%s (needed: %v, provided: %v)", a.Error, a.Needed, a.Provided)
-	}
-
-	grpcCode := mapSlackErrorToGRPCCode(a.Error)
-	contextMsg := mapSlackErrorToMessage(grpcCode)
-
-	return uhttp.WrapErrors(grpcCode, contextMsg, errors.New(errMsg))
 }
 
 // SetWorkspaceNames stores workspace names in the session store.
