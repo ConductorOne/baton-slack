@@ -207,7 +207,7 @@ func (o *userResourceType) listStandardAPI(
 	options := slack.GetUsersOptionTeamID(parentResourceID.Resource)
 	users, err := o.client.GetUsersContext(ctx, options)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("error fetching users using standard API: %w", err)
 	}
 
 	rv := make([]*v2.Resource, 0, len(users))
