@@ -121,11 +121,10 @@ func MapSlackErrorToGRPCCode(errorString string) codes.Code {
 		strings.Contains(lowerErr, "parameter_validation_failed"):
 		return codes.InvalidArgument
 
-	// Rate Limiting errors (codes.ResourceExhausted)
 	case strings.Contains(lowerErr, "ratelimited"),
 		strings.Contains(lowerErr, "rate limit"),
 		strings.Contains(lowerErr, "team_quota_exceeded"):
-		return codes.ResourceExhausted
+		return codes.DeadlineExceeded
 
 	// Service Unavailable errors (codes.Unavailable)
 	case strings.Contains(lowerErr, "503"),
@@ -175,11 +174,10 @@ func WrapError(err error, action string) error {
 		return nil
 	}
 
-	// Check for rate limit errors (slack.RateLimitedError type)
 	var rateLimitErr *slack.RateLimitedError
 	if errors.As(err, &rateLimitErr) {
 		return uhttp.WrapErrors(
-			codes.ResourceExhausted,
+			codes.DeadlineExceeded,
 			fmt.Sprintf("rate limited during %s", action),
 			err,
 		)
@@ -200,12 +198,12 @@ func WrapError(err error, action string) error {
 		contextMsg = "resource not found"
 	case codes.InvalidArgument:
 		contextMsg = "invalid argument"
-	case codes.ResourceExhausted:
+	case codes.DeadlineExceeded:
 		contextMsg = "rate limited"
+	case codes.ResourceExhausted:
+		contextMsg = "resource exhausted"
 	case codes.Unavailable:
 		contextMsg = "service unavailable"
-	case codes.DeadlineExceeded:
-		contextMsg = "timeout"
 	case codes.AlreadyExists:
 		contextMsg = "resource already exists"
 	case codes.FailedPrecondition:
@@ -221,9 +219,6 @@ func WrapError(err error, action string) error {
 	)
 }
 
-// AnnotationsForError - Intercept ratelimit errors from Slack and create and
-// annotation instead.
-// TODO(marcos): maybe this should actually still forward along the error.
 func AnnotationsForError(err error) (annotations.Annotations, error) {
 	annos := annotations.Annotations{}
 	var rateLimitErr *slack.RateLimitedError
@@ -235,8 +230,7 @@ func AnnotationsForError(err error) (annotations.Annotations, error) {
 				ResetAt:   timestamppb.New(time.Now().Add(rateLimitErr.RetryAfter)),
 			},
 		)
-		return annos, nil
+		return annos, WrapError(err, "listing resources")
 	}
-	// Wrap the error with appropriate gRPC code for non-ratelimit errors
 	return annos, WrapError(err, "listing resources")
 }

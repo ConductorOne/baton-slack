@@ -102,8 +102,10 @@ func (a BaseResponse) handleError(err error, action string) error {
 			contextMsg = "resource not found"
 		case codes.InvalidArgument:
 			contextMsg = "invalid argument"
-		case codes.ResourceExhausted:
+		case codes.DeadlineExceeded:
 			contextMsg = "rate limited"
+		case codes.ResourceExhausted:
+			contextMsg = "resource exhausted"
 		case codes.Unavailable:
 			contextMsg = "service unavailable"
 		case codes.AlreadyExists:
