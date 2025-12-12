@@ -58,10 +58,6 @@ func WithBearerToken(token string) uhttp.RequestOption {
 	return uhttp.WithHeader("Authorization", fmt.Sprintf("Bearer %s", token))
 }
 
-type errorHandler interface {
-	handleError(error) error
-}
-
 func (c *Client) post(
 	ctx context.Context,
 	path string,
