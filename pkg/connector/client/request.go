@@ -83,43 +83,6 @@ func (c *Client) post(
 	)
 }
 
-func (c *Client) getScim(
-	ctx context.Context,
-	path string,
-	target interface{},
-	queryParameters map[string]interface{},
-) (
-	*v2.RateLimitDescription,
-	error,
-) {
-	return c.doRequest(
-		ctx,
-		http.MethodGet,
-		c.getUrl(path, queryParameters, true),
-		&target,
-		WithBearerToken(c.token),
-	)
-}
-
-func (c *Client) patchScim(
-	ctx context.Context,
-	path string,
-	target interface{},
-	payload map[string]any,
-) (
-	*v2.RateLimitDescription,
-	error,
-) {
-	return c.doRequest(
-		ctx,
-		http.MethodPatch,
-		c.getUrl(path, nil, true),
-		&target,
-		WithBearerToken(c.token),
-		uhttp.WithJSONBody(payload),
-	)
-}
-
 func (c *Client) doRequest(
 	ctx context.Context,
 	method string,
