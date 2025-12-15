@@ -34,7 +34,7 @@ func logBody(ctx context.Context, response *http.Response) {
 	l.Info("response body", zap.String("body", string(body)))
 }
 
-// mapSlackErrorToGRPCCode maps Slack error strings to gRPC codes.
+// maps Slack error strings to gRPC codes.
 func mapSlackErrorToGRPCCode(slackError string) codes.Code {
 	switch slackError {
 	case "invalid_auth", "token_revoked", "token_expired", "not_authed", "account_inactive":
@@ -65,7 +65,6 @@ func mapSlackErrorToGRPCCode(slackError string) codes.Code {
 	}
 }
 
-// checkSlackAPIError checks for Slack API errors in HTTP 200 responses.
 // Slack API may return errors in the response body even when the HTTP status code is 200.
 // examples:
 //
