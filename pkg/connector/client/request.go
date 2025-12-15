@@ -178,7 +178,7 @@ func (c *Client) doRequest(
 	}
 
 	if response.StatusCode == http.StatusOK {
-		if err := checkSlackAPIErrorFromBytes(bodyBytes); err != nil {
+		if err := ErrorWithGrpcCodeFromBytes(bodyBytes); err != nil {
 			return &ratelimitData, err
 		}
 	}
