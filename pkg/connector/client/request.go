@@ -168,10 +168,20 @@ func (c *Client) doRequest(
 		return &ratelimitData, fmt.Errorf("reading response body: %w", err)
 	}
 
-	if response.StatusCode != http.StatusNoContent && len(bodyBytes) > 0 {
+	if response.StatusCode == http.StatusNoContent {
+		return &ratelimitData, nil
+	}
+
+	if len(bodyBytes) > 0 {
 		if err := json.Unmarshal(bodyBytes, &target); err != nil {
 			logBody(ctx, response)
 			return nil, fmt.Errorf("unmarshaling response: %w", err)
+		}
+
+		if response.StatusCode == http.StatusOK {
+			if err := checkSlackAPIErrorFromBytes(bodyBytes); err != nil {
+				return &ratelimitData, err
+			}
 		}
 	}
 
