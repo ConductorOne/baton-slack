@@ -27,7 +27,7 @@ func (o *userResourceType) scimUserResource(ctx context.Context, scimUser client
 	// NOTE: this is mainly to maintain compatibility with existing profile in non scim flow.
 	slackUser, err := o.client.GetUserInfoContext(ctx, scimUser.ID)
 	if err != nil {
-		return nil, fmt.Errorf("fetching user info for SCIM user %s: %w", scimUser.ID, err)
+		return nil, client.WrapError(err, fmt.Sprintf("fetching user info for SCIM user %s", scimUser.ID))
 	}
 
 	profile := make(map[string]interface{})
@@ -207,7 +207,7 @@ func (o *userResourceType) listStandardAPI(
 	options := slack.GetUsersOptionTeamID(parentResourceID.Resource)
 	users, err := o.client.GetUsersContext(ctx, options)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error fetching users using standard API: %w", err)
+		return nil, nil, client.WrapError(err, "error fetching users using standard API")
 	}
 
 	rv := make([]*v2.Resource, 0, len(users))
