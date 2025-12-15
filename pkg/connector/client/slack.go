@@ -429,12 +429,13 @@ func (c *Client) patchGroup(
 	error,
 ) {
 	var response *GroupResource
-	ratelimitData, err := c.doScimRequest(
+	ratelimitData, err := c.doRequest(
 		ctx,
 		http.MethodPatch,
-		fmt.Sprintf(UrlPathIDPGroup, c.scimVersion, groupID),
+		c.getUrl(fmt.Sprintf(UrlPathIDPGroup, c.scimVersion, groupID), nil, true),
 		&response,
-		requestBody,
+		WithBearerToken(c.token),
+		uhttp.WithJSONBody(requestBody),
 	)
 	if err != nil {
 		return ratelimitData, fmt.Errorf("error patching IDP group: %w", err)
@@ -458,9 +459,13 @@ func (c *Client) DisableUser(
 	*v2.RateLimitDescription,
 	error,
 ) {
-	ratelimitData, err := c.deleteScim(
+	var emptyResponse interface{}
+	ratelimitData, err := c.doRequest(
 		ctx,
-		fmt.Sprintf(UrlPathIDPUser, c.scimVersion, userID),
+		http.MethodDelete,
+		c.getUrl(fmt.Sprintf(UrlPathIDPUser, c.scimVersion, userID), nil, true),
+		&emptyResponse,
+		WithBearerToken(c.token),
 	)
 	if err != nil {
 		return ratelimitData, fmt.Errorf("error disabling user: %w", err)
