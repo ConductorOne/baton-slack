@@ -57,47 +57,50 @@ func containsAny(s string, substrs ...string) bool {
 	return false
 }
 
-// MapSlackErrorToGRPCCode maps Slack error strings to gRPC codes.
+// maps Slack error strings to gRPC codes.
 func MapSlackErrorToGRPCCode(slackError string) codes.Code {
-	lowerError := strings.ToLower(slackError)
+	err := strings.ToLower(slackError)
 
-	if containsAny(lowerError, "invalid_auth", "token_revoked", "token_expired", "not_authed", "account_inactive") {
+	if containsAny(err, "invalid_auth", "token_revoked", "token_expired", "not_authed", "account_inactive") {
 		return codes.Unauthenticated
 	}
 
-	if containsAny(lowerError, "missing_scope", "access_denied", "not_allowed_token_type", "team_access_not_granted", "no_permission", "ekm_access_denied") {
+	if containsAny(err, "missing_scope", "access_denied", "not_allowed_token_type",
+		"team_access_not_granted", "no_permission", "ekm_access_denied") {
 		return codes.PermissionDenied
 	}
 
-	if containsAny(lowerError, "ratelimited") {
+	if containsAny(err, "ratelimited") {
 		return codes.Unavailable
 	}
 
-	if containsAny(lowerError, "user_not_found") {
+	if containsAny(err, "user_not_found") {
 		return codes.NotFound
 	}
 
-	if containsAny(lowerError, "user_already_team_member") {
+	if containsAny(err, "user_already_team_member") {
 		return codes.AlreadyExists
 	}
 
-	if containsAny(lowerError, "invalid_arguments", "missing_argument", "invalid_arg_name", "invalid_array_arg", "invalid_charset", "invalid_form_data", "invalid_post_type", "missing_post_type", "limit_required") {
+	if containsAny(err, "invalid_arguments", "missing_argument", "invalid_arg_name",
+		"invalid_array_arg", "invalid_charset", "invalid_form_data", "invalid_post_type",
+		"missing_post_type", "limit_required") {
 		return codes.InvalidArgument
 	}
 
-	if containsAny(lowerError, "user_already_deleted", "two_factor_setup_required") {
+	if containsAny(err, "user_already_deleted", "two_factor_setup_required") {
 		return codes.FailedPrecondition
 	}
 
-	if containsAny(lowerError, "internal_error", "service_unavailable", "request_timeout") {
+	if containsAny(err, "internal_error", "service_unavailable", "request_timeout") {
 		return codes.Unavailable
 	}
 
-	if containsAny(lowerError, "fatal_error") {
+	if containsAny(err, "fatal_error") {
 		return codes.Internal
 	}
 
-	if containsAny(lowerError, "method_deprecated", "deprecated_endpoint") {
+	if containsAny(err, "method_deprecated", "deprecated_endpoint") {
 		return codes.Unimplemented
 	}
 
