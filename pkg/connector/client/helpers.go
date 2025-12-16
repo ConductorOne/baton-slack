@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
@@ -47,35 +48,60 @@ func WrapError(err error, contextMsg string) error {
 	return uhttp.WrapErrors(grpcCode, contextMsg, err)
 }
 
+func containsAny(s string, substrs ...string) bool {
+	for _, substr := range substrs {
+		if strings.Contains(s, substr) {
+			return true
+		}
+	}
+	return false
+}
+
 // MapSlackErrorToGRPCCode maps Slack error strings to gRPC codes.
 func MapSlackErrorToGRPCCode(slackError string) codes.Code {
-	switch slackError {
-	case "invalid_auth", "token_revoked", "token_expired", "not_authed", "account_inactive":
+	lowerError := strings.ToLower(slackError)
+
+	if containsAny(lowerError, "invalid_auth", "token_revoked", "token_expired", "not_authed", "account_inactive") {
 		return codes.Unauthenticated
-	case "missing_scope", "access_denied", "not_allowed_token_type",
-		"team_access_not_granted", "no_permission", "ekm_access_denied":
-		return codes.PermissionDenied
-	case "ratelimited":
-		return codes.Unavailable // this would trigger a retry in baton-sdk
-	case "user_not_found":
-		return codes.NotFound
-	case "user_already_team_member":
-		return codes.AlreadyExists
-	case "invalid_arguments", "missing_argument", "invalid_arg_name",
-		"invalid_array_arg", "invalid_charset", "invalid_form_data",
-		"invalid_post_type", "missing_post_type", "limit_required":
-		return codes.InvalidArgument
-	case "user_already_deleted", "two_factor_setup_required":
-		return codes.FailedPrecondition
-	case "internal_error", "service_unavailable", "request_timeout":
-		return codes.Unavailable
-	case "fatal_error":
-		return codes.Internal
-	case "method_deprecated", "deprecated_endpoint":
-		return codes.Unimplemented
-	default:
-		return codes.Unknown
 	}
+
+	if containsAny(lowerError, "missing_scope", "access_denied", "not_allowed_token_type", "team_access_not_granted", "no_permission", "ekm_access_denied") {
+		return codes.PermissionDenied
+	}
+
+	if containsAny(lowerError, "ratelimited") {
+		return codes.Unavailable
+	}
+
+	if containsAny(lowerError, "user_not_found") {
+		return codes.NotFound
+	}
+
+	if containsAny(lowerError, "user_already_team_member") {
+		return codes.AlreadyExists
+	}
+
+	if containsAny(lowerError, "invalid_arguments", "missing_argument", "invalid_arg_name", "invalid_array_arg", "invalid_charset", "invalid_form_data", "invalid_post_type", "missing_post_type", "limit_required") {
+		return codes.InvalidArgument
+	}
+
+	if containsAny(lowerError, "user_already_deleted", "two_factor_setup_required") {
+		return codes.FailedPrecondition
+	}
+
+	if containsAny(lowerError, "internal_error", "service_unavailable", "request_timeout") {
+		return codes.Unavailable
+	}
+
+	if containsAny(lowerError, "fatal_error") {
+		return codes.Internal
+	}
+
+	if containsAny(lowerError, "method_deprecated", "deprecated_endpoint") {
+		return codes.Unimplemented
+	}
+
+	return codes.Unknown
 }
 
 // Slack API may return errors in the response body even when the HTTP status code is 200.
