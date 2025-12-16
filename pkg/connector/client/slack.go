@@ -258,14 +258,15 @@ func (c *Client) ListIDPGroups(
 ) {
 	var response SCIMResponse[GroupResource]
 	urlPathIDPGroups := fmt.Sprintf(UrlPathIDPGroups, c.scimVersion)
-	ratelimitData, err := c.getScim(
+	ratelimitData, err := c.doRequest(
 		ctx,
-		urlPathIDPGroups,
-		&response,
-		map[string]interface{}{
+		http.MethodGet,
+		c.getUrl(urlPathIDPGroups, map[string]interface{}{
 			"startIndex": startIndex,
 			"count":      count,
-		},
+		}, true),
+		&response,
+		WithBearerToken(c.token),
 	)
 	if err != nil {
 		return nil, ratelimitData, fmt.Errorf("error fetching IDP groups: %w", err)
@@ -286,14 +287,15 @@ func (c *Client) ListIDPUsers(
 ) {
 	var response SCIMResponse[UserResource]
 	urlPathIDPUsers := fmt.Sprintf(UrlPathIDPUsers, c.scimVersion)
-	ratelimitData, err := c.getScim(
+	ratelimitData, err := c.doRequest(
 		ctx,
-		urlPathIDPUsers,
-		&response,
-		map[string]interface{}{
+		http.MethodGet,
+		c.getUrl(urlPathIDPUsers, map[string]interface{}{
 			"startIndex": startIndex,
 			"count":      count,
-		},
+		}, true),
+		&response,
+		WithBearerToken(c.token),
 	)
 	if err != nil {
 		return nil, ratelimitData, fmt.Errorf("error fetching IDP users: %w", err)
@@ -312,11 +314,12 @@ func (c *Client) GetIDPGroup(
 	error,
 ) {
 	var response GroupResource
-	ratelimitData, err := c.getScim(
+	ratelimitData, err := c.doRequest(
 		ctx,
-		fmt.Sprintf(UrlPathIDPGroup, c.scimVersion, groupID),
+		http.MethodGet,
+		c.getUrl(fmt.Sprintf(UrlPathIDPGroup, c.scimVersion, groupID), nil, true),
 		&response,
-		nil,
+		WithBearerToken(c.token),
 	)
 	if err != nil {
 		return nil, ratelimitData, fmt.Errorf("error fetching IDP group: %w", err)
@@ -429,12 +432,13 @@ func (c *Client) patchGroup(
 	error,
 ) {
 	var response *GroupResource
-	ratelimitData, err := c.doScimRequest(
+	ratelimitData, err := c.doRequest(
 		ctx,
 		http.MethodPatch,
-		fmt.Sprintf(UrlPathIDPGroup, c.scimVersion, groupID),
+		c.getUrl(fmt.Sprintf(UrlPathIDPGroup, c.scimVersion, groupID), nil, true),
 		&response,
-		requestBody,
+		WithBearerToken(c.token),
+		uhttp.WithJSONBody(requestBody),
 	)
 	if err != nil {
 		return ratelimitData, fmt.Errorf("error patching IDP group: %w", err)
@@ -458,9 +462,13 @@ func (c *Client) DisableUser(
 	*v2.RateLimitDescription,
 	error,
 ) {
-	ratelimitData, err := c.deleteScim(
+	var response any
+	ratelimitData, err := c.doRequest(
 		ctx,
-		fmt.Sprintf(UrlPathIDPUser, c.scimVersion, userID),
+		http.MethodDelete,
+		c.getUrl(fmt.Sprintf(UrlPathIDPUser, c.scimVersion, userID), nil, true),
+		&response,
+		WithBearerToken(c.token),
 	)
 	if err != nil {
 		return ratelimitData, fmt.Errorf("error disabling user: %w", err)
@@ -488,12 +496,14 @@ func (c *Client) EnableUser(
 		},
 	}
 
-	var response *UserResource
-	ratelimitData, err := c.patchScim(
+	var response any
+	ratelimitData, err := c.doRequest(
 		ctx,
-		fmt.Sprintf(UrlPathIDPUser, c.scimVersion, userID),
+		http.MethodPatch,
+		c.getUrl(fmt.Sprintf(UrlPathIDPUser, c.scimVersion, userID), nil, true),
 		&response,
-		requestBody,
+		WithBearerToken(c.token),
+		uhttp.WithJSONBody(requestBody),
 	)
 	if err != nil {
 		return ratelimitData, fmt.Errorf("error enabling user: %w", err)

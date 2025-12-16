@@ -80,8 +80,7 @@ func (o *workspaceResourceType) List(
 	params := slack.ListTeamsParameters{Cursor: bag.PageToken()}
 	workspaces, nextCursor, err = o.client.ListTeamsContext(ctx, params)
 	if err != nil {
-		wrappedErr := fmt.Errorf("listing teams: %w", err)
-		return nil, nil, wrappedErr
+		return nil, nil, client.WrapError(err, "error listing teams")
 	}
 
 	rv := make([]*v2.Resource, 0, len(workspaces))

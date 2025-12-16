@@ -83,43 +83,6 @@ func (c *Client) post(
 	)
 }
 
-func (c *Client) getScim(
-	ctx context.Context,
-	path string,
-	target interface{},
-	queryParameters map[string]interface{},
-) (
-	*v2.RateLimitDescription,
-	error,
-) {
-	return c.doRequest(
-		ctx,
-		http.MethodGet,
-		c.getUrl(path, queryParameters, true),
-		&target,
-		WithBearerToken(c.token),
-	)
-}
-
-func (c *Client) patchScim(
-	ctx context.Context,
-	path string,
-	target interface{},
-	payload map[string]any,
-) (
-	*v2.RateLimitDescription,
-	error,
-) {
-	return c.doRequest(
-		ctx,
-		http.MethodPatch,
-		c.getUrl(path, nil, true),
-		&target,
-		WithBearerToken(c.token),
-		uhttp.WithJSONBody(payload),
-	)
-}
-
 func (c *Client) doRequest(
 	ctx context.Context,
 	method string,
@@ -168,96 +131,18 @@ func (c *Client) doRequest(
 		return &ratelimitData, fmt.Errorf("reading response body: %w", err)
 	}
 
-	if response.StatusCode != http.StatusNoContent && len(bodyBytes) > 0 {
-		if err := json.Unmarshal(bodyBytes, &target); err != nil {
-			logBody(ctx, response)
-			return nil, fmt.Errorf("unmarshaling response: %w", err)
-		}
-	}
-
-	return &ratelimitData, nil
-}
-
-func (c *Client) doScimRequest(
-	ctx context.Context,
-	method string,
-	path string,
-	target interface{},
-	payload interface{},
-) (
-	*v2.RateLimitDescription,
-	error,
-) {
-	options := []uhttp.RequestOption{
-		WithBearerToken(c.token),
-	}
-
-	if payload != nil {
-		options = append(options, uhttp.WithJSONBody(payload))
-	}
-
-	return c.doRequest(
-		ctx,
-		method,
-		c.getUrl(path, nil, true),
-		target,
-		options...,
-	)
-}
-
-func (c *Client) deleteScim(
-	ctx context.Context,
-	path string,
-) (
-	*v2.RateLimitDescription,
-	error,
-) {
-	logger := ctxzap.Extract(ctx)
-	logger.Debug(
-		"making request",
-		zap.String("method", http.MethodDelete),
-		zap.String("url", c.getUrl(path, nil, true).String()),
-	)
-
-	request, err := c.wrapper.NewRequest(
-		ctx,
-		http.MethodDelete,
-		c.getUrl(path, nil, true),
-		WithBearerToken(c.token),
-		uhttp.WithAcceptJSONHeader(),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("creating SCIM delete request: %w", err)
-	}
-
-	var ratelimitData v2.RateLimitDescription
-	response, err := c.wrapper.Do(
-		request,
-		uhttp.WithRatelimitData(&ratelimitData),
-	)
-	if err != nil {
-		logBody(ctx, response)
-		return &ratelimitData, err
-	}
-	defer response.Body.Close()
-
-	if response.StatusCode == http.StatusNoContent {
+	if response.StatusCode == http.StatusNoContent || len(bodyBytes) == 0 {
 		return &ratelimitData, nil
 	}
 
-	bodyBytes, err := io.ReadAll(response.Body)
-	if err != nil {
+	if err := json.Unmarshal(bodyBytes, &target); err != nil {
 		logBody(ctx, response)
-		return &ratelimitData, fmt.Errorf("reading SCIM error response body: %w", err)
+		return nil, fmt.Errorf("unmarshaling response: %w", err)
 	}
 
-	if len(bodyBytes) > 0 {
-		var errorResponse map[string]interface{}
-		if err := json.Unmarshal(bodyBytes, &errorResponse); err != nil {
-			return &ratelimitData, fmt.Errorf("parsing SCIM error response: %w", err)
-		}
-		if detail, ok := errorResponse["detail"].(string); ok {
-			return &ratelimitData, fmt.Errorf("SCIM API error: %s", detail)
+	if response.StatusCode == http.StatusOK {
+		if err := ErrorWithGrpcCodeFromBytes(bodyBytes); err != nil {
+			return &ratelimitData, err
 		}
 	}
 
