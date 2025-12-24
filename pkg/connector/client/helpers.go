@@ -3,12 +3,14 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"github.com/slack-go/slack"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 )
@@ -35,17 +37,63 @@ func logBody(ctx context.Context, response *http.Response) {
 	l.Info("response body", zap.String("body", string(body)))
 }
 
-// Slack API may return errors in the response body even when the HTTP status code is 200.
-//
-//	extracts a Slack error from a Go error and wraps it with the appropriate gRPC code.
-//	This is useful when working with the slack-go library which returns plain Go errors.
+// Inspects the error returned by the slack-go library and maps it to appropriate gRPC codes.
 func WrapError(err error, contextMsg string) error {
 	if err == nil {
 		return nil
 	}
 
-	grpcCode := MapSlackErrorToGRPCCode(err.Error())
-	return uhttp.WrapErrors(grpcCode, contextMsg, err)
+	// for rate limit errors
+	var slackLibrateLimitErr *slack.RateLimitedError
+	if errors.As(err, &slackLibrateLimitErr) {
+		return uhttp.WrapErrors(codes.Unavailable, contextMsg, err)
+	}
+
+	// for 5xx status codes
+	var slackLibErr slack.StatusCodeError
+	if errors.As(err, &slackLibErr) {
+		grpcCode := httpStatusToGRPCCode(slackLibErr.Code)
+		contextMsg := fmt.Sprintf("Slack-go API HTTP error: %s : %s", slackLibErr.Status, contextMsg)
+		return uhttp.WrapErrors(grpcCode, contextMsg, err)
+	}
+
+	// when ok: false even with 200 HTTP status codes
+	var slackErrResp slack.SlackErrorResponse
+	if errors.As(err, &slackErrResp) {
+		grpcCode := MapSlackErrorToGRPCCode(slackErrResp.Err)
+		if len(slackErrResp.ResponseMetadata.Messages) > 0 {
+			contextMsg = fmt.Sprintf("%s (details: %v)", contextMsg, slackErrResp.ResponseMetadata.Messages)
+		}
+		if len(slackErrResp.ResponseMetadata.Warnings) > 0 {
+			contextMsg = fmt.Sprintf("%s (warnings: %v)", contextMsg, slackErrResp.ResponseMetadata.Warnings)
+		}
+		return uhttp.WrapErrors(grpcCode, contextMsg, err)
+	}
+
+	return uhttp.WrapErrors(codes.Unknown, contextMsg, err)
+}
+
+func httpStatusToGRPCCode(httpStatus int) codes.Code {
+	switch httpStatus {
+	case http.StatusBadRequest:
+		return codes.InvalidArgument
+	case http.StatusUnauthorized:
+		return codes.Unauthenticated
+	case http.StatusForbidden:
+		return codes.PermissionDenied
+	case http.StatusNotFound:
+		return codes.NotFound
+	case http.StatusConflict:
+		return codes.AlreadyExists
+	case http.StatusTooManyRequests:
+		return codes.Unavailable
+	case http.StatusInternalServerError:
+		return codes.Internal
+	case http.StatusServiceUnavailable:
+		return codes.Unavailable
+	default:
+		return codes.Unknown
+	}
 }
 
 func containsAny(s string, substrs ...string) bool {
@@ -114,21 +162,17 @@ func MapSlackErrorToGRPCCode(slackError string) codes.Code {
 //	{"ok":false,"error":"invalid_auth"}
 //	{"ok":false,"error": "user_not_found"}
 func ErrorWithGrpcCodeFromBytes(bodyBytes []byte) error {
-	var baseCheck struct {
-		Ok    bool   `json:"ok"`
-		Error string `json:"error"`
-	}
-
-	if err := json.Unmarshal(bodyBytes, &baseCheck); err != nil {
+	var res SlackErrorResponse
+	if err := json.Unmarshal(bodyBytes, &res); err != nil {
 		return fmt.Errorf("error parsing Slack API response: %w", err)
 	}
 
-	if !baseCheck.Ok && baseCheck.Error != "" {
-		grpcCode := MapSlackErrorToGRPCCode(baseCheck.Error)
+	if !res.Ok && res.Error != "" {
+		grpcCode := MapSlackErrorToGRPCCode(res.Error)
 		return uhttp.WrapErrors(
 			grpcCode,
-			fmt.Sprintf("Slack API error: %s", baseCheck.Error),
-			fmt.Errorf("slack error: %s", baseCheck.Error),
+			fmt.Sprintf("Slack API error: %s", res.Error),
+			fmt.Errorf("slack error: %s", res.Error),
 		)
 	}
 

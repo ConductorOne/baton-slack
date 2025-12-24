@@ -9,6 +9,11 @@ type BaseResponse struct {
 	Provided string `json:"provided"`
 }
 
+type SlackErrorResponse struct {
+	Ok    bool   `json:"ok"`
+	Error string `json:"error"`
+}
+
 type Pagination struct {
 	ResponseMetadata struct {
 		NextCursor string `json:"next_cursor"`
