@@ -53,7 +53,7 @@ func WrapError(err error, contextMsg string) error {
 	var slackLibErr slack.StatusCodeError
 	if errors.As(err, &slackLibErr) {
 		grpcCode := httpStatusToGRPCCode(slackLibErr.Code)
-		contextMsg := fmt.Sprintf("Slack-go API HTTP error: %s : %s", slackLibErr.Status, contextMsg)
+		contextMsg = fmt.Sprintf("Slack-go API HTTP error: %s : %s", slackLibErr.Status, contextMsg)
 		return uhttp.WrapErrors(grpcCode, contextMsg, err)
 	}
 
@@ -122,7 +122,7 @@ func MapSlackErrorToGRPCCode(slackError string) codes.Code {
 		return codes.Unavailable
 	}
 
-	if containsAny(err, "user_not_found") {
+	if containsAny(err, "user_not_found", "user_already_deleted") {
 		return codes.NotFound
 	}
 
@@ -136,7 +136,7 @@ func MapSlackErrorToGRPCCode(slackError string) codes.Code {
 		return codes.InvalidArgument
 	}
 
-	if containsAny(err, "user_already_deleted", "two_factor_setup_required") {
+	if containsAny(err, "two_factor_setup_required") {
 		return codes.FailedPrecondition
 	}
 
