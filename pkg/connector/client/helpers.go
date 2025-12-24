@@ -50,7 +50,7 @@ func WrapError(err error, contextMsg string) error {
 	}
 
 	// for 5xx status codes
-	var slackLibErr slack.StatusCodeError
+	var slackLibErr *slack.StatusCodeError
 	if errors.As(err, &slackLibErr) {
 		grpcCode := httpStatusToGRPCCode(slackLibErr.Code)
 		contextMsg = fmt.Sprintf("Slack-go API HTTP error: %s : %s", slackLibErr.Status, contextMsg)
@@ -58,7 +58,7 @@ func WrapError(err error, contextMsg string) error {
 	}
 
 	// when ok: false even with 200 HTTP status codes
-	var slackErrResp slack.SlackErrorResponse
+	var slackErrResp *slack.SlackErrorResponse
 	if errors.As(err, &slackErrResp) {
 		grpcCode := MapSlackErrorToGRPCCode(slackErrResp.Err)
 		if len(slackErrResp.ResponseMetadata.Messages) > 0 {
