@@ -76,7 +76,7 @@ func WrapError(err error, contextMsg string) error {
 func httpStatusToGRPCCode(httpStatus int) codes.Code {
 	switch httpStatus {
 	case http.StatusBadRequest:
-		return codes.InvalidArgument
+		return codes.Internal
 	case http.StatusUnauthorized:
 		return codes.Unauthenticated
 	case http.StatusForbidden:
