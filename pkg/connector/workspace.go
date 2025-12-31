@@ -11,6 +11,7 @@ import (
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/conductorone/baton-slack/pkg"
 	"github.com/conductorone/baton-slack/pkg/connector/client"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
 )
 
@@ -59,6 +60,7 @@ func workspaceResource(
 		resources.WithAnnotation(
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUser.Id},
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUserGroup.Id},
+			&v2.ChildResourceType{ResourceTypeId: resourceTypeWorkspaceRole.Id},
 		),
 	)
 }
@@ -83,6 +85,11 @@ func (o *workspaceResourceType) List(
 		return nil, nil, client.WrapError(err, "error listing teams")
 	}
 
+	err = client.SetWorkspaceNames(ctx, attrs.Session, workspaces)
+	if err != nil {
+		return nil, nil, fmt.Errorf("storing workspace names in session: %w", err)
+	}
+
 	rv := make([]*v2.Resource, 0, len(workspaces))
 	for _, ws := range workspaces {
 		resource, err := workspaceResource(ctx, ws, parentID)
@@ -90,11 +97,6 @@ func (o *workspaceResourceType) List(
 			return nil, nil, fmt.Errorf("creating workspace resource: %w", err)
 		}
 		rv = append(rv, resource)
-	}
-
-	err = client.SetWorkspaceNames(ctx, attrs.Session, workspaces)
-	if err != nil {
-		return nil, nil, fmt.Errorf("storing workspace names in session: %w", err)
 	}
 
 	pageToken, err := bag.NextToken(nextCursor)
@@ -132,12 +134,15 @@ func (o *workspaceResourceType) Entitlements(
 	}, &resources.SyncOpResults{}, nil
 }
 
+// sets workspace memberships and workspace roles.
 func (o *workspaceResourceType) Grants(
 	ctx context.Context,
 	resource *v2.Resource,
 	attrs resources.SyncOpAttrs,
 ) ([]*v2.Grant, *resources.SyncOpResults, error) {
+	l := ctxzap.Extract(ctx)
 	if o.businessPlusClient == nil {
+		l.Debug("Business+ client not available, skipping workspace grants")
 		return nil, &resources.SyncOpResults{}, nil
 	}
 
@@ -167,12 +172,78 @@ func (o *workspaceResourceType) Grants(
 		if user.IsStranger {
 			continue
 		}
+		if user.Deleted {
+			continue
+		}
 		userID, err := resources.NewResourceID(resourceTypeUser, user.ID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("creating user resource ID: %w", err)
 		}
 
-		// Only create workspace membership grants (no role-based grants)
+		if user.IsPrimaryOwner {
+			rr, err := roleResource(ctx, PrimaryOwnerRoleID, resource.Id)
+			if err != nil {
+				return nil, nil, fmt.Errorf("creating primary owner role resource: %w", err)
+			}
+			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+		}
+
+		if user.IsOwner {
+			rr, err := roleResource(ctx, OwnerRoleID, resource.Id)
+			if err != nil {
+				return nil, nil, fmt.Errorf("creating owner role resource: %w", err)
+			}
+			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+		}
+
+		if user.IsAdmin {
+			rr, err := roleResource(ctx, AdminRoleID, resource.Id)
+			if err != nil {
+				return nil, nil, fmt.Errorf("creating admin role resource: %w", err)
+			}
+			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+		}
+
+		if user.IsRestricted {
+			if user.IsUltraRestricted {
+				rr, err := roleResource(ctx, SingleChannelGuestRoleID, resource.Id)
+				if err != nil {
+					return nil, nil, fmt.Errorf("creating single channel guest role resource: %w", err)
+				}
+				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+			} else {
+				rr, err := roleResource(ctx, MultiChannelGuestRoleID, resource.Id)
+				if err != nil {
+					return nil, nil, fmt.Errorf("creating multi channel guest role resource: %w", err)
+				}
+				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+			}
+		}
+
+		if user.IsInvitedUser {
+			rr, err := roleResource(ctx, InvitedMemberRoleID, resource.Id)
+			if err != nil {
+				return nil, nil, fmt.Errorf("creating invited member role resource: %w", err)
+			}
+			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+		}
+
+		if !user.IsRestricted && !user.IsUltraRestricted && !user.IsInvitedUser && !user.IsBot && !user.Deleted {
+			rr, err := roleResource(ctx, MemberRoleID, resource.Id)
+			if err != nil {
+				return nil, nil, fmt.Errorf("creating member role resource: %w", err)
+			}
+			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+		}
+
+		if user.IsBot {
+			rr, err := roleResource(ctx, BotRoleID, resource.Id)
+			if err != nil {
+				return nil, nil, fmt.Errorf("creating bot role resource: %w", err)
+			}
+			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+		}
+
 		rv = append(rv, grant.NewGrant(resource, memberEntitlement, userID))
 	}
 
