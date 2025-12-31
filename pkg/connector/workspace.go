@@ -141,7 +141,7 @@ func (o *workspaceResourceType) Entitlements(
 	}, &resources.SyncOpResults{}, nil
 }
 
-// sets workspace memberships and workspace roles
+// sets workspace memberships and workspace roles.
 func (o *workspaceResourceType) Grants(
 	ctx context.Context,
 	resource *v2.Resource,
