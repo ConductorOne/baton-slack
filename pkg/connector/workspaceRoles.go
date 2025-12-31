@@ -12,7 +12,6 @@ import (
 
 	"github.com/conductorone/baton-slack/pkg"
 	"github.com/conductorone/baton-slack/pkg/connector/client"
-	"github.com/slack-go/slack"
 )
 
 const (
@@ -42,7 +41,6 @@ var roles = map[string]string{
 
 type workspaceRoleType struct {
 	resourceType       *v2.ResourceType
-	client             *slack.Client
 	businessPlusClient *client.Client
 }
 
@@ -50,10 +48,10 @@ func (o *workspaceRoleType) ResourceType(_ context.Context) *v2.ResourceType {
 	return o.resourceType
 }
 
-func workspaceRoleBuilder(client *slack.Client) *workspaceRoleType {
+func workspaceRoleBuilder(businessPlusClient *client.Client) *workspaceRoleType {
 	return &workspaceRoleType{
-		resourceType: resourceTypeWorkspaceRole,
-		client:       client,
+		resourceType:       resourceTypeWorkspaceRole,
+		businessPlusClient: businessPlusClient,
 	}
 }
 
