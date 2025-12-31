@@ -35,4 +35,12 @@ var (
 			v2.ResourceType_TRAIT_GROUP,
 		},
 	}
+
+	resourceTypeWorkspaceRole = &v2.ResourceType{
+		Id:          "workspaceRole",
+		DisplayName: "Workspace Role",
+		Traits: []v2.ResourceType_Trait{
+			v2.ResourceType_TRAIT_ROLE,
+		},
+	}
 )
