@@ -85,11 +85,9 @@ func (o *workspaceResourceType) List(
 		return nil, nil, client.WrapError(err, "error listing teams")
 	}
 
-	if o.businessPlusClient != nil {
-		err = o.businessPlusClient.SetWorkspaceNames(ctx, attrs.Session, workspaces)
-		if err != nil {
-			return nil, nil, fmt.Errorf("storing workspace names in session: %w", err)
-		}
+	err = client.SetWorkspaceNames(ctx, attrs.Session, workspaces)
+	if err != nil {
+		return nil, nil, fmt.Errorf("storing workspace names in session: %w", err)
 	}
 
 	rv := make([]*v2.Resource, 0, len(workspaces))
@@ -99,11 +97,6 @@ func (o *workspaceResourceType) List(
 			return nil, nil, fmt.Errorf("creating workspace resource: %w", err)
 		}
 		rv = append(rv, resource)
-	}
-
-	err = client.SetWorkspaceNames(ctx, attrs.Session, workspaces)
-	if err != nil {
-		return nil, nil, fmt.Errorf("storing workspace names in session: %w", err)
 	}
 
 	pageToken, err := bag.NextToken(nextCursor)

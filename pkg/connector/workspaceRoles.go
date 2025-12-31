@@ -24,8 +24,6 @@ const (
 	BotRoleID                 = "bot"
 	MemberRoleID              = "member"
 	RoleAssignmentEntitlement = "assigned"
-	// empty role type means regular user.
-	RegularRoleID = ""
 )
 
 var roles = map[string]string{
@@ -114,7 +112,7 @@ func (o *workspaceRoleType) Entitlements(
 	*resources.SyncOpResults,
 	error,
 ) {
-	found, missing, err := o.businessPlusClient.GetWorkspaceNames(ctx, attrs.Session, []string{resource.ParentResourceId.Resource})
+	found, missing, err := client.GetWorkspaceNames(ctx, attrs.Session, []string{resource.ParentResourceId.Resource})
 	if err != nil {
 		return nil, nil, fmt.Errorf("error getting workspace name for workspace id %s: %w", resource.ParentResourceId.Resource, err)
 	}

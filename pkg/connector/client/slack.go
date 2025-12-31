@@ -69,15 +69,6 @@ func NewClient(
 	}, nil
 }
 
-// SetWorkspaceNames stores workspace names in the session store.
-func SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaces []slack.Team) error {
-	workspaceMap := make(map[string]string)
-	for _, workspace := range workspaces {
-		workspaceMap[workspace.ID] = workspace.Name
-	}
-	return session.SetManyJSON(ctx, ss, workspaceMap, workspaceNameNamespace)
-}
-
 // GetUserInfo returns the user info for the given user ID.
 func (c *Client) GetUserInfo(
 	ctx context.Context,
@@ -512,7 +503,7 @@ func (c *Client) EnableUser(
 	return ratelimitData, nil
 }
 
-func (c *Client) SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaces []slack.Team) error {
+func SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaces []slack.Team) error {
 	workspaceMap := make(map[string]string)
 	for _, workspace := range workspaces {
 		workspaceMap[workspace.ID] = workspace.Name
@@ -521,7 +512,7 @@ func (c *Client) SetWorkspaceNames(ctx context.Context, ss sessions.SessionStore
 }
 
 // GetWorkspaceNames retrieves workspace names for the given IDs from the session store.
-func (c *Client) GetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaceIDs []string) (map[string]string, []string, error) {
+func GetWorkspaceNames(ctx context.Context, ss sessions.SessionStore, workspaceIDs []string) (map[string]string, []string, error) {
 	validIDs := make([]string, 0, len(workspaceIDs))
 	for _, id := range workspaceIDs {
 		if id != "" {

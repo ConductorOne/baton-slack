@@ -39,6 +39,7 @@ var (
 	resourceTypeWorkspaceRole = &v2.ResourceType{
 		Id:          "workspaceRole",
 		DisplayName: "Workspace Role",
+		Annotations: annotations.New(&v2.SkipGrants{}),
 		Traits: []v2.ResourceType_Trait{
 			v2.ResourceType_TRAIT_ROLE,
 		},
