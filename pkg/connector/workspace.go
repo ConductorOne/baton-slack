@@ -5,13 +5,11 @@ import (
 	"fmt"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
-	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/conductorone/baton-slack/pkg"
 	"github.com/conductorone/baton-slack/pkg/connector/client"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
 )
 
@@ -140,31 +138,9 @@ func (o *workspaceResourceType) Grants(
 	resource *v2.Resource,
 	attrs resources.SyncOpAttrs,
 ) ([]*v2.Grant, *resources.SyncOpResults, error) {
-	l := ctxzap.Extract(ctx)
-	if o.businessPlusClient == nil {
-		l.Debug("Business+ client not available, skipping workspace grants")
-		return nil, &resources.SyncOpResults{}, nil
-	}
-
-	bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+	users, err := o.client.GetUsers()
 	if err != nil {
-		return nil, nil, fmt.Errorf("parsing page token: %w", err)
-	}
-
-	outputAnnotations := annotations.New()
-	users, nextCursor, ratelimitData, err := o.businessPlusClient.GetUsers(
-		ctx,
-		resource.Id.Resource,
-		bag.PageToken(),
-	)
-	outputAnnotations.WithRateLimiting(ratelimitData)
-	if err != nil {
-		return nil, nil, fmt.Errorf("fetching users for workspace: %w", err)
-	}
-
-	pageToken, err := bag.NextToken(nextCursor)
-	if err != nil {
-		return nil, nil, fmt.Errorf("creating next page token: %w", err)
+		return nil, nil, client.WrapError(err, "fetching users for workspace")
 	}
 
 	var rv []*v2.Grant
@@ -247,9 +223,7 @@ func (o *workspaceResourceType) Grants(
 		rv = append(rv, grant.NewGrant(resource, memberEntitlement, userID))
 	}
 
-	return rv, &resources.SyncOpResults{
-		NextPageToken: pageToken,
-	}, nil
+	return rv, &resources.SyncOpResults{}, nil
 }
 
 // Grant and Revoke are not implemented for workspace membership because they require
