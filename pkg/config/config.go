@@ -14,6 +14,11 @@ var (
 		field.WithRequired(true),
 		field.WithIsSecret(true),
 	)
+	BaseURLField = field.StringField(
+		"base-url",
+		field.WithDisplayName("Base URL"),
+		field.WithDescription("Override the Slack API URL (for testing or enterprise deployments)"),
+	)
 	BusinessPlusTokenField = field.StringField(
 		"business-plus-token",
 		field.WithDisplayName("Business Plus Token"),
@@ -34,6 +39,7 @@ var (
 		AccessTokenField,
 		BusinessPlusTokenField,
 		GovEnvironmentField,
+		BaseURLField,
 	}
 
 	// FieldRelationships defines relationships between the fields listed in
