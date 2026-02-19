@@ -101,7 +101,7 @@ func (s *slackLogger) Output(callDepth int, msg string) error {
 	return nil
 }
 
-func NewSlack(ctx context.Context, apiKey, businessPlusKey string, govEnv bool) (*Slack, error) {
+func NewSlack(ctx context.Context, apiKey, businessPlusKey string, govEnv bool, baseURL string) (*Slack, error) {
 	l := ctxzap.Extract(ctx)
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, l))
 	if err != nil {
@@ -114,7 +114,10 @@ func NewSlack(ctx context.Context, apiKey, businessPlusKey string, govEnv bool) 
 		slack.OptionHTTPClient(httpClient),
 		slack.OptionLog(logger),
 	}
-	if govEnv {
+	// Custom base URL takes precedence over gov environment
+	if baseURL != "" {
+		opts = append(opts, slack.OptionAPIURL(baseURL))
+	} else if govEnv {
 		opts = append(opts, slack.OptionAPIURL(govSlackApiUrl))
 	}
 	slackClient := slack.New(apiKey, opts...)
@@ -147,6 +150,7 @@ func New(ctx context.Context, config *cfg.Slack, opts *cli.ConnectorOpts) (conne
 		config.Token,
 		config.BusinessPlusToken,
 		config.GovEnv,
+		config.BaseUrl,
 	)
 	if err != nil {
 		return nil, nil, err
