@@ -19,6 +19,7 @@ var (
 		field.WithDisplayName("Base URL"),
 		field.WithDescription("Override the Slack API URL (for testing or enterprise deployments)"),
 		field.WithHidden(true),
+		field.WithExportTarget(field.ExportTargetCLIOnly),
 	)
 	BusinessPlusTokenField = field.StringField(
 		"business-plus-token",
