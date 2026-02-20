@@ -8,7 +8,6 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/actions"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
-	"github.com/conductorone/baton-sdk/pkg/connectorbuilder"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -96,26 +95,24 @@ var (
 	}
 )
 
-func (s *Slack) RegisterActionManager(ctx context.Context) (connectorbuilder.CustomActionManager, error) {
+func (s *Slack) GlobalActions(ctx context.Context, registry actions.ActionRegistry) error {
 	l := ctxzap.Extract(ctx)
 
-	actionManager := actions.NewActionManager(ctx)
-
-	err := actionManager.RegisterAction(ctx, ActionDisableUser, disableUserSchema, s.handleDisableUser)
+	err := registry.Register(ctx, disableUserSchema, s.handleDisableUser)
 	if err != nil {
 		l.Error("failed to register disable_user action", zap.Error(err))
-		return nil, err
+		return err
 	}
 	l.Info("registered disable_user action")
 
-	err = actionManager.RegisterAction(ctx, ActionEnableUser, enableUserSchema, s.handleEnableUser)
+	err = registry.Register(ctx, enableUserSchema, s.handleEnableUser)
 	if err != nil {
 		l.Error("failed to register enable_user action", zap.Error(err))
-		return nil, err
+		return err
 	}
 
 	l.Info("registered enable_user action")
-	return actionManager, nil
+	return nil
 }
 
 // handleDisableUser deactivates a Slack user by setting active to false via SCIM API.

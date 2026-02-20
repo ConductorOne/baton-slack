@@ -19,8 +19,10 @@ const (
 	// Slack API error string constants.
 	SlackErrUserAlreadyTeamMember = "user_already_team_member"
 	SlackErrUserAlreadyDeleted    = "user_already_deleted"
-	ScimVersionV2                 = "v2"
-	ScimVersionV1                 = "v1"
+	// SlackErrNoSuchSubteam is returned when a user group is temporarily unreachable (CXH-434).
+	SlackErrNoSuchSubteam = "no_such_subteam"
+	ScimVersionV2         = "v2"
+	ScimVersionV1         = "v1"
 )
 
 var workspaceNameNamespace = sessions.WithPrefix("workspace_name")
