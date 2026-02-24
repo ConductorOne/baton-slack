@@ -20,5 +20,5 @@ jobs:
         with:
           connector: ./baton-slack
           baton-entitlement: 'group:S0A1RHL4CP5:member'
-          baton-principal: 'U0847EPUZ0R'
+          baton-principal: 'U0A3NPX9Z5L'
           baton-principal-type: 'user'
