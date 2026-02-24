@@ -19,7 +19,8 @@ const (
 	// Slack API error string constants.
 	SlackErrUserAlreadyTeamMember = "user_already_team_member"
 	SlackErrUserAlreadyDeleted    = "user_already_deleted"
-	// SlackErrNoSuchSubteam is returned when a user group is temporarily unreachable (CXH-434).
+	// SlackErrNoSuchSubteam is returned when fetching user group members. Retrying
+	// on this error was determined empirically to allow syncs to complete.
 	SlackErrNoSuchSubteam = "no_such_subteam"
 	ScimVersionV2         = "v2"
 	ScimVersionV1         = "v1"

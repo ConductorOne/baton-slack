@@ -126,7 +126,9 @@ func MapSlackErrorToGRPCCode(slackError string) codes.Code {
 		return codes.NotFound
 	}
 
-	// no_such_subteam is a transient error - map to Unavailable to trigger SDK retry (CXH-434).
+	// no_such_subteam is returned when fetching user group members. We determined
+	// empirically that retrying on this error allows syncs to complete successfully,
+	// so we map it to Unavailable to trigger the SDK's automatic retry logic.
 	if containsAny(err, SlackErrNoSuchSubteam) {
 		return codes.Unavailable
 	}
