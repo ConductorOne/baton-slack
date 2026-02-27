@@ -17,5 +17,6 @@ var (
 func main() {
 	ctx := context.Background()
 	config.RunConnector(ctx, connectorName, version, cfg.Configuration, connector.New,
+		connectorrunner.WithDefaultCapabilitiesConnectorBuilderV2(&connector.Slack{}),
 		connectorrunner.WithSessionStoreEnabled())
 }
