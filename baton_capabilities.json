@@ -1,87 +1,247 @@
 {
-  "@type": "type.googleapis.com/c1.connector.v2.ConnectorCapabilities",
-  "resourceTypeCapabilities": [
+  "@type":  "type.googleapis.com/c1.connector.v2.ConnectorCapabilities",
+  "resourceTypeCapabilities":  [
     {
-      "resourceType": {
-        "id": "group",
-        "displayName": "IDP Group",
-        "traits": [
+      "resourceType":  {
+        "id":  "group",
+        "displayName":  "IDP Group",
+        "traits":  [
           "TRAIT_GROUP"
+        ],
+        "annotations":  [
+          {
+            "@type":  "type.googleapis.com/c1.connector.v2.CapabilityPermissions",
+            "permissions":  [
+              {
+                "permission":  "admin"
+              },
+              {
+                "permission":  "admin.users:write"
+              }
+            ]
+          }
         ]
       },
-      "capabilities": [
+      "capabilities":  [
         "CAPABILITY_SYNC",
         "CAPABILITY_PROVISION"
       ],
-      "permissions": {}
+      "permissions":  {
+        "permissions":  [
+          {
+            "permission":  "admin"
+          },
+          {
+            "permission":  "admin.users:write"
+          }
+        ]
+      }
     },
     {
-      "resourceType": {
-        "id": "user",
-        "displayName": "User",
-        "traits": [
+      "resourceType":  {
+        "id":  "user",
+        "displayName":  "User",
+        "traits":  [
           "TRAIT_USER"
         ],
-        "annotations": [
+        "annotations":  [
           {
-            "@type": "type.googleapis.com/c1.connector.v2.SkipEntitlementsAndGrants"
+            "@type":  "type.googleapis.com/c1.connector.v2.SkipEntitlementsAndGrants"
+          },
+          {
+            "@type":  "type.googleapis.com/c1.connector.v2.CapabilityPermissions",
+            "permissions":  [
+              {
+                "permission":  "users:read"
+              },
+              {
+                "permission":  "users:read.email"
+              },
+              {
+                "permission":  "users.profile:read"
+              },
+              {
+                "permission":  "admin"
+              },
+              {
+                "permission":  "admin.users:read"
+              }
+            ]
           }
         ]
       },
-      "capabilities": [
+      "capabilities":  [
         "CAPABILITY_SYNC"
       ],
-      "permissions": {}
+      "permissions":  {
+        "permissions":  [
+          {
+            "permission":  "users:read"
+          },
+          {
+            "permission":  "users:read.email"
+          },
+          {
+            "permission":  "users.profile:read"
+          },
+          {
+            "permission":  "admin"
+          },
+          {
+            "permission":  "admin.users:read"
+          }
+        ]
+      }
     },
     {
-      "resourceType": {
-        "id": "userGroup",
-        "displayName": "User Group",
-        "traits": [
+      "resourceType":  {
+        "id":  "userGroup",
+        "displayName":  "User Group",
+        "traits":  [
           "TRAIT_GROUP"
+        ],
+        "annotations":  [
+          {
+            "@type":  "type.googleapis.com/c1.connector.v2.CapabilityPermissions",
+            "permissions":  [
+              {
+                "permission":  "usergroups:read"
+              },
+              {
+                "permission":  "users:read"
+              },
+              {
+                "permission":  "admin.usergroups:read"
+              }
+            ]
+          }
         ]
       },
-      "capabilities": [
+      "capabilities":  [
         "CAPABILITY_SYNC"
       ],
-      "permissions": {}
+      "permissions":  {
+        "permissions":  [
+          {
+            "permission":  "usergroups:read"
+          },
+          {
+            "permission":  "users:read"
+          },
+          {
+            "permission":  "admin.usergroups:read"
+          }
+        ]
+      }
     },
     {
-      "resourceType": {
-        "id": "workspace",
-        "displayName": "Workspace",
-        "traits": [
+      "resourceType":  {
+        "id":  "workspace",
+        "displayName":  "Workspace",
+        "traits":  [
           "TRAIT_GROUP"
+        ],
+        "annotations":  [
+          {
+            "@type":  "type.googleapis.com/c1.connector.v2.CapabilityPermissions",
+            "permissions":  [
+              {
+                "permission":  "team:read"
+              },
+              {
+                "permission":  "users:read"
+              },
+              {
+                "permission":  "users:read.email"
+              },
+              {
+                "permission":  "channels:join"
+              },
+              {
+                "permission":  "channels:read"
+              },
+              {
+                "permission":  "groups:read"
+              },
+              {
+                "permission":  "admin.teams:read"
+              }
+            ]
+          }
         ]
       },
-      "capabilities": [
+      "capabilities":  [
         "CAPABILITY_SYNC"
       ],
-      "permissions": {}
+      "permissions":  {
+        "permissions":  [
+          {
+            "permission":  "team:read"
+          },
+          {
+            "permission":  "users:read"
+          },
+          {
+            "permission":  "users:read.email"
+          },
+          {
+            "permission":  "channels:join"
+          },
+          {
+            "permission":  "channels:read"
+          },
+          {
+            "permission":  "groups:read"
+          },
+          {
+            "permission":  "admin.teams:read"
+          }
+        ]
+      }
     },
     {
-      "resourceType": {
-        "id": "workspaceRole",
-        "displayName": "Workspace Role",
-        "traits": [
+      "resourceType":  {
+        "id":  "workspaceRole",
+        "displayName":  "Workspace Role",
+        "traits":  [
           "TRAIT_ROLE"
         ],
-        "annotations": [
+        "annotations":  [
           {
-            "@type": "type.googleapis.com/c1.connector.v2.SkipGrants"
+            "@type":  "type.googleapis.com/c1.connector.v2.SkipGrants"
+          },
+          {
+            "@type":  "type.googleapis.com/c1.connector.v2.CapabilityPermissions",
+            "permissions":  [
+              {
+                "permission":  "admin"
+              },
+              {
+                "permission":  "admin.roles:read"
+              }
+            ]
           }
         ]
       },
-      "capabilities": [
+      "capabilities":  [
         "CAPABILITY_SYNC"
       ],
-      "permissions": {}
+      "permissions":  {
+        "permissions":  [
+          {
+            "permission":  "admin"
+          },
+          {
+            "permission":  "admin.roles:read"
+          }
+        ]
+      }
     }
   ],
-  "connectorCapabilities": [
+  "connectorCapabilities":  [
     "CAPABILITY_PROVISION",
     "CAPABILITY_SYNC",
     "CAPABILITY_ACTIONS"
   ],
-  "credentialDetails": {}
+  "credentialDetails":  {}
 }
