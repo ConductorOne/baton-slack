@@ -149,7 +149,7 @@ func (o *workspaceResourceType) Grants(
 		// Use business+ client with proper SDK pagination and team_id filtering.
 		bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 		if err != nil {
-			return nil, nil, fmt.Errorf("parsing page token: %w", err)
+			return nil, nil, client.WrapError(err, "parsing page token")
 		}
 
 		outputAnnotations = annotations.New()
@@ -160,12 +160,12 @@ func (o *workspaceResourceType) Grants(
 		)
 		outputAnnotations.WithRateLimiting(ratelimitData)
 		if err != nil {
-			return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, fmt.Errorf("fetching users for workspace: %w", err)
+			return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, client.WrapError(err, "fetching users for workspace")
 		}
 
 		pt, err := bag.NextToken(nextCursor)
 		if err != nil {
-			return nil, nil, fmt.Errorf("creating next page token: %w", err)
+			return nil, nil, client.WrapError(err, "creating next page token")
 		}
 		pageToken = pt
 		users = bpUsers
