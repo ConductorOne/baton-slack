@@ -140,8 +140,9 @@ func (o *workspaceResourceType) Grants(
 	attrs resources.SyncOpAttrs,
 ) ([]*v2.Grant, *resources.SyncOpResults, error) {
 	var (
-		users     []client.User
-		pageToken string
+		users             []client.User
+		pageToken         string
+		outputAnnotations annotations.Annotations
 	)
 
 	if o.businessPlusClient != nil {
@@ -151,7 +152,7 @@ func (o *workspaceResourceType) Grants(
 			return nil, nil, fmt.Errorf("parsing page token: %w", err)
 		}
 
-		outputAnnotations := annotations.New()
+		outputAnnotations = annotations.New()
 		bpUsers, nextCursor, ratelimitData, err := o.businessPlusClient.GetUsers(
 			ctx,
 			resource.Id.Resource,
@@ -159,7 +160,7 @@ func (o *workspaceResourceType) Grants(
 		)
 		outputAnnotations.WithRateLimiting(ratelimitData)
 		if err != nil {
-			return nil, nil, fmt.Errorf("fetching users for workspace: %w", err)
+			return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, fmt.Errorf("fetching users for workspace: %w", err)
 		}
 
 		pt, err := bag.NextToken(nextCursor)
@@ -276,6 +277,7 @@ func (o *workspaceResourceType) Grants(
 
 	return rv, &resources.SyncOpResults{
 		NextPageToken: pageToken,
+		Annotations:   outputAnnotations,
 	}, nil
 }
 
