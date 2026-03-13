@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
+	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/types/entitlement"
 	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
@@ -138,9 +139,60 @@ func (o *workspaceResourceType) Grants(
 	resource *v2.Resource,
 	attrs resources.SyncOpAttrs,
 ) ([]*v2.Grant, *resources.SyncOpResults, error) {
-	users, err := o.client.GetUsers()
-	if err != nil {
-		return nil, nil, client.WrapError(err, "fetching users for workspace")
+	var (
+		users             []client.User
+		pageToken         string
+		outputAnnotations annotations.Annotations
+	)
+
+	if o.businessPlusClient != nil {
+		// Use business+ client with proper SDK pagination and team_id filtering.
+		bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
+		if err != nil {
+			return nil, nil, client.WrapError(err, "parsing page token")
+		}
+
+		outputAnnotations = annotations.New()
+		bpUsers, nextCursor, ratelimitData, err := o.businessPlusClient.GetUsers(
+			ctx,
+			resource.Id.Resource,
+			bag.PageToken(),
+		)
+		outputAnnotations.WithRateLimiting(ratelimitData)
+		if err != nil {
+			return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, client.WrapError(err, "fetching users for workspace")
+		}
+
+		pt, err := bag.NextToken(nextCursor)
+		if err != nil {
+			return nil, nil, client.WrapError(err, "creating next page token")
+		}
+		pageToken = pt
+		users = bpUsers
+	} else {
+		// Fallback: standard Slack API with team_id filter and proper context.
+		// The slack-go client auto-paginates internally.
+		slackUsers, err := o.client.GetUsersContext(
+			ctx,
+			slack.GetUsersOptionTeamID(resource.Id.Resource),
+		)
+		if err != nil {
+			return nil, nil, client.WrapError(err, "fetching users for workspace")
+		}
+		for _, u := range slackUsers {
+			users = append(users, client.User{
+				ID:                u.ID,
+				Deleted:           u.Deleted,
+				IsStranger:        u.IsStranger,
+				IsPrimaryOwner:    u.IsPrimaryOwner,
+				IsOwner:           u.IsOwner,
+				IsAdmin:           u.IsAdmin,
+				IsRestricted:      u.IsRestricted,
+				IsUltraRestricted: u.IsUltraRestricted,
+				IsInvitedUser:     u.IsInvitedUser,
+				IsBot:             u.IsBot,
+			})
+		}
 	}
 
 	var rv []*v2.Grant
@@ -223,7 +275,10 @@ func (o *workspaceResourceType) Grants(
 		rv = append(rv, grant.NewGrant(resource, memberEntitlement, userID))
 	}
 
-	return rv, &resources.SyncOpResults{}, nil
+	return rv, &resources.SyncOpResults{
+		NextPageToken: pageToken,
+		Annotations:   outputAnnotations,
+	}, nil
 }
 
 // Grant and Revoke are not implemented for workspace membership because they require
