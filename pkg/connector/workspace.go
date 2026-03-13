@@ -200,9 +200,6 @@ func (o *workspaceResourceType) Grants(
 		if user.IsStranger {
 			continue
 		}
-		if user.Deleted {
-			continue
-		}
 		userID, err := resources.NewResourceID(resourceTypeUser, user.ID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("creating user resource ID: %w", err)
