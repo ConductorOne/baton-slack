@@ -29,7 +29,6 @@ var (
 				"users.profile:read",
 				// User Token Scopes (Business+ SCIM)
 				"admin",
-				"admin.users:read",
 			),
 		),
 	}
@@ -48,8 +47,6 @@ var (
 				"channels:join",
 				"channels:read",
 				"groups:read",
-				// User Token Scopes (Business+)
-				"admin.teams:read",
 			),
 		),
 	}
@@ -64,8 +61,6 @@ var (
 				// Bot Token Scopes
 				"usergroups:read",
 				"users:read",
-				// User Token Scopes (Business+)
-				"admin.usergroups:read",
 			),
 		),
 	}
@@ -79,7 +74,6 @@ var (
 			capabilityPermissions(
 				// User Token Scopes (Business+ SCIM)
 				"admin",
-				"admin.users:write",
 			),
 		),
 	}
@@ -92,7 +86,6 @@ var (
 			capabilityPermissions(
 				// User Token Scopes (Business+)
 				"admin",
-				"admin.roles:read",
 			),
 		),
 		Traits: []v2.ResourceType_Trait{
