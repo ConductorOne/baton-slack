@@ -1,217 +1,217 @@
 {
-  "@type":  "type.googleapis.com/c1.connector.v2.ConnectorCapabilities",
-  "resourceTypeCapabilities":  [
+  "@type": "type.googleapis.com/c1.connector.v2.ConnectorCapabilities",
+  "resourceTypeCapabilities": [
     {
-      "resourceType":  {
-        "id":  "group",
-        "displayName":  "IDP Group",
-        "traits":  [
+      "resourceType": {
+        "id": "group",
+        "displayName": "IDP Group",
+        "traits": [
           "TRAIT_GROUP"
         ],
-        "annotations":  [
+        "annotations": [
           {
-            "@type":  "type.googleapis.com/c1.connector.v2.CapabilityPermissions",
-            "permissions":  [
+            "@type": "type.googleapis.com/c1.connector.v2.CapabilityPermissions",
+            "permissions": [
               {
-                "permission":  "admin"
+                "permission": "admin"
               }
             ]
           }
         ]
       },
-      "capabilities":  [
+      "capabilities": [
         "CAPABILITY_SYNC",
         "CAPABILITY_PROVISION"
       ],
-      "permissions":  {
-        "permissions":  [
+      "permissions": {
+        "permissions": [
           {
-            "permission":  "admin"
+            "permission": "admin"
           }
         ]
       }
     },
     {
-      "resourceType":  {
-        "id":  "user",
-        "displayName":  "User",
-        "traits":  [
+      "resourceType": {
+        "id": "user",
+        "displayName": "User",
+        "traits": [
           "TRAIT_USER"
         ],
-        "annotations":  [
+        "annotations": [
           {
-            "@type":  "type.googleapis.com/c1.connector.v2.SkipEntitlementsAndGrants"
+            "@type": "type.googleapis.com/c1.connector.v2.SkipEntitlementsAndGrants"
           },
           {
-            "@type":  "type.googleapis.com/c1.connector.v2.CapabilityPermissions",
-            "permissions":  [
+            "@type": "type.googleapis.com/c1.connector.v2.CapabilityPermissions",
+            "permissions": [
               {
-                "permission":  "users:read"
+                "permission": "users:read"
               },
               {
-                "permission":  "users:read.email"
+                "permission": "users:read.email"
               },
               {
-                "permission":  "users.profile:read"
+                "permission": "users.profile:read"
               },
               {
-                "permission":  "admin"
+                "permission": "admin"
               }
             ]
           }
         ]
       },
-      "capabilities":  [
+      "capabilities": [
         "CAPABILITY_SYNC"
       ],
-      "permissions":  {
-        "permissions":  [
+      "permissions": {
+        "permissions": [
           {
-            "permission":  "users:read"
+            "permission": "users:read"
           },
           {
-            "permission":  "users:read.email"
+            "permission": "users:read.email"
           },
           {
-            "permission":  "users.profile:read"
+            "permission": "users.profile:read"
           },
           {
-            "permission":  "admin"
+            "permission": "admin"
           }
         ]
       }
     },
     {
-      "resourceType":  {
-        "id":  "userGroup",
-        "displayName":  "User Group",
-        "traits":  [
+      "resourceType": {
+        "id": "userGroup",
+        "displayName": "User Group",
+        "traits": [
           "TRAIT_GROUP"
         ],
-        "annotations":  [
+        "annotations": [
           {
-            "@type":  "type.googleapis.com/c1.connector.v2.CapabilityPermissions",
-            "permissions":  [
+            "@type": "type.googleapis.com/c1.connector.v2.CapabilityPermissions",
+            "permissions": [
               {
-                "permission":  "usergroups:read"
+                "permission": "usergroups:read"
               },
               {
-                "permission":  "users:read"
+                "permission": "users:read"
               }
             ]
           }
         ]
       },
-      "capabilities":  [
+      "capabilities": [
         "CAPABILITY_SYNC"
       ],
-      "permissions":  {
-        "permissions":  [
+      "permissions": {
+        "permissions": [
           {
-            "permission":  "usergroups:read"
+            "permission": "usergroups:read"
           },
           {
-            "permission":  "users:read"
+            "permission": "users:read"
           }
         ]
       }
     },
     {
-      "resourceType":  {
-        "id":  "workspace",
-        "displayName":  "Workspace",
-        "traits":  [
+      "resourceType": {
+        "id": "workspace",
+        "displayName": "Workspace",
+        "traits": [
           "TRAIT_GROUP"
         ],
-        "annotations":  [
+        "annotations": [
           {
-            "@type":  "type.googleapis.com/c1.connector.v2.CapabilityPermissions",
-            "permissions":  [
+            "@type": "type.googleapis.com/c1.connector.v2.CapabilityPermissions",
+            "permissions": [
               {
-                "permission":  "team:read"
+                "permission": "team:read"
               },
               {
-                "permission":  "users:read"
+                "permission": "users:read"
               },
               {
-                "permission":  "users:read.email"
+                "permission": "users:read.email"
               },
               {
-                "permission":  "channels:join"
+                "permission": "channels:join"
               },
               {
-                "permission":  "channels:read"
+                "permission": "channels:read"
               },
               {
-                "permission":  "groups:read"
+                "permission": "groups:read"
               }
             ]
           }
         ]
       },
-      "capabilities":  [
+      "capabilities": [
         "CAPABILITY_SYNC"
       ],
-      "permissions":  {
-        "permissions":  [
+      "permissions": {
+        "permissions": [
           {
-            "permission":  "team:read"
+            "permission": "team:read"
           },
           {
-            "permission":  "users:read"
+            "permission": "users:read"
           },
           {
-            "permission":  "users:read.email"
+            "permission": "users:read.email"
           },
           {
-            "permission":  "channels:join"
+            "permission": "channels:join"
           },
           {
-            "permission":  "channels:read"
+            "permission": "channels:read"
           },
           {
-            "permission":  "groups:read"
+            "permission": "groups:read"
           }
         ]
       }
     },
     {
-      "resourceType":  {
-        "id":  "workspaceRole",
-        "displayName":  "Workspace Role",
-        "traits":  [
+      "resourceType": {
+        "id": "workspaceRole",
+        "displayName": "Workspace Role",
+        "traits": [
           "TRAIT_ROLE"
         ],
-        "annotations":  [
+        "annotations": [
           {
-            "@type":  "type.googleapis.com/c1.connector.v2.SkipGrants"
+            "@type": "type.googleapis.com/c1.connector.v2.SkipGrants"
           },
           {
-            "@type":  "type.googleapis.com/c1.connector.v2.CapabilityPermissions",
-            "permissions":  [
+            "@type": "type.googleapis.com/c1.connector.v2.CapabilityPermissions",
+            "permissions": [
               {
-                "permission":  "admin"
+                "permission": "admin"
               }
             ]
           }
         ]
       },
-      "capabilities":  [
+      "capabilities": [
         "CAPABILITY_SYNC"
       ],
-      "permissions":  {
-        "permissions":  [
+      "permissions": {
+        "permissions": [
           {
-            "permission":  "admin"
+            "permission": "admin"
           }
         ]
       }
     }
   ],
-  "connectorCapabilities":  [
+  "connectorCapabilities": [
     "CAPABILITY_PROVISION",
     "CAPABILITY_SYNC",
     "CAPABILITY_ACTIONS"
   ],
-  "credentialDetails":  {}
+  "credentialDetails": {}
 }
