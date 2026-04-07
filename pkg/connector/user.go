@@ -27,7 +27,7 @@ func (o *userResourceType) scimUserResource(ctx context.Context, scimUser client
 	// NOTE: this is mainly to maintain compatibility with existing profile in non scim flow.
 	slackUser, err := o.client.GetUserInfoContext(ctx, scimUser.ID)
 	if err != nil {
-		return nil, client.WrapError(err, fmt.Sprintf("fetching user info for SCIM user %s", scimUser.ID))
+		return nil, client.WrapError(err, fmt.Sprintf("fetching user info for SCIM user %s", scimUser.ID), nil)
 	}
 
 	profile := make(map[string]interface{})
@@ -204,10 +204,11 @@ func (o *userResourceType) listStandardAPI(
 	*resource.SyncOpResults,
 	error,
 ) {
+	var annos annotations.Annotations
 	options := slack.GetUsersOptionTeamID(parentResourceID.Resource)
 	users, err := o.client.GetUsersContext(ctx, options)
 	if err != nil {
-		return nil, nil, client.WrapError(err, "error fetching users using standard API")
+		return nil, &resource.SyncOpResults{Annotations: annos}, client.WrapError(err, "error fetching users using standard API", &annos)
 	}
 
 	rv := make([]*v2.Resource, 0, len(users))
@@ -218,7 +219,7 @@ func (o *userResourceType) listStandardAPI(
 		}
 		rv = append(rv, resource)
 	}
-	return rv, &resource.SyncOpResults{}, nil
+	return rv, &resource.SyncOpResults{Annotations: annos}, nil
 }
 
 func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2.ResourceId, attrs resource.SyncOpAttrs) ([]*v2.Resource, *resource.SyncOpResults, error) {

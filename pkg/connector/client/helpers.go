@@ -7,13 +7,21 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
+	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
+	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/conductorone/baton-sdk/pkg/uhttp"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
 	"github.com/slack-go/slack"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// defaultRateLimitRetryAfter is used when Slack returns a rate limit error
+// without a Retry-After header (e.g. ok:false with "ratelimited" on HTTP 200).
+const defaultRateLimitRetryAfter = 30 * time.Second
 
 func logBody(ctx context.Context, response *http.Response) {
 	l := ctxzap.Extract(ctx)
@@ -38,7 +46,9 @@ func logBody(ctx context.Context, response *http.Response) {
 }
 
 // Inspects the error returned by the slack-go library and maps it to appropriate gRPC codes.
-func WrapError(err error, contextMsg string) error {
+// If annos is non-nil, rate limit information will be appended to it so the caller can
+// include it in SyncOpResults.
+func WrapError(err error, contextMsg string, annos *annotations.Annotations) error {
 	if err == nil {
 		return nil
 	}
@@ -46,6 +56,9 @@ func WrapError(err error, contextMsg string) error {
 	// for rate limit errors
 	var slackLibrateLimitErr *slack.RateLimitedError
 	if errors.As(err, &slackLibrateLimitErr) {
+		if annos != nil {
+			annos.WithRateLimiting(rateLimitDescription(slackLibrateLimitErr.RetryAfter))
+		}
 		return uhttp.WrapErrors(codes.Unavailable, contextMsg, err)
 	}
 
@@ -66,6 +79,11 @@ func WrapError(err error, contextMsg string) error {
 		}
 		if len(slackErrResp.ResponseMetadata.Warnings) > 0 {
 			contextMsg = fmt.Sprintf("%s (warnings: %v)", contextMsg, slackErrResp.ResponseMetadata.Warnings)
+		}
+		// Slack can return ok:false with "ratelimited" on HTTP 200. There's no
+		// Retry-After header in this case, so use a default backoff.
+		if grpcCode == codes.Unavailable && annos != nil {
+			annos.WithRateLimiting(rateLimitDescription(defaultRateLimitRetryAfter))
 		}
 		return uhttp.WrapErrors(grpcCode, contextMsg, err)
 	}
@@ -160,6 +178,14 @@ func MapSlackErrorToGRPCCode(slackError string) codes.Code {
 	}
 
 	return codes.Unknown
+}
+
+func rateLimitDescription(retryAfter time.Duration) *v2.RateLimitDescription {
+	return &v2.RateLimitDescription{
+		Status:    v2.RateLimitDescription_STATUS_OVERLIMIT,
+		Remaining: 0,
+		ResetAt:   timestamppb.New(time.Now().Add(retryAfter)),
+	}
 }
 
 // Slack API may return errors in the response body even when the HTTP status code is 200.
