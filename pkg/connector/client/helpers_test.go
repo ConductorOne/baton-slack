@@ -7,6 +7,7 @@ import (
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
 	"github.com/slack-go/slack"
+	"google.golang.org/grpc/status"
 )
 
 func TestIsRateLimited(t *testing.T) {
@@ -53,6 +54,31 @@ func TestWrapErrorSetsRateLimitAnnotation(t *testing.T) {
 		}
 		if !IsRateLimited(&annos) {
 			t.Error("expected rate limit annotation after WrapError with RateLimitedError")
+		}
+	})
+
+	t.Run("rate limit error attaches details to gRPC status", func(t *testing.T) {
+		err := &slack.RateLimitedError{RetryAfter: 4 * time.Second}
+		wrappedErr := WrapError(err, "test", nil)
+		st, ok := status.FromError(wrappedErr)
+		if !ok {
+			t.Fatal("expected gRPC status error")
+		}
+		found := false
+		for _, detail := range st.Details() {
+			if rl, ok := detail.(*v2.RateLimitDescription); ok {
+				found = true
+				if rl.Status != v2.RateLimitDescription_STATUS_OVERLIMIT {
+					t.Errorf("expected STATUS_OVERLIMIT, got %v", rl.Status)
+				}
+				resetIn := time.Until(rl.ResetAt.AsTime())
+				if resetIn < 1*time.Second || resetIn > 5*time.Second {
+					t.Errorf("expected ResetAt ~4s from now, got %v", resetIn)
+				}
+			}
+		}
+		if !found {
+			t.Error("expected RateLimitDescription in gRPC status details")
 		}
 	})
 

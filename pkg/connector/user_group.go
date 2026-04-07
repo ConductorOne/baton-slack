@@ -168,7 +168,7 @@ func (o *userGroupResourceType) Grants(
 		if err != nil {
 			wrappedErr := client.WrapError(err, fmt.Sprintf("fetching user info for member %s", member), &outputAnnotations)
 			if client.IsRateLimited(&outputAnnotations) {
-				outputAnnotations.WithRateLimiting(client.RateLimitOverride())
+				wrappedErr = client.WrapErrorWithRateLimitOverride(wrappedErr, &outputAnnotations)
 			}
 			return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, wrappedErr
 		}
