@@ -57,10 +57,11 @@ func WrapError(err error, contextMsg string, annos *annotations.Annotations) err
 	// for rate limit errors
 	var slackLibrateLimitErr *slack.RateLimitedError
 	if errors.As(err, &slackLibrateLimitErr) {
+		rlDesc := rateLimitDescription(slackLibrateLimitErr.RetryAfter)
 		if annos != nil {
-			annos.WithRateLimiting(rateLimitDescription(slackLibrateLimitErr.RetryAfter))
+			annos.WithRateLimiting(rlDesc)
 		}
-		return uhttp.WrapErrors(codes.Unavailable, contextMsg, err)
+		return wrapErrorWithRateLimitDetails(codes.Unavailable, contextMsg, rlDesc, err)
 	}
 
 	// for 5xx status codes
@@ -83,8 +84,12 @@ func WrapError(err error, contextMsg string, annos *annotations.Annotations) err
 		}
 		// Slack can return ok:false with "ratelimited" on HTTP 200. There's no
 		// Retry-After header in this case, so use a default backoff.
-		if grpcCode == codes.Unavailable && annos != nil {
-			annos.WithRateLimiting(rateLimitDescription(defaultRateLimitRetryAfter))
+		if grpcCode == codes.Unavailable {
+			rlDesc := rateLimitDescription(defaultRateLimitRetryAfter)
+			if annos != nil {
+				annos.WithRateLimiting(rlDesc)
+			}
+			return wrapErrorWithRateLimitDetails(grpcCode, contextMsg, rlDesc, err)
 		}
 		return uhttp.WrapErrors(grpcCode, contextMsg, err)
 	}
@@ -205,6 +210,26 @@ func IsRateLimited(annos *annotations.Annotations) bool {
 // to allow meaningful progress (e.g. users.info in a per-member loop).
 func RateLimitOverride() *v2.RateLimitDescription {
 	return rateLimitDescription(60 * time.Second)
+}
+
+// WrapErrorWithRateLimitOverride re-wraps an error with a 60s rate limit on
+// both the gRPC status details (for SDK retry) and the annotations (for SyncOpResults).
+func WrapErrorWithRateLimitOverride(err error, annos *annotations.Annotations) error {
+	rlDesc := RateLimitOverride()
+	if annos != nil {
+		annos.WithRateLimiting(rlDesc)
+	}
+	return wrapErrorWithRateLimitDetails(codes.Unavailable, "rate limited", rlDesc, err)
+}
+
+// wrapErrorWithRateLimitDetails creates a gRPC error with RateLimitDescription
+// attached as a status detail, so the SDK's retry logic knows how long to wait.
+func wrapErrorWithRateLimitDetails(code codes.Code, msg string, rlDesc *v2.RateLimitDescription, err error) error {
+	st := status.New(code, msg)
+	if rlDesc != nil {
+		st, _ = st.WithDetails(rlDesc)
+	}
+	return errors.Join(st.Err(), err)
 }
 
 func rateLimitDescription(retryAfter time.Duration) *v2.RateLimitDescription {

@@ -246,7 +246,7 @@ func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2
 		if err != nil {
 			wrappedErr := client.WrapError(err, fmt.Sprintf("fetching user info for SCIM user %s", user.ID), &annos)
 			if client.IsRateLimited(&annos) {
-				annos.WithRateLimiting(client.RateLimitOverride())
+				wrappedErr = client.WrapErrorWithRateLimitOverride(wrappedErr, &annos)
 			}
 			return nil, &resource.SyncOpResults{Annotations: annos}, wrappedErr
 		}
