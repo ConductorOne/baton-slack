@@ -16,6 +16,7 @@ import (
 	"github.com/slack-go/slack"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -88,6 +89,11 @@ func WrapError(err error, contextMsg string, annos *annotations.Annotations) err
 		return uhttp.WrapErrors(grpcCode, contextMsg, err)
 	}
 
+	// Preserve the gRPC code if the error already has one (e.g. from uhttp/businessPlusClient).
+	// Only fall back to Unknown if no code is set.
+	if code := status.Code(err); code != codes.OK {
+		return uhttp.WrapErrors(code, contextMsg, err)
+	}
 	return uhttp.WrapErrors(codes.Unknown, contextMsg, err)
 }
 
