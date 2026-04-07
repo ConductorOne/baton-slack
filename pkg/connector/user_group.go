@@ -166,7 +166,11 @@ func (o *userGroupResourceType) Grants(
 	for _, member := range page {
 		user, err := o.client.GetUserInfoContext(ctx, member)
 		if err != nil {
-			return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, client.WrapError(err, fmt.Sprintf("fetching user info for member %s", member), &outputAnnotations)
+			wrappedErr := client.WrapError(err, fmt.Sprintf("fetching user info for member %s", member), &outputAnnotations)
+			if client.IsRateLimited(&outputAnnotations) {
+				outputAnnotations.WithRateLimiting(client.RateLimitOverride())
+			}
+			return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, wrappedErr
 		}
 		ur, err := userResource(ctx, user, res.Id)
 		if err != nil {
