@@ -164,21 +164,11 @@ func (o *userGroupResourceType) Grants(
 
 	var rv []*v2.Grant
 	for _, member := range page {
-		user, err := o.client.GetUserInfoContext(ctx, member)
+		userID, err := resource.NewResourceID(resourceTypeUser, member)
 		if err != nil {
-			wrappedErr := client.WrapError(err, fmt.Sprintf("fetching user info for member %s", member), &outputAnnotations)
-			if client.IsRateLimited(&outputAnnotations) {
-				wrappedErr = client.WrapErrorWithRateLimitOverride(wrappedErr, &outputAnnotations)
-			}
-			return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, wrappedErr
+			return nil, nil, fmt.Errorf("baton-slack: creating user resource ID: %w", err)
 		}
-		ur, err := userResource(ctx, user, res.Id)
-		if err != nil {
-			return nil, nil, fmt.Errorf("creating user resource: %w", err)
-		}
-
-		grant := grant.NewGrant(res, memberEntitlement, ur.Id)
-		rv = append(rv, grant)
+		rv = append(rv, grant.NewGrant(res, memberEntitlement, userID))
 	}
 
 	// If there are more members, return a token so the SDK calls us again.
