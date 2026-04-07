@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
@@ -13,6 +14,8 @@ import (
 	"github.com/conductorone/baton-slack/pkg/connector/client"
 	"github.com/slack-go/slack"
 )
+
+const userGroupGrantPageSize = 20
 
 type userGroupResourceType struct {
 	resourceType       *v2.ResourceType
@@ -129,7 +132,7 @@ func (o *userGroupResourceType) Entitlements(
 func (o *userGroupResourceType) Grants(
 	ctx context.Context,
 	res *v2.Resource,
-	_ resource.SyncOpAttrs,
+	attrs resource.SyncOpAttrs,
 ) (
 	[]*v2.Grant,
 	*resource.SyncOpResults,
@@ -141,8 +144,26 @@ func (o *userGroupResourceType) Grants(
 		return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, client.WrapError(err, fmt.Sprintf("fetching user group members for group %s", res.Id.Resource), &outputAnnotations)
 	}
 
+	// Parse the page offset from the token. On the first call this is 0.
+	offset := 0
+	if attrs.PageToken.Token != "" {
+		offset, err = strconv.Atoi(attrs.PageToken.Token)
+		if err != nil {
+			return nil, nil, fmt.Errorf("baton-slack: parsing page token: %w", err)
+		}
+	}
+
+	// Group membership may have changed between pages.
+	if offset >= len(groupMembers) {
+		return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, nil
+	}
+
+	// Slice the member list for this page.
+	end := min(offset+userGroupGrantPageSize, len(groupMembers))
+	page := groupMembers[offset:end]
+
 	var rv []*v2.Grant
-	for _, member := range groupMembers {
+	for _, member := range page {
 		user, err := o.client.GetUserInfoContext(ctx, member)
 		if err != nil {
 			return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, client.WrapError(err, fmt.Sprintf("fetching user info for member %s", member), &outputAnnotations)
@@ -156,5 +177,11 @@ func (o *userGroupResourceType) Grants(
 		rv = append(rv, grant)
 	}
 
-	return rv, &resource.SyncOpResults{Annotations: outputAnnotations}, nil
+	// If there are more members, return a token so the SDK calls us again.
+	var nextPageToken string
+	if end < len(groupMembers) {
+		nextPageToken = strconv.Itoa(end)
+	}
+
+	return rv, &resource.SyncOpResults{NextPageToken: nextPageToken, Annotations: outputAnnotations}, nil
 }
