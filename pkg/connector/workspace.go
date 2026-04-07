@@ -78,10 +78,11 @@ func (o *workspaceResourceType) List(
 		workspaces []slack.Team
 		nextCursor string
 	)
+	var annos annotations.Annotations
 	params := slack.ListTeamsParameters{Cursor: bag.PageToken()}
 	workspaces, nextCursor, err = o.client.ListTeamsContext(ctx, params)
 	if err != nil {
-		return nil, nil, client.WrapError(err, "error listing teams")
+		return nil, &resources.SyncOpResults{Annotations: annos}, client.WrapError(err, "error listing teams", &annos)
 	}
 
 	err = client.SetWorkspaceNames(ctx, attrs.Session, workspaces)
@@ -104,6 +105,7 @@ func (o *workspaceResourceType) List(
 	}
 	return rv, &resources.SyncOpResults{
 		NextPageToken: pageToken,
+		Annotations:   annos,
 	}, nil
 }
 
@@ -149,7 +151,7 @@ func (o *workspaceResourceType) Grants(
 		// Use business+ client with proper SDK pagination and team_id filtering.
 		bag, err := pkg.ParsePageToken(attrs.PageToken.Token, &v2.ResourceId{ResourceType: resourceTypeUser.Id})
 		if err != nil {
-			return nil, nil, client.WrapError(err, "parsing page token")
+			return nil, nil, client.WrapError(err, "parsing page token", nil)
 		}
 
 		outputAnnotations = annotations.New()
@@ -160,12 +162,12 @@ func (o *workspaceResourceType) Grants(
 		)
 		outputAnnotations.WithRateLimiting(ratelimitData)
 		if err != nil {
-			return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, client.WrapError(err, "fetching users for workspace")
+			return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, client.WrapError(err, "fetching users for workspace", nil)
 		}
 
 		pt, err := bag.NextToken(nextCursor)
 		if err != nil {
-			return nil, nil, client.WrapError(err, "creating next page token")
+			return nil, nil, client.WrapError(err, "creating next page token", nil)
 		}
 		pageToken = pt
 		users = bpUsers
@@ -177,7 +179,7 @@ func (o *workspaceResourceType) Grants(
 			slack.GetUsersOptionTeamID(resource.Id.Resource),
 		)
 		if err != nil {
-			return nil, nil, client.WrapError(err, "fetching users for workspace")
+			return nil, &resources.SyncOpResults{Annotations: outputAnnotations}, client.WrapError(err, "fetching users for workspace", &outputAnnotations)
 		}
 		for _, u := range slackUsers {
 			users = append(users, client.User{

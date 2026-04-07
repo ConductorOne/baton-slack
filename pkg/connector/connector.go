@@ -72,12 +72,12 @@ func (c *Slack) Metadata(ctx context.Context) (*v2.ConnectorMetadata, error) {
 func (s *Slack) Validate(ctx context.Context) (annotations.Annotations, error) {
 	res, err := s.client.AuthTestContext(ctx)
 	if err != nil {
-		return nil, client.WrapError(err, "authenticating")
+		return nil, client.WrapError(err, "authenticating", nil)
 	}
 
 	user, err := s.client.GetUserInfoContext(ctx, res.UserID)
 	if err != nil {
-		return nil, client.WrapError(err, "retrieving authenticated user")
+		return nil, client.WrapError(err, "retrieving authenticated user", nil)
 	}
 
 	isValidUser := user.IsAdmin || user.IsOwner || user.IsPrimaryOwner || user.IsBot

@@ -75,10 +75,10 @@ func (o *userGroupResourceType) List(
 		userGroups []slack.UserGroup
 		err        error
 	)
-	outputAnnotations := annotations.New()
+	var outputAnnotations annotations.Annotations
 	userGroups, err = o.client.GetUserGroupsContext(ctx, slack.GetUserGroupsOptionWithTeamID(parentResourceID.Resource))
 	if err != nil {
-		return nil, &resource.SyncOpResults{}, client.WrapError(err, fmt.Sprintf("fetching user groups for team %s", parentResourceID.Resource))
+		return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, client.WrapError(err, fmt.Sprintf("fetching user groups for team %s", parentResourceID.Resource), &outputAnnotations)
 	}
 
 	rv := make([]*v2.Resource, 0, len(userGroups))
@@ -135,16 +135,17 @@ func (o *userGroupResourceType) Grants(
 	*resource.SyncOpResults,
 	error,
 ) {
+	var outputAnnotations annotations.Annotations
 	groupMembers, err := o.client.GetUserGroupMembersContext(ctx, res.Id.Resource)
 	if err != nil {
-		return nil, &resource.SyncOpResults{}, client.WrapError(err, fmt.Sprintf("fetching user group members for group %s", res.Id.Resource))
+		return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, client.WrapError(err, fmt.Sprintf("fetching user group members for group %s", res.Id.Resource), &outputAnnotations)
 	}
 
 	var rv []*v2.Grant
 	for _, member := range groupMembers {
 		user, err := o.client.GetUserInfoContext(ctx, member)
 		if err != nil {
-			return nil, &resource.SyncOpResults{}, client.WrapError(err, fmt.Sprintf("fetching user info for member %s", member))
+			return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, client.WrapError(err, fmt.Sprintf("fetching user info for member %s", member), &outputAnnotations)
 		}
 		ur, err := userResource(ctx, user, res.Id)
 		if err != nil {
@@ -155,5 +156,5 @@ func (o *userGroupResourceType) Grants(
 		rv = append(rv, grant)
 	}
 
-	return rv, &resource.SyncOpResults{}, nil
+	return rv, &resource.SyncOpResults{Annotations: outputAnnotations}, nil
 }
