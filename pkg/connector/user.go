@@ -27,7 +27,7 @@ func (o *userResourceType) scimUserResource(ctx context.Context, scimUser client
 	// NOTE: this is mainly to maintain compatibility with existing profile in non scim flow.
 	slackUser, err := o.client.GetUserInfoContext(ctx, scimUser.ID)
 	if err != nil {
-		return nil, client.WrapError(err, fmt.Sprintf("fetching user info for SCIM user %s", scimUser.ID), nil)
+		return nil, err
 	}
 
 	profile := make(map[string]interface{})
@@ -244,7 +244,11 @@ func (o *userResourceType) listScimAPI(ctx context.Context, parentResourceID *v2
 	for _, user := range response.Resources {
 		userResource, err := o.scimUserResource(ctx, user, parentResourceID)
 		if err != nil {
-			return nil, &resource.SyncOpResults{Annotations: annos}, err
+			wrappedErr := client.WrapError(err, fmt.Sprintf("fetching user info for SCIM user %s", user.ID), &annos)
+			if client.IsRateLimited(&annos) {
+				annos.WithRateLimiting(client.RateLimitOverride())
+			}
+			return nil, &resource.SyncOpResults{Annotations: annos}, wrappedErr
 		}
 		rv = append(rv, userResource)
 	}

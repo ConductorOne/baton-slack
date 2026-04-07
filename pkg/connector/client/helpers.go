@@ -186,6 +186,27 @@ func MapSlackErrorToGRPCCode(slackError string) codes.Code {
 	return codes.Unknown
 }
 
+// IsRateLimited checks whether the annotations contain a RateLimitDescription
+// with STATUS_OVERLIMIT.
+func IsRateLimited(annos *annotations.Annotations) bool {
+	if annos == nil {
+		return false
+	}
+	rl := &v2.RateLimitDescription{}
+	ok, err := annos.Pick(rl)
+	if err != nil || !ok {
+		return false
+	}
+	return rl.Status == v2.RateLimitDescription_STATUS_OVERLIMIT
+}
+
+// RateLimitOverride returns a RateLimitDescription with a 60s wait.
+// Use this for endpoints where Slack's Retry-After header is too short
+// to allow meaningful progress (e.g. users.info in a per-member loop).
+func RateLimitOverride() *v2.RateLimitDescription {
+	return rateLimitDescription(60 * time.Second)
+}
+
 func rateLimitDescription(retryAfter time.Duration) *v2.RateLimitDescription {
 	return &v2.RateLimitDescription{
 		Status:    v2.RateLimitDescription_STATUS_OVERLIMIT,
