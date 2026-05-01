@@ -24,6 +24,9 @@ const (
 	SlackErrNoSuchSubteam = "no_such_subteam"
 	ScimVersionV2         = "v2"
 	ScimVersionV1         = "v1"
+
+	teamIDKey       = "team_id"
+	scimPatchOpURN  = "urn:ietf:params:scim:api:messages:2.0:PatchOp"
 )
 
 var workspaceNameNamespace = sessions.WithPrefix("workspace_name")
@@ -120,7 +123,7 @@ func (c *Client) GetUserGroupMembers(
 		UrlPathGetUserGroupMembers,
 		&response,
 		map[string]interface{}{
-			"team_id":   teamID,
+			teamIDKey: teamID,
 			"usergroup": userGroupID,
 		},
 		true,
@@ -143,7 +146,7 @@ func (c *Client) GetUsers(
 	*v2.RateLimitDescription,
 	error,
 ) {
-	values := map[string]interface{}{"team_id": teamID}
+	values := map[string]interface{}{teamIDKey: teamID}
 
 	// need to check if cursor is empty because API throws error if empty string is passed
 	if cursor != "" {
@@ -191,7 +194,7 @@ func (c *Client) GetUserGroups(
 		ctx,
 		UrlPathGetUserGroups,
 		&response,
-		map[string]interface{}{"team_id": teamID},
+		map[string]interface{}{teamIDKey: teamID},
 		true,
 	)
 	if err != nil {
@@ -347,7 +350,7 @@ func (c *Client) AddUserToGroup(
 	members = append(members, UserID{Value: user})
 
 	requestBody := PatchOp{
-		Schemas: []string{"urn:ietf:params:scim:api:messages:2.0:PatchOp"},
+		Schemas: []string{scimPatchOpURN},
 		Operations: []ScimOperate{
 			{
 				Op:    "add",
@@ -395,7 +398,7 @@ func (c *Client) RemoveUserFromGroup(
 	}
 
 	requestBody := PatchOp{
-		Schemas: []string{"urn:ietf:params:scim:api:messages:2.0:PatchOp"},
+		Schemas: []string{scimPatchOpURN},
 		Operations: []ScimOperate{
 			{
 				Op:   "remove",
@@ -480,7 +483,7 @@ func (c *Client) EnableUser(
 	error,
 ) {
 	requestBody := map[string]any{
-		"schemas": []string{"urn:ietf:params:scim:api:messages:2.0:PatchOp"},
+		"schemas": []string{scimPatchOpURN},
 		"Operations": []map[string]any{
 			{
 				"path":  "active",
