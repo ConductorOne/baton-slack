@@ -7,6 +7,7 @@ type Slack struct {
 	Token string `mapstructure:"token"`
 	BusinessPlusToken string `mapstructure:"business-plus-token"`
 	GovEnv bool `mapstructure:"gov-env"`
+	BaseUrl string `mapstructure:"base-url"`
 }
 
 func (c *Slack) findFieldByTag(tagValue string) (any, bool) {
