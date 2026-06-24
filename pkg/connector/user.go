@@ -113,7 +113,7 @@ func userResource(
 
 	userStatus := v2.UserTrait_Status_STATUS_ENABLED
 	if user.Deleted {
-		userStatus = v2.UserTrait_Status_STATUS_DELETED
+		userStatus = v2.UserTrait_Status_STATUS_DISABLED
 	}
 
 	userTraitOptions := []resource.UserTraitOption{
