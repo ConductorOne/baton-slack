@@ -20,6 +20,7 @@ type workspaceResourceType struct {
 	resourceType       *v2.ResourceType
 	client             *slack.Client
 	businessPlusClient *client.Client
+	syncWorkspaceRoles bool
 }
 
 func (o *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -29,11 +30,13 @@ func (o *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType
 func workspaceBuilder(
 	slackClient *slack.Client,
 	businessPlusClient *client.Client,
+	syncWorkspaceRoles bool,
 ) *workspaceResourceType {
 	return &workspaceResourceType{
 		resourceType:       resourceTypeWorkspace,
 		client:             slackClient,
 		businessPlusClient: businessPlusClient,
+		syncWorkspaceRoles: syncWorkspaceRoles,
 	}
 }
 
@@ -207,68 +210,75 @@ func (o *workspaceResourceType) Grants(
 			return nil, nil, fmt.Errorf("creating user resource ID: %w", err)
 		}
 
-		if user.IsPrimaryOwner {
-			rr, err := roleResource(ctx, PrimaryOwnerRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, fmt.Errorf("creating primary owner role resource: %w", err)
-			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-		}
-
-		if user.IsOwner {
-			rr, err := roleResource(ctx, OwnerRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, fmt.Errorf("creating owner role resource: %w", err)
-			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-		}
-
-		if user.IsAdmin {
-			rr, err := roleResource(ctx, AdminRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, fmt.Errorf("creating admin role resource: %w", err)
-			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-		}
-
-		if user.IsRestricted {
-			if user.IsUltraRestricted {
-				rr, err := roleResource(ctx, SingleChannelGuestRoleID, resource.Id)
+		// Cross-type grants: these reference workspaceRole resources, a different
+		// resource type than the one being synced here (workspace). Only emit them
+		// when the sync filter actually includes workspaceRole, otherwise the
+		// connector would emit grants pointing at a type it isn't syncing.
+		// See ConductorOne/baton-linear#55 for the reference fix.
+		if o.syncWorkspaceRoles {
+			if user.IsPrimaryOwner {
+				rr, err := roleResource(ctx, PrimaryOwnerRoleID, resource.Id)
 				if err != nil {
-					return nil, nil, fmt.Errorf("creating single channel guest role resource: %w", err)
-				}
-				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-			} else {
-				rr, err := roleResource(ctx, MultiChannelGuestRoleID, resource.Id)
-				if err != nil {
-					return nil, nil, fmt.Errorf("creating multi channel guest role resource: %w", err)
+					return nil, nil, fmt.Errorf("creating primary owner role resource: %w", err)
 				}
 				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 			}
-		}
 
-		if user.IsInvitedUser {
-			rr, err := roleResource(ctx, InvitedMemberRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, fmt.Errorf("creating invited member role resource: %w", err)
+			if user.IsOwner {
+				rr, err := roleResource(ctx, OwnerRoleID, resource.Id)
+				if err != nil {
+					return nil, nil, fmt.Errorf("creating owner role resource: %w", err)
+				}
+				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-		}
 
-		if !user.IsRestricted && !user.IsUltraRestricted && !user.IsInvitedUser && !user.IsBot && !user.Deleted {
-			rr, err := roleResource(ctx, MemberRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, fmt.Errorf("creating member role resource: %w", err)
+			if user.IsAdmin {
+				rr, err := roleResource(ctx, AdminRoleID, resource.Id)
+				if err != nil {
+					return nil, nil, fmt.Errorf("creating admin role resource: %w", err)
+				}
+				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
 			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-		}
 
-		if user.IsBot {
-			rr, err := roleResource(ctx, BotRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, fmt.Errorf("creating bot role resource: %w", err)
+			if user.IsRestricted {
+				if user.IsUltraRestricted {
+					rr, err := roleResource(ctx, SingleChannelGuestRoleID, resource.Id)
+					if err != nil {
+						return nil, nil, fmt.Errorf("creating single channel guest role resource: %w", err)
+					}
+					rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+				} else {
+					rr, err := roleResource(ctx, MultiChannelGuestRoleID, resource.Id)
+					if err != nil {
+						return nil, nil, fmt.Errorf("creating multi channel guest role resource: %w", err)
+					}
+					rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+				}
 			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+
+			if user.IsInvitedUser {
+				rr, err := roleResource(ctx, InvitedMemberRoleID, resource.Id)
+				if err != nil {
+					return nil, nil, fmt.Errorf("creating invited member role resource: %w", err)
+				}
+				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+			}
+
+			if !user.IsRestricted && !user.IsUltraRestricted && !user.IsInvitedUser && !user.IsBot && !user.Deleted {
+				rr, err := roleResource(ctx, MemberRoleID, resource.Id)
+				if err != nil {
+					return nil, nil, fmt.Errorf("creating member role resource: %w", err)
+				}
+				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+			}
+
+			if user.IsBot {
+				rr, err := roleResource(ctx, BotRoleID, resource.Id)
+				if err != nil {
+					return nil, nil, fmt.Errorf("creating bot role resource: %w", err)
+				}
+				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+			}
 		}
 
 		rv = append(rv, grant.NewGrant(resource, memberEntitlement, userID))

@@ -22,6 +22,7 @@ type Slack struct {
 	apiKey             string
 	businessPlusClient *client.Client
 	govEnv             bool
+	syncWorkspaceRoles bool
 }
 
 const govSlackApiUrl = "https://api.slack-gov.com/api/"
@@ -156,6 +157,8 @@ func New(ctx context.Context, config *cfg.Slack, opts *cli.ConnectorOpts) (conne
 		return nil, nil, err
 	}
 
+	cb.syncWorkspaceRoles = opts == nil || opts.WillSyncResourceType(resourceTypeWorkspaceRole.Id)
+
 	builderOpts := []connectorbuilder.Opt{}
 	return cb, builderOpts, nil
 }
@@ -163,7 +166,7 @@ func New(ctx context.Context, config *cfg.Slack, opts *cli.ConnectorOpts) (conne
 func (s *Slack) ResourceSyncers(ctx context.Context) []connectorbuilder.ResourceSyncerV2 {
 	return []connectorbuilder.ResourceSyncerV2{
 		userBuilder(s.client, s.businessPlusClient),
-		workspaceBuilder(s.client, s.businessPlusClient),
+		workspaceBuilder(s.client, s.businessPlusClient, s.syncWorkspaceRoles),
 		userGroupBuilder(s.client, s.businessPlusClient),
 		groupBuilder(s.businessPlusClient, s.govEnv),
 		workspaceRoleBuilder(s.businessPlusClient),
