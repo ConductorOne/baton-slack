@@ -48,14 +48,13 @@ func groupResource(
 		group.DisplayName,
 		resourceTypeGroup,
 		group.ID,
-		[]resources.GroupTraitOption{
-			resources.WithGroupProfile(
-				map[string]interface{}{
-					"group_id":   group.ID,
-					"group_name": group.DisplayName,
-				},
-			),
-		},
+		[]resources.GroupTraitOption{},
+		resources.WithResourceProfile(
+			map[string]interface{}{
+				"group_id":   group.ID,
+				"group_name": group.DisplayName,
+			},
+		),
 	)
 }
 
