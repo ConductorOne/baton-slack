@@ -55,9 +55,7 @@ func (o *userResourceType) scimUserResource(ctx context.Context, scimUser client
 	}
 
 	userTraitOptions := []resource.UserTraitOption{
-		resource.WithUserProfile(profile),
 		resource.WithEmail(slackUser.Profile.Email, true),
-		resource.WithStatus(userStatus),
 	}
 
 	if slackUser.IsBot {
@@ -82,6 +80,8 @@ func (o *userResourceType) scimUserResource(ctx context.Context, scimUser client
 		resourceTypeUser,
 		slackUser.ID,
 		userTraitOptions,
+		resource.WithResourceProfile(profile),
+		resource.WithResourceStatus(v2.Status_ResourceStatus(userStatus), ""),
 		resource.WithParentResourceID(parentResourceID),
 	)
 }
@@ -117,9 +117,7 @@ func userResource(
 	}
 
 	userTraitOptions := []resource.UserTraitOption{
-		resource.WithUserProfile(profile),
 		resource.WithEmail(user.Profile.Email, true),
-		resource.WithStatus(userStatus),
 	}
 
 	if user.IsBot {
@@ -144,6 +142,8 @@ func userResource(
 		resourceTypeUser,
 		user.ID,
 		userTraitOptions,
+		resource.WithResourceProfile(profile),
+		resource.WithResourceStatus(v2.Status_ResourceStatus(userStatus), ""),
 		resource.WithParentResourceID(parentResourceID),
 	)
 }

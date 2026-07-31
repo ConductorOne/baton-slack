@@ -25,8 +25,8 @@ const (
 	ScimVersionV2         = "v2"
 	ScimVersionV1         = "v1"
 
-	teamIDKey       = "team_id"
-	scimPatchOpURN  = "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+	teamIDKey      = "team_id"
+	scimPatchOpURN = "urn:ietf:params:scim:api:messages:2.0:PatchOp"
 )
 
 var workspaceNameNamespace = sessions.WithPrefix("workspace_name")
@@ -123,7 +123,7 @@ func (c *Client) GetUserGroupMembers(
 		UrlPathGetUserGroupMembers,
 		&response,
 		map[string]interface{}{
-			teamIDKey: teamID,
+			teamIDKey:   teamID,
 			"usergroup": userGroupID,
 		},
 		true,

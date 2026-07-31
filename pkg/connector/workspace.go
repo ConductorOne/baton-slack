@@ -47,15 +47,14 @@ func workspaceResource(
 		workspace.Name,
 		resourceTypeWorkspace,
 		workspace.ID,
-		[]resources.GroupTraitOption{
-			resources.WithGroupProfile(
-				map[string]interface{}{
-					"workspace_id":     workspace.ID,
-					"workspace_name":   workspace.Name,
-					"workspace_domain": workspace.Domain,
-				},
-			),
-		},
+		[]resources.GroupTraitOption{},
+		resources.WithResourceProfile(
+			map[string]interface{}{
+				"workspace_id":     workspace.ID,
+				"workspace_name":   workspace.Name,
+				"workspace_domain": workspace.Domain,
+			},
+		),
 		resources.WithAnnotation(
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUser.Id},
 			&v2.ChildResourceType{ResourceTypeId: resourceTypeUserGroup.Id},

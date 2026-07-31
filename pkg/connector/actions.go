@@ -19,10 +19,10 @@ var (
 )
 
 const (
-	userIDKey      = "user_id"
-	userIDDisplay  = "User ID"
-	successKey     = "success"
-	messageKey     = "message"
+	userIDKey     = "user_id"
+	userIDDisplay = "User ID"
+	successKey    = "success"
+	messageKey    = "message"
 )
 
 var (
@@ -162,7 +162,7 @@ func (s *Slack) handleDisableUser(
 		Fields: map[string]*structpb.Value{
 			successKey: {Kind: &structpb.Value_BoolValue{BoolValue: true}},
 			messageKey: {Kind: &structpb.Value_StringValue{StringValue: fmt.Sprintf("User %s disabled successfully", userID)}},
-			userIDKey: {Kind: &structpb.Value_StringValue{StringValue: userID}},
+			userIDKey:  {Kind: &structpb.Value_StringValue{StringValue: userID}},
 		},
 	}, outputAnnotations, nil
 }
@@ -207,7 +207,7 @@ func (s *Slack) handleEnableUser(
 		Fields: map[string]*structpb.Value{
 			successKey: {Kind: &structpb.Value_BoolValue{BoolValue: true}},
 			messageKey: {Kind: &structpb.Value_StringValue{StringValue: fmt.Sprintf("User %s enabled successfully", userID)}},
-			userIDKey: {Kind: &structpb.Value_StringValue{StringValue: userID}},
+			userIDKey:  {Kind: &structpb.Value_StringValue{StringValue: userID}},
 		},
 	}, outputAnnotations, nil
 }

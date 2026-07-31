@@ -48,15 +48,14 @@ func userGroupResource(
 		userGroup.Name,
 		resourceTypeUserGroup,
 		userGroup.ID,
-		[]resource.GroupTraitOption{
-			resource.WithGroupProfile(
-				map[string]interface{}{
-					"userGroup_id":     userGroup.ID,
-					"userGroup_name":   userGroup.Name,
-					"userGroup_handle": userGroup.Handle,
-				},
-			),
-		},
+		[]resource.GroupTraitOption{},
+		resource.WithResourceProfile(
+			map[string]interface{}{
+				"userGroup_id":     userGroup.ID,
+				"userGroup_name":   userGroup.Name,
+				"userGroup_handle": userGroup.Handle,
+			},
+		),
 		resource.WithParentResourceID(parentResourceID),
 	)
 }
