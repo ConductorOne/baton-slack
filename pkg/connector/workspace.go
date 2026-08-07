@@ -20,6 +20,12 @@ type workspaceResourceType struct {
 	resourceType       *v2.ResourceType
 	client             *slack.Client
 	businessPlusClient *client.Client
+	// skipWorkspaceRoleResourceType reports whether workspace_role is excluded
+	// from the sync filter. Grants below emits only cross-type workspace_role
+	// grants, so it returns early when the type isn't being synced. The
+	// resource-type-level skip annotations are deliberately not used: workspace
+	// has its own member entitlement, which they would suppress.
+	skipWorkspaceRoleResourceType bool
 }
 
 func (o *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType {
@@ -29,11 +35,13 @@ func (o *workspaceResourceType) ResourceType(_ context.Context) *v2.ResourceType
 func workspaceBuilder(
 	slackClient *slack.Client,
 	businessPlusClient *client.Client,
+	skipWorkspaceRoleResourceType bool,
 ) *workspaceResourceType {
 	return &workspaceResourceType{
-		resourceType:       resourceTypeWorkspace,
-		client:             slackClient,
-		businessPlusClient: businessPlusClient,
+		resourceType:                  resourceTypeWorkspace,
+		skipWorkspaceRoleResourceType: skipWorkspaceRoleResourceType,
+		client:                        slackClient,
+		businessPlusClient:            businessPlusClient,
 	}
 }
 
@@ -140,6 +148,12 @@ func (o *workspaceResourceType) Grants(
 	resource *v2.Resource,
 	attrs resources.SyncOpAttrs,
 ) ([]*v2.Grant, *resources.SyncOpResults, error) {
+	// Every grant below targets workspace_role; skip the user pagination
+	// entirely when that type isn't part of the sync.
+	if o.skipWorkspaceRoleResourceType {
+		return nil, &resources.SyncOpResults{}, nil
+	}
+
 	var (
 		users             []client.User
 		pageToken         string
