@@ -5,39 +5,69 @@ import (
 	"testing"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
+	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
+	"github.com/conductorone/baton-slack/pkg/connector/client"
 )
 
-// Every grant the workspace syncer emits targets workspace_role, so when that
-// type is excluded from the sync it must emit nothing — and must not page
-// through users to discover that.
-func TestWorkspaceBuilder_Grants_SkipWorkspaceRole(t *testing.T) {
-	// A nil client would panic if the guard failed to short-circuit.
-	b := workspaceBuilder(nil, nil, true)
+// workspaceRoleGrants is the only part of Grants that is gated on the sync
+// filter, so everything it returns must target workspace_role. If a grant of
+// another type ever leaks in here, filtering workspace_role out of a sync would
+// silently drop that grant too — which is exactly the bug the split avoids.
+func TestWorkspaceRoleGrants_OnlyTargetsWorkspaceRole(t *testing.T) {
+	workspaceID := &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id, Resource: "T123"}
+	userID := &v2.ResourceId{ResourceType: resourceTypeUser.Id, Resource: "U123"}
 
-	res, err := resources.NewResource("acme", resourceTypeWorkspace, "T123")
-	if err != nil {
-		t.Fatalf("NewResource: %v", err)
-	}
+	// Flags chosen to light up several role branches at once.
+	user := client.User{ID: "U123", IsOwner: true, IsAdmin: true}
 
-	grants, results, err := b.Grants(context.Background(), res, resources.SyncOpAttrs{})
+	grants, err := workspaceRoleGrants(context.Background(), user, workspaceID, userID)
 	if err != nil {
-		t.Fatalf("Grants: %v", err)
+		t.Fatalf("workspaceRoleGrants: %v", err)
 	}
-	if len(grants) != 0 {
-		t.Fatalf("expected no grants when workspace_role is filtered out, got %d", len(grants))
+	if len(grants) == 0 {
+		t.Fatal("expected role grants for an owner/admin user")
 	}
-	if results == nil {
-		t.Fatal("expected non-nil SyncOpResults")
+	for _, g := range grants {
+		got := g.GetEntitlement().GetResource().GetId().GetResourceType()
+		if got != resourceTypeWorkspaceRole.Id {
+			t.Errorf("grant targets %q, want %q", got, resourceTypeWorkspaceRole.Id)
+		}
 	}
 }
 
-// The workspace type keeps its own member entitlement, so the resource-type
-// skip annotations must not be applied to it.
+// The workspace member grant is emitted by Grants itself, outside the gated
+// helper, so it must not be one of the grants the helper produces.
+func TestWorkspaceRoleGrants_ExcludesWorkspaceMemberGrant(t *testing.T) {
+	workspaceID := &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id, Resource: "T123"}
+	userID := &v2.ResourceId{ResourceType: resourceTypeUser.Id, Resource: "U123"}
+
+	workspace, err := resources.NewResource("acme", resourceTypeWorkspace, "T123")
+	if err != nil {
+		t.Fatalf("NewResource: %v", err)
+	}
+	memberGrant := grant.NewGrant(workspace, memberEntitlement, userID)
+
+	grants, err := workspaceRoleGrants(context.Background(), client.User{ID: "U123"}, workspaceID, userID)
+	if err != nil {
+		t.Fatalf("workspaceRoleGrants: %v", err)
+	}
+	for _, g := range grants {
+		if g.GetId() == memberGrant.GetId() {
+			t.Fatal("workspace member grant must be emitted unconditionally, not from the gated role helper")
+		}
+	}
+}
+
+// The workspace type keeps its own member entitlement and member grants, so
+// neither the resource-type skip annotations nor a resource-level SkipGrants may
+// be applied to it — they suppress the whole pass, not just the role grants.
 func TestWorkspaceResourceType_NoSkipAnnotations(t *testing.T) {
 	rt := workspaceBuilder(nil, nil, true).ResourceType(context.Background())
 	for _, a := range rt.GetAnnotations() {
-		if a.MessageIs(&v2.SkipEntitlements{}) || a.MessageIs(&v2.SkipEntitlementsAndGrants{}) {
+		if a.MessageIs(&v2.SkipEntitlements{}) ||
+			a.MessageIs(&v2.SkipEntitlementsAndGrants{}) ||
+			a.MessageIs(&v2.SkipGrants{}) {
 			t.Fatal("workspace must not carry skip annotations: it owns a member entitlement")
 		}
 	}

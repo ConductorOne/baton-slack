@@ -21,10 +21,13 @@ type workspaceResourceType struct {
 	client             *slack.Client
 	businessPlusClient *client.Client
 	// skipWorkspaceRoleResourceType reports whether workspace_role is excluded
-	// from the sync filter. Grants below emits only cross-type workspace_role
-	// grants, so it returns early when the type isn't being synced. The
-	// resource-type-level skip annotations are deliberately not used: workspace
-	// has its own member entitlement, which they would suppress.
+	// from the sync filter. Grants emits a mix: workspace_role assignments plus
+	// the workspace's own member grants. Only the former are filtered, so this
+	// gates workspaceRoleGrants rather than short-circuiting Grants.
+	//
+	// The SkipGrants / SkipEntitlementsAndGrants annotations are not usable
+	// here for that same reason: they suppress the whole grants pass for the
+	// resource, which would silently drop workspace membership.
 	skipWorkspaceRoleResourceType bool
 }
 
@@ -148,12 +151,6 @@ func (o *workspaceResourceType) Grants(
 	resource *v2.Resource,
 	attrs resources.SyncOpAttrs,
 ) ([]*v2.Grant, *resources.SyncOpResults, error) {
-	// Every grant below targets workspace_role; skip the user pagination
-	// entirely when that type isn't part of the sync.
-	if o.skipWorkspaceRoleResourceType {
-		return nil, &resources.SyncOpResults{}, nil
-	}
-
 	var (
 		users             []client.User
 		pageToken         string
@@ -220,68 +217,15 @@ func (o *workspaceResourceType) Grants(
 			return nil, nil, fmt.Errorf("creating user resource ID: %w", err)
 		}
 
-		if user.IsPrimaryOwner {
-			rr, err := roleResource(ctx, PrimaryOwnerRoleID, resource.Id)
+		// Only the workspace_role grants are conditional. The workspace's own
+		// member grant below must still be emitted when workspace_role is
+		// filtered out.
+		if !o.skipWorkspaceRoleResourceType {
+			roleGrants, err := workspaceRoleGrants(ctx, user, resource.Id, userID)
 			if err != nil {
-				return nil, nil, fmt.Errorf("creating primary owner role resource: %w", err)
+				return nil, nil, err
 			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-		}
-
-		if user.IsOwner {
-			rr, err := roleResource(ctx, OwnerRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, fmt.Errorf("creating owner role resource: %w", err)
-			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-		}
-
-		if user.IsAdmin {
-			rr, err := roleResource(ctx, AdminRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, fmt.Errorf("creating admin role resource: %w", err)
-			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-		}
-
-		if user.IsRestricted {
-			if user.IsUltraRestricted {
-				rr, err := roleResource(ctx, SingleChannelGuestRoleID, resource.Id)
-				if err != nil {
-					return nil, nil, fmt.Errorf("creating single channel guest role resource: %w", err)
-				}
-				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-			} else {
-				rr, err := roleResource(ctx, MultiChannelGuestRoleID, resource.Id)
-				if err != nil {
-					return nil, nil, fmt.Errorf("creating multi channel guest role resource: %w", err)
-				}
-				rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-			}
-		}
-
-		if user.IsInvitedUser {
-			rr, err := roleResource(ctx, InvitedMemberRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, fmt.Errorf("creating invited member role resource: %w", err)
-			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-		}
-
-		if !user.IsRestricted && !user.IsUltraRestricted && !user.IsInvitedUser && !user.IsBot && !user.Deleted {
-			rr, err := roleResource(ctx, MemberRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, fmt.Errorf("creating member role resource: %w", err)
-			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
-		}
-
-		if user.IsBot {
-			rr, err := roleResource(ctx, BotRoleID, resource.Id)
-			if err != nil {
-				return nil, nil, fmt.Errorf("creating bot role resource: %w", err)
-			}
-			rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+			rv = append(rv, roleGrants...)
 		}
 
 		rv = append(rv, grant.NewGrant(resource, memberEntitlement, userID))
@@ -291,6 +235,78 @@ func (o *workspaceResourceType) Grants(
 		NextPageToken: pageToken,
 		Annotations:   outputAnnotations,
 	}, nil
+}
+
+// workspaceRoleGrants maps a workspace member's flags onto grants of the
+// workspace_role resource type. Split out from Grants so that it can be skipped
+// wholesale when workspace_role is excluded from the sync filter, without
+// disturbing the workspace's own member grants.
+func workspaceRoleGrants(
+	ctx context.Context,
+	user client.User,
+	workspaceID *v2.ResourceId,
+	userID *v2.ResourceId,
+) ([]*v2.Grant, error) {
+	var rv []*v2.Grant
+
+	appendRole := func(roleID string, describe string) error {
+		rr, err := roleResource(ctx, roleID, workspaceID)
+		if err != nil {
+			return fmt.Errorf("creating %s role resource: %w", describe, err)
+		}
+		rv = append(rv, grant.NewGrant(rr, RoleAssignmentEntitlement, userID))
+		return nil
+	}
+
+	if user.IsPrimaryOwner {
+		if err := appendRole(PrimaryOwnerRoleID, "primary owner"); err != nil {
+			return nil, err
+		}
+	}
+
+	if user.IsOwner {
+		if err := appendRole(OwnerRoleID, "owner"); err != nil {
+			return nil, err
+		}
+	}
+
+	if user.IsAdmin {
+		if err := appendRole(AdminRoleID, "admin"); err != nil {
+			return nil, err
+		}
+	}
+
+	if user.IsRestricted {
+		if user.IsUltraRestricted {
+			if err := appendRole(SingleChannelGuestRoleID, "single channel guest"); err != nil {
+				return nil, err
+			}
+		} else {
+			if err := appendRole(MultiChannelGuestRoleID, "multi channel guest"); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	if user.IsInvitedUser {
+		if err := appendRole(InvitedMemberRoleID, "invited member"); err != nil {
+			return nil, err
+		}
+	}
+
+	if !user.IsRestricted && !user.IsUltraRestricted && !user.IsInvitedUser && !user.IsBot && !user.Deleted {
+		if err := appendRole(MemberRoleID, "member"); err != nil {
+			return nil, err
+		}
+	}
+
+	if user.IsBot {
+		if err := appendRole(BotRoleID, "bot"); err != nil {
+			return nil, err
+		}
+	}
+
+	return rv, nil
 }
 
 // Grant and Revoke are not implemented for workspace membership because they require
