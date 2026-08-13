@@ -2,12 +2,15 @@ package connector
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
-	"github.com/conductorone/baton-sdk/pkg/types/grant"
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
 	"github.com/conductorone/baton-slack/pkg/connector/client"
+	"github.com/slack-go/slack"
 )
 
 // workspaceRoleGrants is the only part of Grants that is gated on the sync
@@ -36,26 +39,76 @@ func TestWorkspaceRoleGrants_OnlyTargetsWorkspaceRole(t *testing.T) {
 	}
 }
 
-// The workspace member grant is emitted by Grants itself, outside the gated
-// helper, so it must not be one of the grants the helper produces.
-func TestWorkspaceRoleGrants_ExcludesWorkspaceMemberGrant(t *testing.T) {
-	workspaceID := &v2.ResourceId{ResourceType: resourceTypeWorkspace.Id, Resource: "T123"}
-	userID := &v2.ResourceId{ResourceType: resourceTypeUser.Id, Resource: "U123"}
+// newStubbedWorkspaceBuilder returns a builder whose user source is an
+// httptest server serving users.list, so Grants can be exercised end to end.
+func newStubbedWorkspaceBuilder(t *testing.T, skipWorkspaceRoleResourceType bool) *workspaceResourceType {
+	t.Helper()
+
+	const usersListResponse = `{
+		"ok": true,
+		"members": [
+			{"id": "U123", "is_owner": true, "is_admin": true},
+			{"id": "U456"},
+			{"id": "U789", "is_stranger": true}
+		]
+	}`
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, usersListResponse)
+	}))
+	t.Cleanup(server.Close)
+
+	slackClient := slack.New("test-token", slack.OptionAPIURL(server.URL+"/"))
+	return workspaceBuilder(slackClient, nil, skipWorkspaceRoleResourceType)
+}
+
+// grantsByEntitlementType counts the grants Grants returned, keyed by the
+// resource type of the entitlement they target.
+func grantsByEntitlementType(grants []*v2.Grant) map[string]int {
+	counts := map[string]int{}
+	for _, g := range grants {
+		counts[g.GetEntitlement().GetResource().GetId().GetResourceType()]++
+	}
+	return counts
+}
+
+// The regression this PR fixed: gating the whole function dropped the
+// workspace's own member grants along with the role grants, which downstream
+// reads as mass revocation. Drive Grants at both settings of the flag.
+func TestWorkspaceGrants_MemberGrantsSurviveRoleFilter(t *testing.T) {
+	ctx := context.Background()
 
 	workspace, err := resources.NewResource("acme", resourceTypeWorkspace, "T123")
 	if err != nil {
 		t.Fatalf("NewResource: %v", err)
 	}
-	memberGrant := grant.NewGrant(workspace, memberEntitlement, userID)
 
-	grants, err := workspaceRoleGrants(context.Background(), client.User{ID: "U123"}, workspaceID, userID)
+	// Role in scope: both member grants and role grants.
+	inScope, _, err := newStubbedWorkspaceBuilder(t, false).Grants(ctx, workspace, resources.SyncOpAttrs{})
 	if err != nil {
-		t.Fatalf("workspaceRoleGrants: %v", err)
+		t.Fatalf("Grants with workspace_role in scope: %v", err)
 	}
-	for _, g := range grants {
-		if g.GetId() == memberGrant.GetId() {
-			t.Fatal("workspace member grant must be emitted unconditionally, not from the gated role helper")
-		}
+	inScopeCounts := grantsByEntitlementType(inScope)
+	// U123 and U456 are members; U789 is a stranger and must be skipped.
+	if got := inScopeCounts[resourceTypeWorkspace.Id]; got != 2 {
+		t.Errorf("workspace member grants = %d, want 2", got)
+	}
+	if inScopeCounts[resourceTypeWorkspaceRole.Id] == 0 {
+		t.Error("expected workspace_role grants for an owner/admin user")
+	}
+
+	// Role filtered out: the role grants go away, the member grants must not.
+	filtered, _, err := newStubbedWorkspaceBuilder(t, true).Grants(ctx, workspace, resources.SyncOpAttrs{})
+	if err != nil {
+		t.Fatalf("Grants with workspace_role filtered: %v", err)
+	}
+	filteredCounts := grantsByEntitlementType(filtered)
+	if got := filteredCounts[resourceTypeWorkspace.Id]; got != 2 {
+		t.Errorf("workspace member grants = %d, want 2: filtering workspace_role must not drop membership", got)
+	}
+	if got := filteredCounts[resourceTypeWorkspaceRole.Id]; got != 0 {
+		t.Errorf("workspace_role grants = %d, want 0", got)
 	}
 }
 
