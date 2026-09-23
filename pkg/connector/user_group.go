@@ -78,7 +78,7 @@ func (o *userGroupResourceType) List(
 		err        error
 	)
 	var outputAnnotations annotations.Annotations
-	userGroups, err = o.client.GetUserGroupsContext(ctx, slack.GetUserGroupsOptionWithTeamID(parentResourceID.Resource))
+	userGroups, err = o.client.GetUserGroupsContext(ctx, slack.GetUserGroupsOptionTeamID(parentResourceID.Resource))
 	if err != nil {
 		return nil, &resource.SyncOpResults{Annotations: outputAnnotations}, client.WrapError(err, fmt.Sprintf("fetching user groups for team %s", parentResourceID.Resource), &outputAnnotations)
 	}
