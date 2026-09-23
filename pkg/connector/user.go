@@ -65,10 +65,9 @@ func (o *userResourceType) scimUserResource(ctx context.Context, scimUser client
 		)
 	}
 
-	// If the credentials we're hitting the API with don't have admin, this can
-	// be false even if the user has mfa enabled.
-	// See https://api.slack.com/types/user for more info
-	if slackUser.Has2FA {
+	// Has2FA is nil when Slack omits has_2fa, including when the credentials
+	// cannot view it. Preserve explicit-true-only MFA reporting.
+	if slackUser.Has2FA != nil && *slackUser.Has2FA {
 		userTraitOptions = append(
 			userTraitOptions,
 			resource.WithMFAStatus(&v2.UserTrait_MFAStatus{MfaEnabled: true}),
@@ -127,10 +126,9 @@ func userResource(
 		)
 	}
 
-	// If the credentials we're hitting the API with don't have admin, this can
-	// be false even if the user has mfa enabled.
-	// See https://api.slack.com/types/user for more info
-	if user.Has2FA {
+	// Has2FA is nil when Slack omits has_2fa, including when the credentials
+	// cannot view it. Preserve explicit-true-only MFA reporting.
+	if user.Has2FA != nil && *user.Has2FA {
 		userTraitOptions = append(
 			userTraitOptions,
 			resource.WithMFAStatus(&v2.UserTrait_MFAStatus{MfaEnabled: true}),
