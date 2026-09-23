@@ -69,10 +69,9 @@ func userResource(
 		)
 	}
 
-	// If the credentials we're hitting the API with don't have admin, this can
-	// be false even if the user has mfa enabled.
-	// See https://api.slack.com/types/user for more info
-	if user.Has2FA {
+	// Slack omits has_2fa when the token cannot view the user's MFA status.
+	// Preserve explicit-true-only MFA reporting.
+	if user.Has2FA != nil && *user.Has2FA {
 		userTraitOptions = append(
 			userTraitOptions,
 			resource.WithMFAStatus(&v2.UserTrait_MFAStatus{MfaEnabled: true}),

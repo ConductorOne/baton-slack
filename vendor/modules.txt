@@ -422,8 +422,8 @@ github.com/shirou/gopsutil/v4/internal/common
 github.com/shirou/gopsutil/v4/mem
 github.com/shirou/gopsutil/v4/net
 github.com/shirou/gopsutil/v4/process
-# github.com/slack-go/slack v0.14.0
-## explicit; go 1.16
+# github.com/slack-go/slack v0.25.0
+## explicit; go 1.25
 github.com/slack-go/slack
 github.com/slack-go/slack/internal/backoff
 github.com/slack-go/slack/internal/errorsx
