@@ -63,22 +63,16 @@ func (c *Client) post(
 	path string,
 	target interface{},
 	payload map[string]interface{},
-	useBotToken bool,
 ) (
 	*v2.RateLimitDescription,
 	error,
 ) {
-	token := c.token
-	if useBotToken {
-		token = c.botToken
-	}
-
 	return c.doRequest(
 		ctx,
 		http.MethodPost,
 		c.getUrl(path, nil, false),
 		target,
-		WithBearerToken(token),
+		WithBearerToken(c.botToken),
 		uhttp.WithFormBody(toValues(payload)),
 	)
 }

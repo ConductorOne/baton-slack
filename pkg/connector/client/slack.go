@@ -94,7 +94,6 @@ func (c *Client) GetUserInfo(
 		UrlPathGetUserInfo,
 		&response,
 		map[string]interface{}{"user": userID},
-		true,
 	)
 	if err != nil {
 		return nil, ratelimitData, err
@@ -126,7 +125,6 @@ func (c *Client) GetUserGroupMembers(
 			teamIDKey:   teamID,
 			"usergroup": userGroupID,
 		},
-		true,
 	)
 	if err != nil {
 		return nil, ratelimitData, err
@@ -164,7 +162,6 @@ func (c *Client) GetUsers(
 		UrlPathGetUsers,
 		&response,
 		values,
-		true,
 	)
 	if err != nil {
 		return nil, "", ratelimitData, err
@@ -195,7 +192,6 @@ func (c *Client) GetUserGroups(
 		UrlPathGetUserGroups,
 		&response,
 		map[string]interface{}{teamIDKey: teamID},
-		true,
 	)
 	if err != nil {
 		return nil, ratelimitData, err
