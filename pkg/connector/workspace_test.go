@@ -13,6 +13,7 @@ import (
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
 	sessions "github.com/conductorone/baton-sdk/pkg/types/sessions"
 	"github.com/slack-go/slack"
+	"google.golang.org/grpc/status"
 )
 
 // memSessionStore is a minimal in-memory implementation of
@@ -91,7 +92,13 @@ func (m *memSessionStore) GetAll(_ context.Context, _ string, _ ...sessions.Sess
 // plus the session store the List call must be given.
 func newStubbedTeamsBuilder(t *testing.T, response string) (*workspaceResourceType, *memSessionStore) {
 	t.Helper()
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Pin the live discovery endpoint: List must keep calling Slack's
+		// auth.teams.list (via slack-go ListTeamsContext), not any other method.
+		if r.Method != http.MethodPost || !strings.HasSuffix(r.URL.Path, "/auth.teams.list") {
+			http.Error(w, "unexpected stub request: "+r.Method+" "+r.URL.Path, http.StatusInternalServerError)
+			return
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, response)
 	}))
@@ -166,5 +173,16 @@ func TestWorkspaceList_ErrorPropagation(t *testing.T) {
 	// Annotations slice; pin the non-nil results shape, not a populated one.
 	if !strings.Contains(err.Error(), "error listing teams") {
 		t.Errorf("error message %q does not contain %q", err.Error(), "error listing teams")
+	}
+	// The error must keep its typed gRPC classification (invalid_auth maps to
+	// codes.Unauthenticated in client.WrapError) so the SDK's retry/rate-limit
+	// plumbing can still classify it.
+	if _, ok := status.FromError(err); !ok {
+		t.Errorf("error %v is not a typed gRPC status error; WrapError classification lost", err)
+	}
+	// Pin the empty-annotations invariant for a plain ok:false (non-rate-limited)
+	// error: no rate-limit annotation may leak into the results here.
+	if n := len(result.Annotations); n != 0 {
+		t.Errorf("expected 0 annotations for plain ok:false error, got %d", n)
 	}
 }
