@@ -20,6 +20,7 @@ Check out [Baton](https://github.com/conductorone/baton) to learn more the proje
   - users:read.email
 3. Install the app to your workspace.
 4. Use Bot User OAuth Token as token in `baton-slack`.
+   Workspace discovery lists every workspace where the app is installed. If a user OAuth token (xoxp) is passed as `--token` instead, discovery is limited to the workspaces the authorizing user belongs to.
 
 For the Business+ plan the same rules apply for creating an app. There is
 a difference in setting scopes, for applications that will be installed on

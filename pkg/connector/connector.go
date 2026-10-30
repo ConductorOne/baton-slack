@@ -3,6 +3,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	v2 "github.com/conductorone/baton-sdk/pb/c1/connector/v2"
 	"github.com/conductorone/baton-sdk/pkg/annotations"
@@ -107,6 +108,12 @@ func (s *slackLogger) Output(callDepth int, msg string) error {
 
 func NewSlack(ctx context.Context, apiKey, businessPlusKey string, govEnv bool, baseURL string) (*Slack, error) {
 	l := ctxzap.Extract(ctx)
+
+	if strings.HasPrefix(apiKey, "xoxp") {
+		l.Warn("baton-slack: --token is a user OAuth token (xoxp); workspace discovery lists only the workspaces the authorizing user belongs to. " +
+			"Pass the Bot User OAuth Token (xoxb) to discover every workspace where the app is installed")
+	}
+
 	httpClient, err := uhttp.NewClient(ctx, uhttp.WithLogger(true, l))
 	if err != nil {
 		return nil, err

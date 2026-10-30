@@ -10,7 +10,6 @@ const (
 	UrlPathGetUserGroups       = "/api/usergroups.list"
 	UrlPathGetUserInfo         = "/api/users.info"
 	UrlPathGetUsers            = "/api/users.list"
-	UrlPathAuthTeamsList       = "/api/auth.teams.list"
 )
 
 // all scim endpoints are only accessible with an admin scope token
