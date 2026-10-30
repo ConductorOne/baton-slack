@@ -110,7 +110,7 @@ func NewSlack(ctx context.Context, apiKey, businessPlusKey string, govEnv bool, 
 	l := ctxzap.Extract(ctx)
 
 	if strings.HasPrefix(apiKey, "xoxp") {
-		l.Warn("slack: --token is a user OAuth token (xoxp); workspace discovery lists only the workspaces the authorizing user belongs to. " +
+		l.Warn("baton-slack: --token is a user OAuth token (xoxp); workspace discovery lists only the workspaces the authorizing user belongs to. " +
 			"Pass the Bot User OAuth Token (xoxb) to discover every workspace where the app is installed")
 	}
 
