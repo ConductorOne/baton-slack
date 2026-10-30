@@ -117,6 +117,13 @@ Your user OAuth token is created. Copy and save the token value.
 </Steps>
 **Done.** Next, move on to the connector configuration instructions. 
 
+<Warning>
+The connector uses two different tokens depending on your Slack plan, and workspace discovery is driven entirely by the **Access token**:
+
+- For all plans, the **Bot User OAuth Token (xoxb)** goes in the **Access token** field (or `--token`). Workspace discovery lists every workspace where the app is installed; if a user OAuth token (xoxp) is passed here instead, discovery is limited to only the workspaces the authorizing user belongs to.
+- For Business+ plans, the **User OAuth Token (xoxp)** goes in the **Business plus token** field (or `--business-plus-token`) and is used for SCIM operations.
+</Warning>
+
 ## Configure the Slack connector
 
 <Warning>
