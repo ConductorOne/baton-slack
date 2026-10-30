@@ -204,7 +204,6 @@ func (c *Client) GetUserGroups(
 	return response.UserGroups, ratelimitData, nil
 }
 
-
 // ListIDPGroups returns all IDP groups from the SCIM API.
 func (c *Client) ListIDPGroups(
 	ctx context.Context,
