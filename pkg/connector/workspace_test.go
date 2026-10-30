@@ -13,6 +13,7 @@ import (
 	resources "github.com/conductorone/baton-sdk/pkg/types/resource"
 	sessions "github.com/conductorone/baton-sdk/pkg/types/sessions"
 	"github.com/slack-go/slack"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
@@ -177,8 +178,8 @@ func TestWorkspaceList_ErrorPropagation(t *testing.T) {
 	// The error must keep its typed gRPC classification (invalid_auth maps to
 	// codes.Unauthenticated in client.WrapError) so the SDK's retry/rate-limit
 	// plumbing can still classify it.
-	if _, ok := status.FromError(err); !ok {
-		t.Errorf("error %v is not a typed gRPC status error; WrapError classification lost", err)
+	if got := status.Code(err); got != codes.Unauthenticated {
+		t.Errorf("WrapError classification lost: got %v, want %v (invalid_auth must map to Unauthenticated)", got, codes.Unauthenticated)
 	}
 	// Pin the empty-annotations invariant for a plain ok:false (non-rate-limited)
 	// error: no rate-limit annotation may leak into the results here.
